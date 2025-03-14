@@ -1,3 +1,4 @@
+from typing import List
 from .deps import (
     get_conv_manager,
     get_conn_manager,
@@ -12,7 +13,7 @@ from connection_manager import ConnectionManager
 from ska_utils import get_telemetry
 from jose_types import ExtraData
 from context_directive import parse_context_directives
-from model.requests import ConversationMessageRequest
+from model import AddContextItemRequest, ConversationMessageRequest
 
 conv_manager = get_conv_manager()
 conn_manager = get_conn_manager()
@@ -31,8 +32,14 @@ async def get_conversation_by_id(user_id: str, session_id: str):
 
 @router.put("/conversations/{session_id}", tags=["Conversations"],
              description="Add a message to a conversation based on a session id.")
-async def add_conversation_message_by_id(user_id: str, session_id: str, request: ConversationMessageRequest):
+async def add_conversation_message_by_id(user_id: str, session_id: str, request: ConversationMessageRequest, user_context_to_add: List[AddContextItemRequest] = None):
     jt = get_telemetry()
+
+    # Add user context (if any are specified in body of request)
+    if user_context_to_add:
+        for user_context in user_context_to_add: 
+            conv_manager.add_user_context_item(user_id, user_context.item_key, user_context.item_value)
+
     conv = conv_manager.get_conversation(user_id, session_id)
 
     with (
@@ -95,8 +102,14 @@ async def add_conversation_message_by_id(user_id: str, session_id: str, request:
 
 @router.post("/conversation/new_conversation", tags=["Conversations"],
          description="Start a new conversation. Returns new session ID and agent response.")
-async def new_conversation(user_id: str, is_resumed: bool):
+async def new_conversation(user_id: str, is_resumed: bool, user_context_to_add: List[AddContextItemRequest] = None):
     jt = get_telemetry()
+
+    # Add user context (if any are specified in body of request)
+    if user_context_to_add:
+        for user_context in user_context_to_add: 
+            conv_manager.add_user_context_item(user_id, user_context.item_key, user_context.item_value)
+
     with (
         jt.tracer.start_as_current_span("init-conversation")
         if jt.telemetry_enabled()
@@ -104,6 +117,14 @@ async def new_conversation(user_id: str, is_resumed: bool):
     ):
         conv = conv_manager.new_conversation(user_id, is_resumed)
     return {"conversation": conv}
+
+@router.post("/add_context", tags=["Context"],
+         description="Add new item(s) to user context.")
+async def add_context(user_id: str, user_context_to_add: List[AddContextItemRequest]):
+    if user_context_to_add:
+            for user_context in user_context_to_add:
+                conv_manager.add_user_context_item(user_id, user_context.item_key, user_context.item_value)
+    return {"status": "completed"}
 
 @router.get("/healthcheck", tags=["Health"],
          description="Check the health status of the application.")

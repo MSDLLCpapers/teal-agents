@@ -13,6 +13,9 @@ class ContextItem(BaseModel):
     context_type: ContextType
     value: str
 
+class AddContextItemRequest(BaseModel):
+    item_key: str
+    item_value: str
 
 class UserMessage(BaseModel):
     content: str

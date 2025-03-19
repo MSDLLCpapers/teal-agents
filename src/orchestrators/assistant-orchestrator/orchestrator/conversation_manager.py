@@ -81,6 +81,14 @@ class ConversationManager:
                 conversation.user_id, item_key, item_value
             )
 
+    def add_user_context_item(
+        self,
+        user_id: str,
+        item_key: str,
+        item_value: str
+    ) -> None:
+        self.services_client.add_context_item(user_id, item_key, item_value)
+
     def update_context_item(
         self, conversation: Conversation, item_key: str, item_value: str
     ) -> None:

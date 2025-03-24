@@ -7,8 +7,8 @@ from .deps import (
     get_fallback_agent,
 )
 from contextlib import nullcontext
-from fastapi import FastAPI, APIRouter
-from connection_manager import ConnectionManager
+from fastapi import Depends, APIRouter
+from fastapi.security import APIKeyHeader
 from ska_utils import get_telemetry
 from jose_types import ExtraData
 from context_directive import parse_context_directives
@@ -22,6 +22,7 @@ agent_catalog = get_agent_catalog()
 fallback_agent = get_fallback_agent()
 
 router = APIRouter()
+header_scheme = APIKeyHeader(name="authorization", auto_error=False)
 
 @router.get("/conversations/{session_id}", tags=["Conversations"],
          description="Get the full conversation history based on a session id.")
@@ -31,7 +32,12 @@ async def get_conversation_by_id(user_id: str, session_id: str):
 
 @router.put("/conversations/{session_id}", tags=["Conversations"],
              description="Add a message to a conversation based on a session id.")
-async def add_conversation_message_by_id(user_id: str, session_id: str, request: ConversationMessageRequest):
+async def add_conversation_message_by_id(
+    user_id: str,
+    session_id: str,
+    request: ConversationMessageRequest,
+    authorization: str = Depends(header_scheme)
+):
     jt = get_telemetry()
     conv = conv_manager.get_conversation(user_id, session_id)
 
@@ -66,7 +72,7 @@ async def add_conversation_message_by_id(user_id: str, session_id: str, request:
             if jt.telemetry_enabled()
             else nullcontext()
         ):
-            response = agent.invoke_api(conv)
+            response = agent.invoke_api(conv, authorization)
             try:
                 # Set the agent response from raw output
                 agent_response = response.get('output_raw', "No output available.")

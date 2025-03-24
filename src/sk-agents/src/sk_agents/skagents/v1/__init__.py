@@ -32,6 +32,6 @@ def _handle_sequential(
         chat_completion_builder, remote_plugin_loader, app_config
     )
     agent_builder = AgentBuilder(kernel_builder)
-    task_builder = TaskBuilder(agent_builder)
+    task_builder = TaskBuilder(agent_builder, authorization)
     seq_skagents = SequentialSkagents(config, kernel_builder, task_builder)
     return seq_skagents

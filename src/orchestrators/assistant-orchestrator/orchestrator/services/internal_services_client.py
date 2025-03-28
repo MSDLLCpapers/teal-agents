@@ -1,5 +1,5 @@
 import uuid
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from model import Conversation, UserMessage, AgentMessage, ContextItem, ContextType
 from services.services_client import (
@@ -20,9 +20,14 @@ class InternalServicesClient(ServicesClient):
         self.conversations: Dict[str, InternalConversation] = {}
         self.contexts: Dict[str, Dict[str, str]] = {}
 
-    def new_conversation(self, user_id: str, is_resumed: bool) -> Conversation:
+    def new_conversation(self, user_id: str, is_resumed: bool, transient_user_context: Optional[Dict]=None) -> Conversation:
         message_list: List[UserMessage | AgentMessage] = []
         user_context: Dict[str, ContextItem] = {}
+        if transient_user_context:
+            for key, value in transient_user_context.items():
+                user_context[key] = ContextItem(
+                    value=str(value), context_type=ContextType.TRANSIENT
+                )
         conversation = InternalConversation(
             conversation_id=str(uuid.uuid4()),
             user_id=user_id,
@@ -41,9 +46,14 @@ class InternalServicesClient(ServicesClient):
         print("New conversation id created: {}".format(conversation.conversation_id))
         return conversation
     
-    def get_conversation(self, user_id: str, session_id: str) -> Conversation:
+    def get_conversation(self, user_id: str, session_id: str, transient_user_context: Optional[Dict]=None) -> Conversation:
         message_list: List[UserMessage | AgentMessage] = []
         user_context: Dict[str, ContextItem] = {}
+        if transient_user_context:
+            for key, value in transient_user_context.items():
+                user_context[key] = ContextItem(
+                    value=str(value), context_type=ContextType.TRANSIENT
+                )
         conversation = Conversation(
             conversation_id=session_id,
             user_id=user_id,

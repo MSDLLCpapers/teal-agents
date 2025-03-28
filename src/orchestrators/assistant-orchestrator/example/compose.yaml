@@ -192,3 +192,8 @@ services:
       retries: 10
     profiles:
       - "with-test-agent"
+  redis-user-context:
+    image: "redis:latest"
+    ports:
+      - "6377:6377"
+    command: redis-server --port 6377

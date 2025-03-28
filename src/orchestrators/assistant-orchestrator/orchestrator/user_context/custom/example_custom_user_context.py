@@ -10,7 +10,7 @@ from configs import (
     TA_REDIS_PORT,
     TA_REDIS_DB,
     TA_REDIS_TTL,
-    TA_USER_CONTEXT_KEY
+    TA_USER_INFORMATION_SOURCE_KEY
 )
 class ExampleCustomUserContext(UserContextCache):
     def __init__(self):
@@ -22,7 +22,7 @@ class ExampleCustomUserContext(UserContextCache):
             db=int(self.app_config.get(TA_REDIS_DB.env_name)),
         )
         self.ttl = int(self.app_config.get(TA_REDIS_TTL.env_name))
-        self.user_information_api_key = self.app_config.get(TA_USER_CONTEXT_KEY.env_name)
+        self.user_information_api_key = self.app_config.get(TA_USER_INFORMATION_SOURCE_KEY.env_name)
 
     def get_user_context_from_cache(self, user_id:str)-> ContextCacheResponse:
         try:

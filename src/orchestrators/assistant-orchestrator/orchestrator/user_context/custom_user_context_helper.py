@@ -5,7 +5,7 @@ from user_context import UserContextCache
 from configs import (
     TA_CUSTOM_USER_CONTEXT_ENABLED,
     TA_CUSTOM_USER_CONTEXT_MODULE,
-    TA_CUSTOM_USER_CONTEXT
+    TA_CUSTOM_USER_CONTEXT_CLASS_NAME
 )
 
 class CustomUserContextHelper:
@@ -22,7 +22,7 @@ class CustomUserContextHelper:
         if not self.custom_user_context_enabled:
             return None
     
-        class_name = self.app_config.get(TA_CUSTOM_USER_CONTEXT.env_name)
+        class_name = self.app_config.get(TA_CUSTOM_USER_CONTEXT_CLASS_NAME.env_name)
         return getattr(self.module, class_name)()
     
     def _get_custom_user_context_config(self) -> (str,str):
@@ -30,7 +30,7 @@ class CustomUserContextHelper:
         if not custom_auth_module:
             raise ValueError("Custom user context module is enabled but not defined")
 
-        custom_authenticator = self.app_config.get(TA_CUSTOM_USER_CONTEXT.env_name)
+        custom_authenticator = self.app_config.get(TA_CUSTOM_USER_CONTEXT_CLASS_NAME.env_name)
         if not custom_authenticator:
             raise ValueError("Custom user context is enabled but not defined")
 

@@ -22,8 +22,8 @@ TA_SERVICES_ENDPOINT = Config(
 TA_SERVICES_TOKEN = Config(
     env_name="TA_SERVICES_TOKEN", is_required=False, default_value=None
 )
-TA_USER_CONTEXT_KEY = Config(
-    env_name="TA_USER_CONTEXT_KEY", is_required=False, default_value=None
+TA_USER_INFORMATION_SOURCE_KEY = Config(
+    env_name="TA_USER_INFORMATION_SOURCE_KEY", is_required=False, default_value=None
 )
 TA_REDIS_HOST = Config(
     env_name="TA_REDIS_HOST", is_required=False, default_value=None
@@ -43,11 +43,8 @@ TA_CUSTOM_USER_CONTEXT_ENABLED = Config(
 TA_CUSTOM_USER_CONTEXT_MODULE = Config(
     env_name="TA_CUSTOM_USER_CONTEXT_MODULE", is_required=False, default_value=None
 )
-TA_CUSTOM_USER_CONTEXT = Config(
-    env_name="TA_CUSTOM_USER_CONTEXT", is_required=False, default_value=None
-)
-TA_CUSTOM_USER_CONTEXT_REQUEST = Config(
-    env_name="TA_CUSTOM_USER_CONTEXT_REQUEST", is_required=False, default_value=None
+TA_CUSTOM_USER_CONTEXT_CLASS_NAME = Config(
+    env_name="TA_CUSTOM_USER_CONTEXT_CLASS_NAME", is_required=False, default_value=None
 )
 
 CONFIGS = [
@@ -59,13 +56,12 @@ CONFIGS = [
     TA_SERVICES_TYPE,
     TA_SERVICES_ENDPOINT,
     TA_SERVICES_TOKEN,
-    TA_USER_CONTEXT_KEY,
+    TA_USER_INFORMATION_SOURCE_KEY,
     TA_REDIS_HOST,
     TA_REDIS_PORT,
     TA_REDIS_DB,
     TA_REDIS_TTL,
     TA_CUSTOM_USER_CONTEXT_ENABLED,
     TA_CUSTOM_USER_CONTEXT_MODULE,
-    TA_CUSTOM_USER_CONTEXT,
-    TA_CUSTOM_USER_CONTEXT_REQUEST
+    TA_CUSTOM_USER_CONTEXT_CLASS_NAME
 ]

@@ -1,5 +1,5 @@
 import json
-from typing import Dict
+from typing import Dict, Optional
 
 import requests
 from opentelemetry.propagate import inject
@@ -47,7 +47,7 @@ class ExternalServicesClient(ServicesClient):
         self.endpoint = endpoint
         self.token = token
 
-    def new_conversation(self, user_id: str, is_resumed: bool) -> Conversation:
+    def new_conversation(self, user_id: str, is_resumed: bool, transient_user_context: Optional[Dict]=None) -> Conversation:
         request = NewConversationRequest(user_id=user_id, is_resumed=is_resumed)
 
         headers = {
@@ -68,12 +68,16 @@ class ExternalServicesClient(ServicesClient):
             user_context[key] = ContextItem(
                 value=value, context_type=ContextType.PERSISTENT
             )
-
+        if transient_user_context:
+            for key, value in transient_user_context.items():
+                user_context[key] = ContextItem(
+                    value=str(value), context_type=ContextType.TRANSIENT
+                )
         return Conversation(
             **history_response, user_id=user_id, user_context=user_context
         )
 
-    def get_conversation(self, user_id: str, session_id: str) -> Conversation:
+    def get_conversation(self, user_id: str, session_id: str, transient_user_context: Optional[Dict]=None) -> Conversation:
         request = GetConversationRequest(user_id=user_id, session_id=session_id)
         headers = {
             "taAgwKey": self.token,
@@ -93,6 +97,11 @@ class ExternalServicesClient(ServicesClient):
             user_context[key] = ContextItem(
                 value=value, context_type=ContextType.PERSISTENT
             )
+        if transient_user_context:
+            for key, value in transient_user_context.items():
+                user_context[key] = ContextItem(
+                    value=str(value), context_type=ContextType.TRANSIENT
+                )
         return Conversation(
             **history_response, user_id=user_id, user_context=user_context
         )

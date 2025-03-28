@@ -17,6 +17,7 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-grpc",
     "pynamodb",
     "ska-utils",
+    "redis>=5.2.1",
 ]
 
 [tool.uv.sources]

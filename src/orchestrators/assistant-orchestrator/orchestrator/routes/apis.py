@@ -7,7 +7,7 @@ from .deps import (
     get_fallback_agent,
 )
 from contextlib import nullcontext
-from fastapi import Depends, APIRouter
+from fastapi import Depends, APIRouter, HTTPException
 from fastapi.security import APIKeyHeader
 from ska_utils import get_telemetry
 from jose_types import ExtraData
@@ -27,7 +27,11 @@ header_scheme = APIKeyHeader(name="authorization", auto_error=False)
 @router.get("/conversations/{session_id}", tags=["Conversations"],
          description="Get the full conversation history based on a session id.")
 async def get_conversation_by_id(user_id: str, session_id: str):
-    conv = conv_manager.get_conversation(user_id, session_id)
+    try:
+        conv = conv_manager.get_conversation(user_id, session_id)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Unable to get conversation with session_id: {session_id} --- {e}")
+ 
     return {"conversation": conv}
 
 @router.put("/conversations/{session_id}", tags=["Conversations"],
@@ -39,8 +43,12 @@ async def add_conversation_message_by_id(
     authorization: str = Depends(header_scheme)
 ):
     jt = get_telemetry()
-    conv = conv_manager.get_conversation(user_id, session_id)
 
+    try:
+        conv = conv_manager.get_conversation(user_id, session_id)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Unable to get conversation with session_id: {session_id} --- {e}")
+    
     with (
         jt.tracer.start_as_current_span("conversation-turn")
         if jt.telemetry_enabled()
@@ -52,7 +60,11 @@ async def add_conversation_message_by_id(
             else nullcontext()
         ):
             # Select an agent
-            selected_agent = await rec_chooser.choose_recipient(request.message, conv)
+            try:
+                selected_agent = await rec_chooser.choose_recipient(request.message, conv)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Error retrieving agent to handle conversation message --- {e}")
+            
             if selected_agent.agent_name not in agent_catalog.agents:
                 agent = fallback_agent
                 sel_agent_name = fallback_agent.name
@@ -65,8 +77,11 @@ async def add_conversation_message_by_id(
             else nullcontext()
         ):
             # Add the current message to conversation history
-            conv_manager.add_user_message(conv, request.message, sel_agent_name)
-
+            try:
+                conv_manager.add_user_message(conv, request.message, sel_agent_name)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Error adding new message to conversation history --- {e}")
+        
         with (
             jt.tracer.start_as_current_span("agent-response")
             if jt.telemetry_enabled()
@@ -95,8 +110,11 @@ async def add_conversation_message_by_id(
             else nullcontext()
         ):
             # Add response to conversation history
-            conv_manager.add_agent_message(conv, agent_response, sel_agent_name)
-        
+            try:
+                conv_manager.add_agent_message(conv, agent_response, sel_agent_name)
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Error adding response to conversation history --- {e}")
+            
     return {"conversation": conv_manager.get_last_response(conv) }
 
 @router.post("/conversation/new_conversation", tags=["Conversations"],
@@ -108,7 +126,11 @@ async def new_conversation(user_id: str, is_resumed: bool):
         if jt.telemetry_enabled()
         else nullcontext()
     ):
-        conv = conv_manager.new_conversation(user_id, is_resumed)
+        try:
+            conv = conv_manager.new_conversation(user_id, is_resumed)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error creating new conversation --- {e}")
+    
     return {"conversation": conv}
 
 @router.get("/healthcheck", tags=["Health"],

@@ -14,6 +14,7 @@ from conversation_manager import ConversationManager
 from recipient_chooser import RecipientChooser
 from connection_manager import ConnectionManager
 from jose_types import Config
+from user_context import CustomUserContextHelper, UserContextCache
 
 AppConfig.add_configs(CONFIGS)
 
@@ -25,9 +26,11 @@ _rec_chooser: Optional[RecipientChooser] = None
 _config: Optional[Config] = None
 _agent_catalog: Optional[AgentCatalog] = None
 _fallback_agent: Optional[Agent] = None
+_user_context_helper: CustomUserContextHelper = CustomUserContextHelper(app_config)
+
 
 def initialize() -> None:
-    global _conv_manager, _conn_manager, _rec_chooser, _config, _agent_catalog, _fallback_agent
+    global _conv_manager, _conn_manager, _rec_chooser, _config, _agent_catalog, _fallback_agent, _user_context
     
     config_file = app_config.get(TA_SERVICE_CONFIG.env_name)
     _config = parse_yaml_file_as(Config, config_file)
@@ -54,7 +57,9 @@ def initialize() -> None:
     _conn_manager = ConnectionManager()
     _conv_manager = ConversationManager(_config.service_name)
     _rec_chooser = RecipientChooser(recipient_chooser_agent)
-
+    _user_context = (
+        _user_context_helper.get_user_context()
+    )
 def get_conv_manager() -> ConversationManager:
     if _conv_manager is None:
         initialize()
@@ -84,3 +89,8 @@ def get_fallback_agent() -> Agent:
     if _fallback_agent is None:
         initialize()
     return _fallback_agent
+
+def get_user_context_cache() -> UserContextCache|None:
+    if _user_context is None:
+        initialize()
+    return _user_context

@@ -1,5 +1,5 @@
 import uuid
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from model import Conversation, UserMessage, AgentMessage, ContextItem, ContextType
 from services.services_client import (

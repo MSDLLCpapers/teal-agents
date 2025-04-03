@@ -1,5 +1,5 @@
 import json
-from typing import Dict
+from typing import Dict, Optional
 
 import requests
 from opentelemetry.propagate import inject
@@ -68,7 +68,7 @@ class ExternalServicesClient(ServicesClient):
             user_context[key] = ContextItem(
                 value=value, context_type=ContextType.PERSISTENT
             )
-
+        
         return Conversation(
             **history_response, user_id=user_id, user_context=user_context
         )

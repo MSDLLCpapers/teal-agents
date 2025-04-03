@@ -27,7 +27,7 @@ router = APIRouter()
 
 
 @router.websocket(
-        f"/{config.service_name}/{str(config.version)}/stream/{{ticket}}"
+        f"/stream/{{ticket}}"
 )
 async def invoke_stream(
     websocket: WebSocket,

@@ -1,7 +1,7 @@
-from typing import List
+from typing import List, Optional, Dict
 
 from context_directive import ContextDirective, ContextDirectiveOp
-from model import Conversation, ContextType
+from model import Conversation, ContextType, ContextItem
 from services import new_client, MessageType
 
 
@@ -102,3 +102,15 @@ class ConversationManager:
             self.update_context_item(conversation, key, value)
         except ValueError:
             self.add_context_item(conversation, key, value, ContextType.TRANSIENT)
+
+    def add_transient_context(
+            self, conversation: Conversation, transient_user_context: Optional[Dict]
+    ) -> None:
+        if transient_user_context:
+            transient_context = {}
+            for key, value in transient_user_context.items():
+                transient_context[key] = ContextItem(
+                    value=str(value), 
+                    context_type=ContextType.TRANSIENT
+                )
+            conversation.user_context.update(transient_context)

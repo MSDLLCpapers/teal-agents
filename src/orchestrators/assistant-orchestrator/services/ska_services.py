@@ -31,7 +31,13 @@ app_config = AppConfig()
 
 initialize_telemetry("Agent-Services", app_config)
 
-app = FastAPI()
+# Instance of FastAPI app
+app = FastAPI(
+    openapi_url=f"/services/v1/openapi.json",
+    docs_url=f"/services/v1/docs",
+    redoc_url=f"/services/v1/redoc"
+)
+
 # noinspection PyTypeChecker
 app.add_middleware(TelemetryMiddleware, st=get_telemetry())
 
@@ -48,7 +54,7 @@ authenticator: Authenticator[auth_helper.get_request_type()] = (
 
 
 @app.post("/services/v1/authenticate")
-def authenticate_user(
+async def authenticate_user(
     payload: auth_helper.get_request_type(),
 ) -> AuthenticationResponse:
     auth_response = authenticator.authenticate(payload)
@@ -60,8 +66,8 @@ def authenticate_user(
         )
 
 
-@app.post("/services/v1/{orchestrator_name}/tickets")
-def create_ticket(
+@app.post("/services/v1/{orchestrator_name}/tickets", tags=["Tickets"])
+async def create_ticket(
     orchestrator_name: str, payload: auth_helper.get_request_type(), request: Request
 ) -> CreateTicketResponse:
     ip_address: str
@@ -82,8 +88,8 @@ def create_ticket(
         )
 
 
-@app.post("/services/v1/{orchestrator_name}/tickets/verify")
-def verify_ticket(
+@app.post("/services/v1/{orchestrator_name}/tickets/verify", tags=["Tickets"])
+async def verify_ticket(
     orchestrator_name: str, payload: VerifyTicketRequest, request: Request
 ) -> VerifyTicketResponse:
     return ticket_manager.verify_ticket(
@@ -91,26 +97,24 @@ def verify_ticket(
     )
 
 
-@app.post("/services/v1/{orchestrator_name}/conversation-history")
-def new_conversation(
+@app.post("/services/v1/{orchestrator_name}/conversation-history", tags=["Conversation History"])
+async def new_conversation(
     orchestrator_name: str, payload: NewConversationRequest, request: Request
 ) -> ConversationResponse:
     return conversation_manager.new_conversation(
         orchestrator_name, payload.user_id, payload.is_resumed
     )
 
-@app.get("/services/v1/{orchestrator_name}/conversation-history/{conversation_id}")
-def get_conversation_message(
+@app.get("/services/v1/{orchestrator_name}/conversation-history/{conversation_id}", tags=["Conversation History"])
+async def get_conversation_message(
     orchestrator_name: str, payload: GetConversationRequest, request: Request
 ) -> ConversationResponse:
     return conversation_manager.get_conversation(
         orchestrator_name, payload.user_id, payload.session_id
     )
 
-@app.post(
-    "/services/v1/{orchestrator_name}/conversation-history/{conversation_id}/messages"
-)
-def add_conversation_message(
+@app.post("/services/v1/{orchestrator_name}/conversation-history/{conversation_id}/messages", tags=["Conversation History"])
+async def add_conversation_message(
     orchestrator_name: str,
     conversation_id: str,
     request: AddConversationMessageRequest,
@@ -124,8 +128,8 @@ def add_conversation_message(
     )
 
 
-@app.post("/services/v1/{orchestrator_name}/users/{user_id}/context")
-def create_context_item(
+@app.post("/services/v1/{orchestrator_name}/users/{user_id}/context", tags=["Users"])
+async def create_context_item(
     orchestrator_name: str, user_id: str, request: AddContextItemRequest
 ) -> GeneralResponse:
     context_manager.add_context(
@@ -134,8 +138,8 @@ def create_context_item(
     return GeneralResponse(status=200, message="Context item added successfully")
 
 
-@app.put("/services/v1/{orchestrator_name}/users/{user_id}/context/{item_key}")
-def update_context_item(
+@app.put("/services/v1/{orchestrator_name}/users/{user_id}/context/{item_key}", tags=["Users"])
+async def update_context_item(
     orchestrator_name: str,
     user_id: str,
     item_key: str,
@@ -147,8 +151,8 @@ def update_context_item(
     return GeneralResponse(status=200, message="Context item updated successfully")
 
 
-@app.delete("/services/v1/{orchestrator_name}/users/{user_id}/context/{item_key}")
-def delete_context_item(
+@app.delete("/services/v1/{orchestrator_name}/users/{user_id}/context/{item_key}", tags=["Users"])
+async def delete_context_item(
     orchestrator_name: str, user_id: str, item_key: str
 ) -> GeneralResponse:
     try:
@@ -158,6 +162,12 @@ def delete_context_item(
     return GeneralResponse(status=200, message="Context item deleted successfully")
 
 
-@app.get("/services/v1/{orchestrator_name}/users/{user_id}/context")
-def get_context_items(orchestrator_name: str, user_id: str) -> dict[str, str]:
+@app.get("/services/v1/{orchestrator_name}/users/{user_id}/context", tags=["Users"])
+async def get_context_items(orchestrator_name: str, user_id: str) -> dict[str, str]:
     return context_manager.get_context(orchestrator_name, user_id)
+
+
+@app.get("/services/v1/{orchestrator_name}/healthcheck", tags=["Health"], 
+         description="Check the health status of ska services.")
+async def healthcheck():
+    return {"status": "healthy"}

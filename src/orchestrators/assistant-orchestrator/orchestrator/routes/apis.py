@@ -44,27 +44,48 @@ async def get_conversation_by_id(user_id: str, session_id: str):
     return {"conversation": conv}
 
 
-@router.put(
-    "/conversations/{session_id}",
+@router.post(
+    "/conversations",
     tags=["Conversations"],
-    description="Add a message to a conversation based on a session id.",
+    description="Send a message to a conversation based on a session id. If session id is not provided, a new conversation will be created.",
 )
 async def add_conversation_message_by_id(
     user_id: str,
-    session_id: str,
-    request: ConversationMessageRequest,
+    session_id: str = None,
+    request: ConversationMessageRequest = None,
     authorization: str = Depends(header_scheme),
 ):
     jt = get_telemetry()
 
-    try:
-        conv = conv_manager.get_conversation(user_id, session_id)
-    except Exception as e:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Unable to get conversation with session_id: {session_id} --- {e}",
-        )
+    if session_id is None:
+        with (
+            jt.tracer.start_as_current_span("init-conversation")
+            if jt.telemetry_enabled()
+            else nullcontext()
+        ):
+            try:
+                conv = conv_manager.new_conversation(user_id, False)
+                session_id = conv.conversation_id
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500, detail=f"Error creating new conversation --- {e}"
+                )
+    else:
 
+        try:
+            conv = conv_manager.get_conversation(user_id, session_id)
+        except Exception as e:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Unable to get conversation with session_id: {session_id} --- {e}",
+            )
+    
+    print(user_id)
+    print(session_id)
+    print(request)
+    print(authorization)
+    print(conv)
+    
     in_memory_user_context = None
     if cache_user_context:
         in_memory_user_context = cache_user_context.get_user_context_from_cache(
@@ -149,29 +170,6 @@ async def add_conversation_message_by_id(
                 )
 
     return {"conversation": conv_manager.get_last_response(conv)}
-
-
-@router.post(
-    "/conversation/new_conversation",
-    tags=["Conversations"],
-    description="Start a new conversation. Returns new session ID and agent response.",
-)
-async def new_conversation(user_id: str, is_resumed: bool):
-    jt = get_telemetry()
-    with (
-        jt.tracer.start_as_current_span("init-conversation")
-        if jt.telemetry_enabled()
-        else nullcontext()
-    ):
-        try:
-            conv = conv_manager.new_conversation(user_id, is_resumed)
-        except Exception as e:
-            raise HTTPException(
-                status_code=500, detail=f"Error creating new conversation --- {e}"
-            )
-
-    return {"conversation": conv}
-
 
 @router.get(
     "/healthcheck",

@@ -57,6 +57,7 @@ async def add_conversation_message_by_id(
 ):
     jt = get_telemetry()
 
+    # start a new conversation if no session id was provided
     if session_id is None:
         with (
             jt.tracer.start_as_current_span("init-conversation")
@@ -70,8 +71,9 @@ async def add_conversation_message_by_id(
                 raise HTTPException(
                     status_code=500, detail=f"Error creating new conversation --- {e}"
                 )
+    
+    # get conversation history if session id was provided
     else:
-
         try:
             conv = conv_manager.get_conversation(user_id, session_id)
         except Exception as e:
@@ -79,13 +81,7 @@ async def add_conversation_message_by_id(
                 status_code=404,
                 detail=f"Unable to get conversation with session_id: {session_id} --- {e}",
             )
-    
-    print(user_id)
-    print(session_id)
-    print(request)
-    print(authorization)
-    print(conv)
-    
+        
     in_memory_user_context = None
     if cache_user_context:
         in_memory_user_context = cache_user_context.get_user_context_from_cache(

@@ -35,6 +35,7 @@ class DynamoContextManager(ContextManager, metaclass=Singleton):
             context_item.save()
         except Exception as e:
             logger.exception(f"Error adding context item to DB - Error: {e}")
+            raise
 
     def update_context(
         self, orchestrator_name: str, user_id: str, item_key: str, item_value: str
@@ -50,6 +51,7 @@ class DynamoContextManager(ContextManager, metaclass=Singleton):
             context_item.save()
         except Exception as e:
             logger.exception(f"Error updating context in DB - Error: {e}")
+            raise
 
     def delete_context(self, orchestrator_name: str, user_id: str, item_key: str):
         item_to_delete = UserContext.get(
@@ -60,6 +62,7 @@ class DynamoContextManager(ContextManager, metaclass=Singleton):
             item_to_delete.delete()
         except Exception as e:
             logger.exception(f"Error deleting context from DB - Error: {e}")
+            raise
 
     def get_context(self, orchestrator_name: str, user_id) -> Dict[str, str]:
         context_items: Dict[str, str] = {}
@@ -71,3 +74,4 @@ class DynamoContextManager(ContextManager, metaclass=Singleton):
             return context_items
         except Exception as e:
             logger.exception(f"Error retrieving context from DB - Error: {e}")
+            raise

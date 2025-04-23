@@ -1,5 +1,5 @@
 from typing import Dict
-
+import json
 import requests
 from opentelemetry.propagate import inject
 from pydantic import BaseModel
@@ -56,14 +56,16 @@ class ExternalServicesClient(ServicesClient):
             "taAgwKey": self.token,
         }
         inject(headers)
-        history_response = requests.post(
-            url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/conversation-history",
-            headers=headers,
-            data=request.model_dump_json(),
-        ).json()
-        if not history_response:
-            raise Exception("Failed to create new conversation")
-
+        try:
+            history_response = requests.post(
+                url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/conversation-history",
+                headers=headers,
+                data=request.model_dump_json(),
+            )
+            history_response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            raise Exception(f"ERROR: {json.loads(e.response.text['detail'])}")
+        history_response = history_response.json()
         user_context_response = self.get_context_items(user_id)
         user_context: Dict[str, ContextItem] = {}
         for key, value in user_context_response.items():
@@ -81,14 +83,16 @@ class ExternalServicesClient(ServicesClient):
             "taAgwKey": self.token,
         }
         inject(headers)
-        history_response = requests.get(
-            url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/conversation-history/{session_id}",
-            headers=headers,
-            data=request.model_dump_json(),
-        ).json()
-        if not history_response:
-            raise Exception("Failed to get conversation")
-
+        try:
+            history_response = requests.get(
+                url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/conversation-history/{session_id}",
+                headers=headers,
+                data=request.model_dump_json(),
+            )
+            history_response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
+        history_response = history_response.json()
         user_context_response = self.get_context_items(user_id)
         user_context: Dict[str, ContextItem] = {}
         for key, value in user_context_response.items():
@@ -114,15 +118,18 @@ class ExternalServicesClient(ServicesClient):
             "taAgwKey": self.token,
         }
         inject(headers)
-        response = requests.post(
-            url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/conversation-history/{conversation_id}/messages",
-            headers=headers,
-            data=request.model_dump_json(),
-        ).json()
-        if response:
-            return GeneralResponse(**response)
-        else:
-            raise Exception("Failed to add conversation message")
+        try:
+            response = requests.post(
+                url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/conversation-history/{conversation_id}/messages",
+                headers=headers,
+                data=request.model_dump_json(),
+            )
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
+        response = response.json()
+        return GeneralResponse(**response)
+
 
     def verify_ticket(self, ticket: str, ip_address: str) -> VerifyTicketResponse:
         request = VerifyTicketRequest(ticket=ticket, ip_address=ip_address)
@@ -131,15 +138,18 @@ class ExternalServicesClient(ServicesClient):
             "taAgwKey": self.token,
         }
         inject(headers)
-        response = requests.post(
-            url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/tickets/verify",
-            headers=headers,
-            data=request.model_dump_json(),
-        ).json()
-        if response:
-            return VerifyTicketResponse(**response)
-        else:
-            raise Exception("Failed to verify ticket")
+        try:
+            response = requests.post(
+                url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/tickets/verify",
+                headers=headers,
+                data=request.model_dump_json(),
+            )
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
+        response = response.json()
+        return VerifyTicketResponse(**response)
+
 
     def add_context_item(
         self, user_id: str, item_key: str, item_value: str
@@ -150,15 +160,18 @@ class ExternalServicesClient(ServicesClient):
             "taAgwKey": self.token,
         }
         inject(headers)
-        response = requests.post(
-            url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/users/{user_id}/context",
-            headers=headers,
-            data=request.model_dump_json(),
-        ).json()
-        if response:
-            return GeneralResponse(**response)
-        else:
-            raise Exception("Failed to add context")
+        try:
+            response = requests.post(
+                url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/users/{user_id}/context",
+                headers=headers,
+                data=request.model_dump_json(),
+            )
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
+        response = response.json()
+        return GeneralResponse(**response)
+
 
     def update_context_item(
         self, user_id: str, item_key: str, item_value: str
@@ -169,40 +182,49 @@ class ExternalServicesClient(ServicesClient):
             "taAgwKey": self.token,
         }
         inject(headers)
-        response = requests.put(
-            url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/users/{user_id}/context/{item_key}",
-            headers=headers,
-            data=request.model_dump_json(),
-        ).json()
-        if response:
-            return GeneralResponse(**response)
-        else:
-            raise Exception("Failed to update context")
+        try:
+            response = requests.put(
+                url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/users/{user_id}/context/{item_key}",
+                headers=headers,
+                data=request.model_dump_json(),
+            )
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
+        response = response.json()
+        return GeneralResponse(**response)
+
 
     def delete_context_item(self, user_id: str, item_key: str) -> GeneralResponse:
         headers = {
             "taAgwKey": self.token,
         }
         inject(headers)
-        response = requests.delete(
-            url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/users/{user_id}/context/{item_key}",
-            headers=headers,
-        ).json()
-        if response:
-            return GeneralResponse(**response)
-        else:
-            raise Exception("Failed to delete context")
+        try:
+            response = requests.delete(
+                url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/users/{user_id}/context/{item_key}",
+                headers=headers,
+            )
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
+        response = response.json()
+        return GeneralResponse(**response)
+
 
     def get_context_items(self, user_id: str) -> Dict[str, str]:
         headers = {
             "taAgwKey": self.token,
         }
         inject(headers)
-        response = requests.get(
-            url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/users/{user_id}/context",
-            headers=headers,
-        ).json()
-        if response is not None:
-            return response
-        else:
-            raise Exception("Failed to retrieve context")
+        try:
+            response = requests.get(
+                url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/users/{user_id}/context",
+                headers=headers,
+            )
+            response.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
+        response = response.json()
+        return response
+

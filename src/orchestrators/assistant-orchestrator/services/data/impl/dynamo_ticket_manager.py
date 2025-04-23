@@ -56,3 +56,4 @@ class DynamoTicketManager(TicketManager):
             return ticket.ticket
         except Exception as e:
             logger.exception(f"Error saving ticket to DB - Error: {e}")
+            raise

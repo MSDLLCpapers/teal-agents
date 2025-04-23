@@ -39,6 +39,7 @@ class DynamoChatHistoryManager(ChatHistoryManager, metaclass=Singleton):
             last_chat_session.save()
         except Exception as e:
             logger.exception(f"Error saving session_id: {session_id} to DB - Error: {e}")
+            raise
 
     def get_last_session_id_for_user(
         self, orchestrator_name: str, user_id: str
@@ -48,7 +49,7 @@ class DynamoChatHistoryManager(ChatHistoryManager, metaclass=Singleton):
             return last_chat_session.session_id
         except DoesNotExist as e:
             logger.exception(f"Unable to load last session_id for user: {user_id} - Error: {e}")
-            return None
+            raise
 
     def get_session_items(
         self, orchestrator_name: str, session_id: str
@@ -86,6 +87,7 @@ class DynamoChatHistoryManager(ChatHistoryManager, metaclass=Singleton):
             dynamo_item.save()
         except Exception as e:
             logger.exception(f"Error adding session item to session_id: {session_id} in DB - Error: {e}")
+            raise
 
     def get_chat_history_session(
         self, orchestrator_name: str, user_id: str, session_id: str
@@ -104,7 +106,7 @@ class DynamoChatHistoryManager(ChatHistoryManager, metaclass=Singleton):
             return chat_history
         except DoesNotExist as e:
             logger.exception(f"Conversation with session_id: {session_id} not found - Error: {e}")
-            return None
+            raise
 
     def add_chat_history_session(
         self, orchestrator_name: str, chat_history: ChatHistory
@@ -119,8 +121,8 @@ class DynamoChatHistoryManager(ChatHistoryManager, metaclass=Singleton):
             dynamo_history.save()
         except Exception as e:
             logger.exception(f"Error adding chat history session to DB - Error: {e}")
+            raise
         
-
     @staticmethod
     def _get_message_type_string(message_type: MessageType) -> str:
         match message_type:

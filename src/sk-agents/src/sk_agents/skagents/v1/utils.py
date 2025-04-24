@@ -1,13 +1,13 @@
-from typing import Optional, Dict, Any, List
+from typing import Any
 
-from semantic_kernel.contents import TextContent, ImageContent, ChatMessageContent
+from semantic_kernel.contents import ChatMessageContent, ImageContent, TextContent
 from semantic_kernel.contents.chat_history import ChatHistory
 
 from sk_agents.ska_types import (
-    MultiModalItem,
     ContentType,
-    TokenUsage,
     ModelType,
+    MultiModalItem,
+    TokenUsage,
 )
 
 
@@ -22,38 +22,26 @@ def item_to_content(item: MultiModalItem) -> TextContent | ImageContent | None:
 
 
 def parse_chat_history(
-    chat_history: ChatHistory, inputs: Optional[Dict[str, Any]] = None
+    chat_history: ChatHistory, inputs: dict[str, Any] | None = None
 ) -> ChatHistory:
-    if (
-        inputs is not None
-        and "chat_history" in inputs
-        and inputs["chat_history"] is not None
-    ):
+    if inputs is not None and "chat_history" in inputs and inputs["chat_history"] is not None:
         for message in inputs["chat_history"]:
             if hasattr(message, "content"):
-                items = [
-                    MultiModalItem(
-                        content_type=ContentType.TEXT, content=message.content
-                    )
-                ]
+                items = [MultiModalItem(content_type=ContentType.TEXT, content=message.content)]
             elif hasattr(message, "items"):
                 items = message.items
             else:
                 return chat_history
 
-            chat_message_items: List[TextContent | ImageContent] = []
+            chat_message_items: list[TextContent | ImageContent] = []
             for item in items:
                 chat_message_items.append(item_to_content(item))
-            message_content = ChatMessageContent(
-                role=message.role, items=chat_message_items
-            )
+            message_content = ChatMessageContent(role=message.role, items=chat_message_items)
             chat_history.add_message(message_content)
     return chat_history
 
 
-def get_token_usage_for_response(
-    model_type: ModelType, content: ChatMessageContent
-) -> TokenUsage:
+def get_token_usage_for_response(model_type: ModelType, content: ChatMessageContent) -> TokenUsage:
     if model_type == ModelType.OPENAI:
         return get_token_usage_for_openai_response(content)
     elif model_type == ModelType.ANTHROPIC:
@@ -80,7 +68,6 @@ def get_token_usage_for_anthropic_response(
         completion_tokens=content.inner_content.usage.output_tokens,
         prompt_tokens=content.inner_content.usage.input_tokens,
         total_tokens=(
-            content.inner_content.usage.output_tokens
-            + content.inner_content.usage.input_tokens
+            content.inner_content.usage.output_tokens + content.inner_content.usage.input_tokens
         ),
     )

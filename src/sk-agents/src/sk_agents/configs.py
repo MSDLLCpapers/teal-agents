@@ -1,5 +1,3 @@
-from typing import List
-
 from ska_utils import Config
 
 TA_API_KEY = Config(env_name="TA_API_KEY", is_required=True, default_value=None)
@@ -9,12 +7,8 @@ TA_SERVICE_CONFIG = Config(
 TA_REMOTE_PLUGIN_PATH = Config(
     env_name="TA_REMOTE_PLUGIN_PATH", is_required=False, default_value=None
 )
-TA_TYPES_MODULE = Config(
-    env_name="TA_TYPES_MODULE", is_required=False, default_value=None
-)
-TA_PLUGIN_MODULE = Config(
-    env_name="TA_PLUGIN_MODULE", is_required=False, default_value=None
-)
+TA_TYPES_MODULE = Config(env_name="TA_TYPES_MODULE", is_required=False, default_value=None)
+TA_PLUGIN_MODULE = Config(env_name="TA_PLUGIN_MODULE", is_required=False, default_value=None)
 TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE = Config(
     env_name="TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE",
     is_required=False,
@@ -31,7 +25,7 @@ TA_STRUCTURED_OUTPUT_TRANSFORMER_MODEL = Config(
     default_value="gpt-4o",
 )
 
-configs: List[Config] = [
+configs: list[Config] = [
     TA_API_KEY,
     TA_SERVICE_CONFIG,
     TA_REMOTE_PLUGIN_PATH,

@@ -1,5 +1,3 @@
-from typing import List
-
 from semantic_kernel.kernel import Kernel
 from ska_utils import AppConfig
 
@@ -27,15 +25,13 @@ class KernelBuilder:
         self,
         model_name: str,
         service_id: str,
-        plugins: List[str],
-        remote_plugins: List[str],
+        plugins: list[str],
+        remote_plugins: list[str],
         authorization: str | None = None,
         extra_data_collector: ExtraDataCollector | None = None,
     ) -> Kernel:
         kernel = self._create_base_kernel(model_name, service_id)
-        kernel = self._parse_plugins(
-            plugins, kernel, authorization, extra_data_collector
-        )
+        kernel = self._parse_plugins(plugins, kernel, authorization, extra_data_collector)
         return self._load_remote_plugins(remote_plugins, kernel)
 
     def get_model_type_for_name(self, model_name: str) -> ModelType:
@@ -55,7 +51,7 @@ class KernelBuilder:
 
         return kernel
 
-    def _load_remote_plugins(self, remote_plugins: List[str], kernel: Kernel) -> Kernel:
+    def _load_remote_plugins(self, remote_plugins: list[str], kernel: Kernel) -> Kernel:
         if remote_plugins is None or len(remote_plugins) < 1:
             return kernel
         self.remote_plugin_loader.load_remote_plugins(kernel, remote_plugins)
@@ -63,7 +59,7 @@ class KernelBuilder:
 
     @staticmethod
     def _parse_plugins(
-        plugin_names: List[str],
+        plugin_names: list[str],
         kernel: Kernel,
         authorization: str | None = None,
         extra_data_collector: ExtraDataCollector | None = None,

@@ -1,5 +1,3 @@
-from typing import List, Optional
-
 import httpx
 from pydantic import BaseModel
 from pydantic_yaml import parse_yaml_file_as
@@ -15,11 +13,11 @@ from sk_agents.configs import TA_REMOTE_PLUGIN_PATH
 class RemotePlugin(BaseModel):
     plugin_name: str
     openapi_json_path: str
-    server_url: Optional[str] = None
+    server_url: str | None = None
 
 
 class RemotePlugins(BaseModel):
-    remote_plugins: List[RemotePlugin]
+    remote_plugins: list[RemotePlugin]
 
     def get(self, plugin_name: str) -> RemotePlugin | None:
         for remote_plugin in self.remote_plugins:
@@ -44,7 +42,7 @@ class RemotePluginLoader:
     def __init__(self, catalog: RemotePluginCatalog) -> None:
         self.catalog = catalog
 
-    def load_remote_plugins(self, kernel: Kernel, remote_plugins: List[str]):
+    def load_remote_plugins(self, kernel: Kernel, remote_plugins: list[str]):
         for remote_plugin_name in remote_plugins:
             remote_plugin = self.catalog.get_remote_plugin(remote_plugin_name)
             if remote_plugin:
@@ -59,6 +57,4 @@ class RemotePluginLoader:
                     ),
                 )
             else:
-                raise ValueError(
-                    f"Remote plugin {remote_plugin_name} not found in catalog"
-                )
+                raise ValueError(f"Remote plugin {remote_plugin_name} not found in catalog")

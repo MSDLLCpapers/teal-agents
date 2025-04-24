@@ -2,13 +2,13 @@ from ska_utils import AppConfig
 
 from sk_agents.ska_types import (
     BaseHandler,
+    Config,
 )
-from sk_agents.ska_types import Config
 from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.skagents.kernel_builder import KernelBuilder
 from sk_agents.skagents.remote_plugin_loader import (
-    RemotePluginLoader,
     RemotePluginCatalog,
+    RemotePluginLoader,
 )
 from sk_agents.skagents.v1.agent_builder import AgentBuilder
 from sk_agents.skagents.v1.chat.chat_agents import ChatAgents
@@ -34,9 +34,7 @@ def _handle_chat(
 ) -> BaseHandler:
     remote_plugin_loader = RemotePluginLoader(RemotePluginCatalog(app_config))
     chat_completion_builder = ChatCompletionBuilder(app_config)
-    kernel_builder = KernelBuilder(
-        chat_completion_builder, remote_plugin_loader, app_config
-    )
+    kernel_builder = KernelBuilder(chat_completion_builder, remote_plugin_loader, app_config)
     agent_builder = AgentBuilder(kernel_builder, authorization)
     chat_agents = ChatAgents(config, agent_builder)
     return chat_agents
@@ -47,9 +45,7 @@ def _handle_sequential(
 ) -> BaseHandler:
     remote_plugin_loader = RemotePluginLoader(RemotePluginCatalog(app_config))
     chat_completion_builder = ChatCompletionBuilder(app_config)
-    kernel_builder = KernelBuilder(
-        chat_completion_builder, remote_plugin_loader, app_config
-    )
+    kernel_builder = KernelBuilder(chat_completion_builder, remote_plugin_loader, app_config)
     agent_builder = AgentBuilder(kernel_builder, authorization)
     task_builder = TaskBuilder(agent_builder)
     seq_skagents = SequentialSkagents(config, kernel_builder, task_builder)

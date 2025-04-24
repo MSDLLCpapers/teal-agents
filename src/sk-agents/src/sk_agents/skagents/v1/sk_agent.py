@@ -1,4 +1,5 @@
-from typing import AsyncIterable, Dict, Any
+from collections.abc import AsyncIterable
+from typing import Any
 
 from semantic_kernel.agents import ChatCompletionAgent
 from semantic_kernel.contents.chat_history import ChatHistory
@@ -14,7 +15,7 @@ class SKAgent:
     def __init__(
         self,
         model_name: str,
-        model_attributes: Dict[str, Any],
+        model_attributes: dict[str, Any],
         agent: ChatCompletionAgent,
     ):
         self.model_name = model_name

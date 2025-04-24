@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Any
 
 from semantic_kernel.agents import ChatCompletionAgent
 from semantic_kernel.connectors.ai.function_choice_behavior import (
@@ -38,19 +38,15 @@ class AgentBuilder:
             agent_config.model
         )
 
-        settings = kernel.get_prompt_execution_settings_from_service_id(
-            agent_config.name
-        )
+        settings = kernel.get_prompt_execution_settings_from_service_id(agent_config.name)
         settings.function_choice_behavior = FunctionChoiceBehavior.Auto()
         if so_supported and output_type:
             type_loader = get_type_loader()
             settings.response_format = type_loader.get_type(output_type)
 
-        model_type: ModelType = self.kernel_builder.get_model_type_for_name(
-            agent_config.model
-        )
+        model_type: ModelType = self.kernel_builder.get_model_type_for_name(agent_config.model)
 
-        model_attributes: Dict[str, Any] = {
+        model_attributes: dict[str, Any] = {
             "model_type": model_type,
             "so_supported": so_supported,
         }

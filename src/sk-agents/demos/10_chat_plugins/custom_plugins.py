@@ -1,8 +1,7 @@
-from typing import List
-
 import requests
 from pydantic import BaseModel, ConfigDict
 from semantic_kernel.functions.kernel_function_decorator import kernel_function
+
 from sk_agents.ska_types import BasePlugin
 
 
@@ -19,9 +18,9 @@ class DailyUnits(BaseModel):
 
 
 class Daily(BaseModel):
-    time: List[str]
-    temperature_2m_max: List[float]
-    temperature_2m_min: List[float]
+    time: list[str]
+    temperature_2m_max: list[float]
+    temperature_2m_min: list[float]
 
 
 class TemperatureResponseInt(BaseModel):
@@ -55,7 +54,7 @@ class GeoName(BaseModel):
 
 class CoordsResponse(BaseModel):
     model_config = ConfigDict(extra="allow")
-    geonames: List[GeoName]
+    geonames: list[GeoName]
 
 
 class WeatherPlugin(BasePlugin):
@@ -70,9 +69,7 @@ class WeatherPlugin(BasePlugin):
     @kernel_function(
         description="Retrieve low and high temperatures for the day for a given location"
     )
-    def get_temperature(
-        self, lat: float, lng: float, timezone: str
-    ) -> TemperatureResponse:
+    def get_temperature(self, lat: float, lng: float, timezone: str) -> TemperatureResponse:
         url = WeatherPlugin._get_temp_url_for_location(lat, lng, timezone)
 
         response = requests.get(url).json()
@@ -86,7 +83,8 @@ class WeatherPlugin(BasePlugin):
             raise ValueError("Error retrieving temperature")
 
     @kernel_function(
-        description="Retrieve the latitude, longitude, and timezone for a given location search string"
+        description="Retrieve the latitude, longitude, and timezone \
+            for a given location search string"
     )
     def get_lat_lng_for_location(self, location_string: str) -> LocationCoordinates:
         url = WeatherPlugin._get_loc_url_for_location(self, location_string)

@@ -13,19 +13,21 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: '3.x'
+          enable-cache: true
 
-      - name: Install toml package
-        run: pip install toml
-
-      - name: Extract version from pyproject.toml
+      - name: Install hatch 
+        run: uv tool install hatch
+      
+      - name: Extract version with hatch
         id: extract_version
         run: |
-          VERSION=$(python -c "import toml; print(toml.load('src/sk-agents/pyproject.toml')['project']['version'])")
+          cd src/sk-agents
+          uv run hatch version >> $VERSION
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          cd ...
 
       - name: Build Docker image
         run: |

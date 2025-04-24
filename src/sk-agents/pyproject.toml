@@ -1,6 +1,6 @@
 [project]
 name = "sk-agents"
-version = "0.1.16-beta"
+dynamic = ["version"]
 description = "Teal Agents - Core Agent Framework"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,13 +16,89 @@ dependencies = [
     "PyGithub",
     "opentelemetry-exporter-otlp-proto-grpc",
     "ska-utils",
-    "black",
     "lock",
 ]
+
+[project.urls]
+Homepage = "https://github.com/MSDLLCpapers/teal-agents"
+Repository = "https://github.com/MSDLLCpapers/teal-agents"
 
 [tool.uv.sources]
 ska-utils = { path = "../../shared/ska_utils" }
 
+[tool.hatch.build.targets.sdist]
+include = [
+    "src"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sk_agents"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/sk_agents/__init__.py"
+fallback-version = "0.0.0"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[dependency-groups]
+dev = [
+    "mypy",
+    "ruff",
+    "pytest",
+    "coverage",
+    "pytest-cov",
+    "hatchling",
+    "hatch",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+isort = { combine-as-imports = true }
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+strict = false
+disallow_incomplete_defs = false
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+files = ["src/sk_agents/", "tests/"]
+follow_imports = "skip"
+python_version = 3.11
+overrides = [
+  { module = [
+    "ska_utils.*",
+  ], ignore_missing_imports = true },
+]
+
+[tool.coverage.run]
+source = ["tests", "src/sk_agents"]
+
+[tool.coverage.report]
+show_missing = true
+sort = "-Cover"
+exclude_also = [
+    # This is only executed while typechecking
+    "if TYPE_CHECKING:",
+    "@abc.abstractmethod",
+    "raise NotImplementedError",
+    "logger.debug",
+]

@@ -1,5 +1,3 @@
-from typing import List
-
 from pydantic import BaseModel, ConfigDict
 
 from sk_agents.ska_types import Config as BaseConfig
@@ -15,8 +13,8 @@ class TaskConfig(BaseModel):
 
 
 class Spec(BaseModel):
-    agents: List[AgentConfig]
-    tasks: List[TaskConfig]
+    agents: list[AgentConfig]
+    tasks: list[TaskConfig]
 
 
 class V1Config(BaseConfig):
@@ -37,8 +35,8 @@ class Config:
             spec=config.spec,
         )
 
-    def get_agents(self) -> List[AgentConfig]:
+    def get_agents(self) -> list[AgentConfig]:
         return self.config.spec.agents
 
-    def get_tasks(self) -> List[TaskConfig]:
+    def get_tasks(self) -> list[TaskConfig]:
         return self.config.spec.tasks

@@ -1,6 +1,7 @@
-from typing import Optional, Dict, Any, AsyncIterable
+from collections.abc import AsyncIterable
+from typing import Any
 
-from semantic_kernel.contents import TextContent, ChatMessageContent
+from semantic_kernel.contents import ChatMessageContent, TextContent
 from semantic_kernel.contents.chat_history import ChatHistory
 from semantic_kernel.contents.utils.author_role import AuthorRole
 
@@ -8,14 +9,14 @@ from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
 from sk_agents.ska_types import (
     BaseHandler,
     Config as BaseConfig,
-    TokenUsage,
     InvokeResponse,
+    TokenUsage,
 )
 from sk_agents.skagents.v1 import AgentBuilder
 from sk_agents.skagents.v1.chat.config import Config
 from sk_agents.skagents.v1.utils import (
-    parse_chat_history,
     get_token_usage_for_response,
+    parse_chat_history,
 )
 
 
@@ -37,25 +38,19 @@ class ChatAgents(BaseHandler):
 
     @staticmethod
     def _augment_with_user_context(
-        inputs: Optional[Dict[str, Any]], chat_history: ChatHistory
+        inputs: dict[str, Any] | None, chat_history: ChatHistory
     ) -> None:
         if hasattr(inputs, "user_context"):
             content = "The following user context was provided:\n"
             for key, value in inputs["user_context"].items():
                 content += f"  {key}: {value}\n"
             chat_history.add_message(
-                ChatMessageContent(
-                    role=AuthorRole.USER, items=[TextContent(text=content)]
-                )
+                ChatMessageContent(role=AuthorRole.USER, items=[TextContent(text=content)])
             )
 
-    async def invoke_stream(
-        self, inputs: Optional[Dict[str, Any]] = None
-    ) -> AsyncIterable[str]:
+    async def invoke_stream(self, inputs: dict[str, Any] | None = None) -> AsyncIterable[str]:
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(
-            self.config.get_agent(), extra_data_collector
-        )
+        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
 
         chat_history = ChatHistory()
         ChatAgents._augment_with_user_context(inputs=inputs, chat_history=chat_history)
@@ -69,12 +64,10 @@ class ChatAgents(BaseHandler):
 
     async def invoke(
         self,
-        inputs: Optional[Dict[str, Any]] = None,
+        inputs: dict[str, Any] | None = None,
     ) -> InvokeResponse:
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(
-            self.config.get_agent(), extra_data_collector
-        )
+        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
         chat_history = ChatHistory()
         ChatAgents._augment_with_user_context(inputs=inputs, chat_history=chat_history)
         parse_chat_history(chat_history, inputs)

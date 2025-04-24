@@ -1,5 +1,3 @@
-from typing import List
-
 from anthropic import AsyncAnthropic
 from semantic_kernel.connectors.ai.anthropic.services.anthropic_chat_completion import (
     AnthropicChatCompletion,
@@ -10,14 +8,14 @@ from semantic_kernel.connectors.ai.chat_completion_client_base import (
 from semantic_kernel.connectors.ai.open_ai.services.azure_chat_completion import (
     AzureChatCompletion,
 )
-from ska_utils import Config as UtilConfig, AppConfig
+from ska_utils import AppConfig, Config as UtilConfig
 
 from sk_agents.configs import TA_API_KEY
 from sk_agents.ska_types import ChatCompletionFactory, ModelType
 
 
 class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
-    _OPENAI_MODELS: List[str] = [
+    _OPENAI_MODELS: list[str] = [
         "gpt-35-turbo-1106",
         "gpt-35-turbo-0125",
         "gpt-4o-2024-05-13",
@@ -25,7 +23,7 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
         "gpt-4o-mini-2024-07-18",
         "gpt-4-turbo-2024-04-09",
     ]
-    _ANTHROPIC_MODELS: List[str] = [
+    _ANTHROPIC_MODELS: list[str] = [
         "claude-3-5-sonnet-20240620",
         "claude-3-haiku-20240307",
     ]
@@ -39,20 +37,18 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
         env_name="TA_API_VERSION", is_required=False, default_value="2024-10-21"
     )
 
-    _CONFIGS: List[UtilConfig] = [TA_BASE_URL, TA_API_VERSION]
+    _CONFIGS: list[UtilConfig] = [TA_BASE_URL, TA_API_VERSION]
 
     def __init__(self, app_config: AppConfig):
         super().__init__(app_config)
         self.api_key = app_config.get(TA_API_KEY.env_name)
-        self.url_base = app_config.get(
-            ExampleCustomChatCompletionFactory.TA_BASE_URL.env_name
-        )
+        self.url_base = app_config.get(ExampleCustomChatCompletionFactory.TA_BASE_URL.env_name)
         self.api_version = app_config.get(
             ExampleCustomChatCompletionFactory.TA_API_VERSION.env_name
         )
 
     @staticmethod
-    def get_configs() -> List[UtilConfig]:
+    def get_configs() -> list[UtilConfig]:
         return ExampleCustomChatCompletionFactory._CONFIGS
 
     def get_chat_completion_for_model_name(

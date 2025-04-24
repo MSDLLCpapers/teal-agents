@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Dict
 
 from pydantic import BaseModel
 from semantic_kernel.functions.kernel_function_decorator import kernel_function
@@ -22,7 +21,7 @@ class LocationCoordinates(BaseModel):
 
 
 class CoordinatesPlugin(BasePlugin):
-    locations: Dict[Location, LocationCoordinates] = {
+    locations: dict[Location, LocationCoordinates] = {
         Location.RAHWAY: LocationCoordinates(
             location=Location.RAHWAY,
             latitude=40.6082,

@@ -1,5 +1,4 @@
 from contextlib import nullcontext
-from typing import List
 
 from fastapi import FastAPI, Request, Response
 from opentelemetry.propagate import extract
@@ -8,15 +7,13 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 
 
 class TelemetryMiddleware(BaseHTTPMiddleware):
-    _telemetry_excluded_paths: List[str] = ["/openapi.json"]
+    _telemetry_excluded_paths: list[str] = ["/openapi.json"]
 
     def __init__(self, app: FastAPI, st: Telemetry):
         super().__init__(app)
         self.st = st
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         context = extract(request.headers)
         with (
             self.st.tracer.start_as_current_span(

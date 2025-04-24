@@ -1,23 +1,24 @@
-from typing import Dict, Any, Optional, AsyncIterable
+from collections.abc import AsyncIterable
+from typing import Any
 
 from jinja2 import Template
 from semantic_kernel.contents import (
-    TextContent,
-    ImageContent,
-    ChatMessageContent,
     AuthorRole,
+    ChatMessageContent,
+    ImageContent,
+    TextContent,
 )
 from semantic_kernel.contents.chat_history import ChatHistory
 from semantic_kernel.kernel_pydantic import KernelBaseModel
 
 from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
-from sk_agents.ska_types import InvokeResponse, TokenUsage, EmbeddedImage
+from sk_agents.ska_types import EmbeddedImage, InvokeResponse, TokenUsage
 from sk_agents.skagents.v1.sk_agent import SKAgent
 from sk_agents.skagents.v1.utils import get_token_usage_for_response
 
 
 class StreamOptions(KernelBaseModel):
-    include_usage: Optional[bool] = False
+    include_usage: bool | None = False
 
 
 class Task:
@@ -35,14 +36,8 @@ class Task:
         self.agent = agent
         self.extra_data_collector = extra_data_collector
 
-    def _get_user_message_with_inputs(
-        self, inputs: Optional[Dict[str, Any]] = None
-    ) -> str:
-        return (
-            self.instructions
-            if inputs is None
-            else Template(self.instructions).render(inputs)
-        )
+    def _get_user_message_with_inputs(self, inputs: dict[str, Any] | None = None) -> str:
+        return self.instructions if inputs is None else Template(self.instructions).render(inputs)
 
     @staticmethod
     def _embedded_image_to_image_content(
@@ -55,7 +50,7 @@ class Task:
 
     @staticmethod
     def _parse_image_input(
-        inputs: Dict[str, Any] | None = None,
+        inputs: dict[str, Any] | None = None,
     ) -> EmbeddedImage | None:
         if not inputs:
             return None
@@ -64,13 +59,11 @@ class Task:
             return inputs.pop("embedded_image")
         return None
 
-    def _parse_text_input(self, inputs: Dict[str, Any] | None = None) -> TextContent:
+    def _parse_text_input(self, inputs: dict[str, Any] | None = None) -> TextContent:
         content = self._get_user_message_with_inputs(inputs)
         return TextContent(text=content)
 
-    def _get_message(
-        self, inputs: Optional[Dict[str, Any]] = None
-    ) -> ChatMessageContent:
+    def _get_message(self, inputs: dict[str, Any] | None = None) -> ChatMessageContent:
         embedded_image = Task._parse_image_input(inputs)
         image_content = Task._embedded_image_to_image_content(embedded_image)
         text_content = self._parse_text_input(inputs)
@@ -82,13 +75,16 @@ class Task:
     async def invoke_stream(
         self,
         history: ChatHistory,
-        inputs: Optional[Dict[str, Any]] = None,
+        inputs: dict[str, Any] | None = None,
     ) -> AsyncIterable[str]:
-        # TODO - Need to add capability to retrieve usage stats from the call. Currently not supported by SK, but there
+        # TODO - Need to add capability to retrieve usage stats from the call.
+        #  Currently not supported by SK, but there
         #  is an open issue to add this feature: https://github.com/microsoft/semantic-kernel/issues/8996
         #  Details from the OpenAI side can be found at:
         #  https://community.openai.com/t/usage-stats-now-available-when-using-streaming-with-the-chat-completions-api-or-completions-api/738156
-        # settings = self.agent.kernel.get_prompt_execution_settings_from_service_id(self.agent.service_id)
+        # settings = self.agent.kernel.get_prompt_execution_settings_from_service_id(
+        #     self.agent.service_id
+        # )
         # settings.stream_options = StreamOptions(include_usage=True).__dict__
         # self.agent.execution_settings = settings
 
@@ -108,7 +104,7 @@ class Task:
     async def invoke(
         self,
         history: ChatHistory,
-        inputs: Optional[Dict[str, Any]] = None,
+        inputs: dict[str, Any] | None = None,
     ) -> InvokeResponse:
         message = self._get_message(inputs)
         history.add_message(message)
@@ -119,9 +115,7 @@ class Task:
         async for content in self.agent.invoke(history):
             response_content.append(content)
             history.add_message(content)
-            call_usage = get_token_usage_for_response(
-                self.agent.get_model_type(), content
-            )
+            call_usage = get_token_usage_for_response(self.agent.get_model_type(), content)
             completion_tokens += call_usage.completion_tokens
             prompt_tokens += call_usage.prompt_tokens
             total_tokens += call_usage.total_tokens

@@ -1,20 +1,18 @@
-from typing import Dict, Union
-
 from semantic_kernel.kernel_pydantic import KernelBaseModel
 
 from sk_agents.module_loader import ModuleLoader
 from sk_agents.ska_types import (
+    BaseEmbeddedImage,
     BaseInput,
     BaseInputWithUserContext,
     BaseMultiModalInput,
-    BaseEmbeddedImage,
 )
 
 
 class TypeLoader:
-    base_types: Dict[str, type[KernelBaseModel]]
+    base_types: dict[str, type[KernelBaseModel]]
 
-    def __init__(self, types_module: Union[str, None] = None):
+    def __init__(self, types_module: str | None = None):
         self.base_types = {}
         self.types_module = None
         self.custom_module = None
@@ -25,7 +23,7 @@ class TypeLoader:
     def _parse_module_name(types_module: str) -> str:
         return types_module.split("/")[-1].split(".")[0]
 
-    def set_types_module(self, types_module: Union[str, None]):
+    def set_types_module(self, types_module: str | None):
         self.types_module = types_module
         if self.types_module:
             self.custom_module = ModuleLoader.load_module(types_module)
@@ -33,7 +31,7 @@ class TypeLoader:
             self.custom_module = None
 
     @staticmethod
-    def _get_standard_type(type: str) -> Union[type[KernelBaseModel], None]:
+    def _get_standard_type(type: str) -> type[KernelBaseModel] | None:
         match type:
             case "BaseInput":
                 return BaseInput
@@ -46,7 +44,7 @@ class TypeLoader:
             case _:
                 return None
 
-    def get_type(self, type_name: str) -> Union[type[KernelBaseModel], None]:
+    def get_type(self, type_name: str) -> type[KernelBaseModel] | None:
         standard_type = TypeLoader._get_standard_type(type_name)
         if standard_type:
             return standard_type
@@ -65,10 +63,10 @@ class TypeLoader:
             raise ValueError(f"Output type {type_name} not found")
 
 
-_type_loader: Union[TypeLoader, None] = None
+_type_loader: TypeLoader | None = None
 
 
-def get_type_loader(types_module: Union[str, None] = None) -> TypeLoader:
+def get_type_loader(types_module: str | None = None) -> TypeLoader:
     global _type_loader
     if not _type_loader:
         _type_loader = TypeLoader(types_module)

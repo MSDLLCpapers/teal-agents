@@ -1,17 +1,18 @@
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterable
 from enum import Enum
-from typing import Dict, Generic, Optional, TypeVar, Any, AsyncIterable, List, Literal
+from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict
 from semantic_kernel.connectors.ai.chat_completion_client_base import (
     ChatCompletionClientBase,
 )
 from semantic_kernel.kernel_pydantic import KernelBaseModel
-from ska_utils import Config as UtilConfig, AppConfig
+from ska_utils import AppConfig, Config as UtilConfig
 
 from sk_agents.extra_data_collector import (
-    ExtraDataCollector,
     ExtraData,
+    ExtraDataCollector,
 )
 
 
@@ -41,11 +42,11 @@ class MultiModalItem(BaseModel):
 
 class HistoryMultiModalMessage(BaseModel):
     role: Literal["user", "assistant"]
-    items: List[MultiModalItem]
+    items: list[MultiModalItem]
 
 
 class BaseMultiModalInput(KernelBaseModel):
-    chat_history: Optional[List[HistoryMultiModalMessage]] = None
+    chat_history: list[HistoryMultiModalMessage] | None = None
 
 
 class HistoryMessage(BaseModel):
@@ -62,26 +63,26 @@ class BaseInput(KernelBaseModel):
     """The history of a chat interaction between an automated assistant and a
     human."""
 
-    chat_history: Optional[List[HistoryMessage]] = None
+    chat_history: list[HistoryMessage] | None = None
 
 
 class BaseInputWithUserContext(KernelBaseModel):
     """The history of a chat interaction between an automated assistant and a
     human, along with context about the user."""
 
-    chat_history: Optional[List[HistoryMessage]] = None
-    user_context: Optional[Dict[str, str]] = None
+    chat_history: list[HistoryMessage] | None = None
+    user_context: dict[str, str] | None = None
 
 
 class Config(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     apiVersion: str
-    description: Optional[str] = None
+    description: str | None = None
     service_name: str
     version: float
     input_type: str
-    output_type: Optional[str] = None
+    output_type: str | None = None
 
 
 class TokenUsage(BaseModel):
@@ -97,18 +98,16 @@ class InvokeResponse(BaseModel, Generic[T]):
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
 
     token_usage: TokenUsage
-    extra_data: Optional[ExtraData] = None
-    output_raw: Optional[str] = None
-    output_pydantic: Optional[T] = None
+    extra_data: ExtraData | None = None
+    output_raw: str | None = None
+    output_pydantic: T | None = None
 
 
 class BaseHandler:
-    async def invoke(self, inputs: Optional[Dict[str, Any]] = None) -> InvokeResponse:
+    async def invoke(self, inputs: dict[str, Any] | None = None) -> InvokeResponse:
         pass
 
-    async def invoke_stream(
-        self, inputs: Optional[Dict[str, Any]] = None
-    ) -> AsyncIterable[str]:
+    async def invoke_stream(self, inputs: dict[str, Any] | None = None) -> AsyncIterable[str]:
         pass
 
 
@@ -128,7 +127,7 @@ class ChatCompletionFactory(ABC):
 
     @staticmethod
     @abstractmethod
-    def get_configs() -> List[UtilConfig]:
+    def get_configs() -> list[UtilConfig]:
         pass
 
     @abstractmethod

@@ -1,5 +1,5 @@
 import json
-from typing import List, Optional
+
 from pydantic import BaseModel
 
 
@@ -9,11 +9,11 @@ class ExtraDataElement(BaseModel):
 
 
 class ExtraData(BaseModel):
-    items: List[ExtraDataElement]
+    items: list[ExtraDataElement]
 
 
 class ExtraDataPartial(BaseModel):
-    extra_data: Optional[ExtraData] = None
+    extra_data: ExtraData | None = None
 
     @staticmethod
     def new_from_json(json_str: str) -> "ExtraDataPartial":
@@ -22,7 +22,7 @@ class ExtraDataPartial(BaseModel):
 
 class ExtraDataCollector:
     def __init__(self):
-        self._extra_data_items: List[ExtraDataElement] = []
+        self._extra_data_items: list[ExtraDataElement] = []
 
     def add_extra_data(self, key: str, value: str):
         self._extra_data_items.append(ExtraDataElement(key=key, value=value))

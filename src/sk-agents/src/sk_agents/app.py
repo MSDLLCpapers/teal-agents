@@ -3,21 +3,20 @@ import os
 from contextlib import nullcontext
 from typing import Any
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from opentelemetry.propagate import extract
 from pydantic_yaml import parse_yaml_file_as
-from ska_utils import AppConfig
-from ska_utils import initialize_telemetry, get_telemetry
+from ska_utils import AppConfig, get_telemetry, initialize_telemetry
 
 from sk_agents.configs import (
-    configs,
+    TA_PLUGIN_MODULE,
     TA_SERVICE_CONFIG,
     TA_TYPES_MODULE,
-    TA_PLUGIN_MODULE,
+    configs,
 )
 from sk_agents.middleware import TelemetryMiddleware
 from sk_agents.plugin_loader import get_plugin_loader
-from sk_agents.ska_types import BaseHandler, InvokeResponse, Config
+from sk_agents.ska_types import BaseHandler, Config, InvokeResponse
 from sk_agents.skagents import handle as skagents_handle
 from sk_agents.type_loader import get_type_loader
 
@@ -41,7 +40,8 @@ config: Config = parse_yaml_file_as(Config, config_file)
 agents_path = str(os.path.dirname(config_file))
 
 types_module = app_config.get(TA_TYPES_MODULE.env_name)
-# If no types module has been defined, check if there is a custom_types.py file in the agents directory
+# If no types module has been defined:
+# Check if there is a custom_types.py file in the agents directory
 if types_module is None:
     custom_types = os.path.join(agents_path, "custom_types.py")
     if os.path.exists(custom_types):
@@ -50,7 +50,8 @@ if types_module is None:
 type_loader = get_type_loader(types_module)
 
 plugin_module = app_config.get(TA_PLUGIN_MODULE.env_name)
-# If no plugin module has been defined, check if there is a custom_plugins.py file in the agents directory
+# If no plugin module has been defined:
+# Check if there is a custom_plugins.py file in the agents directory
 if plugin_module is None:
     custom_plugins = os.path.join(agents_path, "custom_plugins.py")
     if os.path.exists(custom_plugins):
@@ -101,9 +102,7 @@ async def invoke(inputs: input_class, request: Request) -> InvokeResponse[output
     ):
         match root_handler:
             case "skagents":
-                handler: BaseHandler = skagents_handle(
-                    config, app_config, authorization
-                )
+                handler: BaseHandler = skagents_handle(config, app_config, authorization)
             case _:
                 raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
 
@@ -133,9 +132,7 @@ async def invoke_stream(websocket: WebSocket) -> None:
             inv_inputs = inputs.__dict__
             match root_handler:
                 case "skagents":
-                    handler: BaseHandler = skagents_handle(
-                        config, app_config, authorization
-                    )
+                    handler: BaseHandler = skagents_handle(config, app_config, authorization)
                     async for content in handler.invoke_stream(inputs=inv_inputs):
                         await websocket.send_text(content)
                     await websocket.close()

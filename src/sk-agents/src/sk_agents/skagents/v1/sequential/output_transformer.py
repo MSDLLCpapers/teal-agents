@@ -16,21 +16,19 @@ from sk_agents.type_loader import get_type_loader
 
 class OutputTransformer:
     NAME = "structured-output"
-    SYSTEM_PROMPT = "Convert the given text into a structured output. Do not summarize or paraphrase the text."
+    SYSTEM_PROMPT = (
+        "Convert the given text into a structured output. Do not summarize or paraphrase the text."
+    )
 
     def __init__(self, kernel_builder: KernelBuilder):
         self.kernel_builder = kernel_builder
 
-    async def transform_output(
-        self, output: str, output_type_str: str
-    ) -> InvokeResponse:
+    async def transform_output(self, output: str, output_type_str: str) -> InvokeResponse:
         type_loader = get_type_loader()
         output_type = type_loader.get_type(output_type_str)
 
         app_config = AppConfig()
-        structured_output_model = app_config.get(
-            TA_STRUCTURED_OUTPUT_TRANSFORMER_MODEL.env_name
-        )
+        structured_output_model = app_config.get(TA_STRUCTURED_OUTPUT_TRANSFORMER_MODEL.env_name)
 
         kernel = self.kernel_builder.build_kernel(
             model_name=structured_output_model,

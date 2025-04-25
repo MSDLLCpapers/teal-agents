@@ -1,34 +1,30 @@
 from pydantic import BaseModel
-from ska_utils import AppConfig, strtobool, ModuleLoader
+from ska_utils import AppConfig, ModuleLoader, strtobool
 
 from auth import Authenticator
 from auth.user_id_only_authenticator import (
-    UserIdOnlyAuthRequest,
     UserIdOnlyAuthenticator,
+    UserIdOnlyAuthRequest,
 )
 from configs import (
     TA_CUSTOM_AUTH_ENABLED,
     TA_CUSTOM_AUTH_MODULE,
-    TA_CUSTOM_AUTHENTICATOR,
     TA_CUSTOM_AUTH_REQUEST,
+    TA_CUSTOM_AUTHENTICATOR,
 )
 
 
 class CustomAuthHelper:
     def __init__(self, app_config: AppConfig):
         self.app_config = app_config
-        self.custom_auth_enabled = strtobool(
-            app_config.get(TA_CUSTOM_AUTH_ENABLED.env_name)
-        )
+        self.custom_auth_enabled = strtobool(app_config.get(TA_CUSTOM_AUTH_ENABLED.env_name))
         if self.custom_auth_enabled:
             module_name, class_name, request_name = self._get_custom_auth_config()
             self.module = ModuleLoader.load_module(module_name)
 
     def get_request_type(self) -> type[BaseModel]:
         if self.custom_auth_enabled:
-            return getattr(
-                self.module, self.app_config.get(TA_CUSTOM_AUTH_REQUEST.env_name)
-            )
+            return getattr(self.module, self.app_config.get(TA_CUSTOM_AUTH_REQUEST.env_name))
         else:
             return UserIdOnlyAuthRequest
 

@@ -1,7 +1,7 @@
 from pynamodb.attributes import UnicodeAttribute
 from pynamodb.models import Model
 
-from model.dynamo import _get_table_name, _get_region, _get_host
+from model.dynamo import _get_host, _get_region, _get_table_name
 
 
 class LastChatSession(Model):

@@ -1,14 +1,13 @@
-from typing import Dict
 
 import requests
 from opentelemetry.propagate import inject
 from pydantic import BaseModel
 
-from model import Conversation, ContextItem, ContextType
+from model import ContextItem, ContextType, Conversation
 from services.services_client import (
-    ServicesClient,
-    MessageType,
     GeneralResponse,
+    MessageType,
+    ServicesClient,
     VerifyTicketResponse,
 )
 
@@ -65,15 +64,11 @@ class ExternalServicesClient(ServicesClient):
             raise Exception("Failed to create new conversation")
 
         user_context_response = self.get_context_items(user_id)
-        user_context: Dict[str, ContextItem] = {}
+        user_context: dict[str, ContextItem] = {}
         for key, value in user_context_response.items():
-            user_context[key] = ContextItem(
-                value=value, context_type=ContextType.PERSISTENT
-            )
+            user_context[key] = ContextItem(value=value, context_type=ContextType.PERSISTENT)
 
-        return Conversation(
-            **history_response, user_id=user_id, user_context=user_context
-        )
+        return Conversation(**history_response, user_id=user_id, user_context=user_context)
 
     def get_conversation(self, user_id: str, session_id: str) -> Conversation:
         request = GetConversationRequest(user_id=user_id, session_id=session_id)
@@ -90,14 +85,10 @@ class ExternalServicesClient(ServicesClient):
             raise Exception("Failed to get conversation")
 
         user_context_response = self.get_context_items(user_id)
-        user_context: Dict[str, ContextItem] = {}
+        user_context: dict[str, ContextItem] = {}
         for key, value in user_context_response.items():
-            user_context[key] = ContextItem(
-                value=value, context_type=ContextType.PERSISTENT
-            )
-        return Conversation(
-            **history_response, user_id=user_id, user_context=user_context
-        )
+            user_context[key] = ContextItem(value=value, context_type=ContextType.PERSISTENT)
+        return Conversation(**history_response, user_id=user_id, user_context=user_context)
 
     def add_conversation_message(
         self,
@@ -141,9 +132,7 @@ class ExternalServicesClient(ServicesClient):
         else:
             raise Exception("Failed to verify ticket")
 
-    def add_context_item(
-        self, user_id: str, item_key: str, item_value: str
-    ) -> GeneralResponse:
+    def add_context_item(self, user_id: str, item_key: str, item_value: str) -> GeneralResponse:
         request = AddContextRequest(item_key=item_key, item_value=item_value)
 
         headers = {
@@ -160,9 +149,7 @@ class ExternalServicesClient(ServicesClient):
         else:
             raise Exception("Failed to add context")
 
-    def update_context_item(
-        self, user_id: str, item_key: str, item_value: str
-    ) -> GeneralResponse:
+    def update_context_item(self, user_id: str, item_key: str, item_value: str) -> GeneralResponse:
         request = UpdateContextRequest(item_value=item_value)
 
         headers = {
@@ -193,7 +180,7 @@ class ExternalServicesClient(ServicesClient):
         else:
             raise Exception("Failed to delete context")
 
-    def get_context_items(self, user_id: str) -> Dict[str, str]:
+    def get_context_items(self, user_id: str) -> dict[str, str]:
         headers = {
             "taAgwKey": self.token,
         }

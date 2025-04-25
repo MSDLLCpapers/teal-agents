@@ -1,19 +1,22 @@
-from .deps import (
-    get_conv_manager,
-    get_conn_manager,
-    get_rec_chooser,
-    get_config,
-    get_agent_catalog,
-    get_fallback_agent,
-)
-from context_directive import parse_context_directives
 from contextlib import nullcontext
-from jose_types import ExtraData
-from ska_utils import get_telemetry
+
 from fastapi import (
+    APIRouter,
     WebSocket,
     WebSocketDisconnect,
-    APIRouter,
+)
+from ska_utils import get_telemetry
+
+from context_directive import parse_context_directives
+from jose_types import ExtraData
+
+from .deps import (
+    get_agent_catalog,
+    get_config,
+    get_conn_manager,
+    get_conv_manager,
+    get_fallback_agent,
+    get_rec_chooser,
 )
 
 conv_manager = get_conv_manager()
@@ -91,15 +94,11 @@ async def invoke_stream(
                 ):
                     # Stream agent response to client
                     response = ""
-                    async for content in agent.invoke_stream(
-                        conv, authorization=authorization
-                    ):
+                    async for content in agent.invoke_stream(conv, authorization=authorization):
                         try:
                             extra_data: ExtraData = ExtraData.new_from_json(content)
                             context_directives = parse_context_directives(extra_data)
-                            conv_manager.process_context_directives(
-                                conv, context_directives
-                            )
+                            conv_manager.process_context_directives(conv, context_directives)
                         except Exception:
                             response = f"{response}{content}"
                             await websocket.send_text(content)

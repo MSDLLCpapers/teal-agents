@@ -1,19 +1,22 @@
-from .deps import (
-    get_conv_manager,
-    get_conn_manager,
-    get_rec_chooser,
-    get_config,
-    get_agent_catalog,
-    get_fallback_agent,
-    get_user_context_cache,
-)
 from contextlib import nullcontext
-from fastapi import Depends, APIRouter, HTTPException
+
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import APIKeyHeader
 from ska_utils import get_telemetry
-from jose_types import ExtraData
+
 from context_directive import parse_context_directives
+from jose_types import ExtraData
 from model.requests import ConversationMessageRequest
+
+from .deps import (
+    get_agent_catalog,
+    get_config,
+    get_conn_manager,
+    get_conv_manager,
+    get_fallback_agent,
+    get_rec_chooser,
+    get_user_context_cache,
+)
 
 conv_manager = get_conv_manager()
 conn_manager = get_conn_manager()
@@ -83,9 +86,7 @@ async def add_conversation_message_by_id(
         ):
             # Select an agent
             try:
-                selected_agent = await rec_chooser.choose_recipient(
-                    request.message, conv
-                )
+                selected_agent = await rec_chooser.choose_recipient(request.message, conv)
             except Exception as e:
                 raise HTTPException(
                     status_code=500,
@@ -166,9 +167,7 @@ async def new_conversation(user_id: str, is_resumed: bool):
         try:
             conv = conv_manager.new_conversation(user_id, is_resumed)
         except Exception as e:
-            raise HTTPException(
-                status_code=500, detail=f"Error creating new conversation --- {e}"
-            )
+            raise HTTPException(status_code=500, detail=f"Error creating new conversation --- {e}")
 
     return {"conversation": conv}
 

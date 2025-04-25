@@ -1,27 +1,27 @@
-from fastapi import FastAPI, Request, HTTPException, status
+from fastapi import FastAPI, HTTPException, Request, status
 from pynamodb.exceptions import DoesNotExist
-from ska_utils import AppConfig, initialize_telemetry, get_telemetry, strtobool
+from ska_utils import AppConfig, get_telemetry, initialize_telemetry, strtobool
 
-from auth import CustomAuthHelper, Authenticator
+from auth import Authenticator, CustomAuthHelper
 from configs import CONFIGS, TA_KONG_ENABLED
 from data import (
-    ConversationManager,
-    get_chat_history_manager,
-    get_ticket_manager,
-    TicketManager,
-    get_context_manager,
     ContextManager,
+    ConversationManager,
+    TicketManager,
+    get_chat_history_manager,
+    get_context_manager,
+    get_ticket_manager,
 )
 from middleware import TelemetryMiddleware
 from model import (
-    ConversationResponse,
-    NewConversationRequest,
-    GetConversationRequest,
-    AddConversationMessageRequest,
-    GeneralResponse,
     AddContextItemRequest,
-    UpdateContextItemRequest,
+    AddConversationMessageRequest,
     AuthenticationResponse,
+    ConversationResponse,
+    GeneralResponse,
+    GetConversationRequest,
+    NewConversationRequest,
+    UpdateContextItemRequest,
 )
 from model.requests import VerifyTicketRequest
 from model.responses import CreateTicketResponse, VerifyTicketResponse
@@ -41,16 +41,12 @@ app = FastAPI(
 # noinspection PyTypeChecker
 app.add_middleware(TelemetryMiddleware, st=get_telemetry())
 
-conversation_manager: ConversationManager = ConversationManager(
-    get_chat_history_manager()
-)
+conversation_manager: ConversationManager = ConversationManager(get_chat_history_manager())
 ticket_manager: TicketManager = get_ticket_manager()
 context_manager: ContextManager = get_context_manager()
 
 auth_helper: CustomAuthHelper = CustomAuthHelper(app_config)
-authenticator: Authenticator[auth_helper.get_request_type()] = (
-    auth_helper.get_authenticator()
-)
+authenticator: Authenticator[auth_helper.get_request_type()] = auth_helper.get_authenticator()
 
 
 @app.post("/services/v1/{orchestrator_name}/authenticate")
@@ -59,11 +55,11 @@ async def authenticate_user(
 ) -> AuthenticationResponse:
     auth_response = authenticator.authenticate(orchestrator_name, payload)
     if auth_response.success:
-        return AuthenticationResponse(orchestrator_name=auth_response.orch_name, user_id=auth_response.user_id)
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Authentication Failed"
+        return AuthenticationResponse(
+            orchestrator_name=auth_response.orch_name, user_id=auth_response.user_id
         )
+    else:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Authentication Failed")
 
 
 @app.post("/services/v1/{orchestrator_name}/tickets", tags=["Tickets"])
@@ -83,18 +79,14 @@ async def create_ticket(
             )
         )
     else:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Authentication Failed"
-        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Authentication Failed")
 
 
 @app.post("/services/v1/{orchestrator_name}/tickets/verify", tags=["Tickets"])
 async def verify_ticket(
     orchestrator_name: str, payload: VerifyTicketRequest, request: Request
 ) -> VerifyTicketResponse:
-    return ticket_manager.verify_ticket(
-        orchestrator_name, payload.ticket, payload.ip_address
-    )
+    return ticket_manager.verify_ticket(orchestrator_name, payload.ticket, payload.ip_address)
 
 
 @app.post(
@@ -143,9 +135,7 @@ async def add_conversation_message(
 async def create_context_item(
     orchestrator_name: str, user_id: str, request: AddContextItemRequest
 ) -> GeneralResponse:
-    context_manager.add_context(
-        orchestrator_name, user_id, request.item_key, request.item_value
-    )
+    context_manager.add_context(orchestrator_name, user_id, request.item_key, request.item_value)
     return GeneralResponse(status=200, message="Context item added successfully")
 
 
@@ -159,9 +149,7 @@ async def update_context_item(
     item_key: str,
     request: UpdateContextItemRequest,
 ) -> GeneralResponse:
-    context_manager.update_context(
-        orchestrator_name, user_id, item_key, request.item_value
-    )
+    context_manager.update_context(orchestrator_name, user_id, item_key, request.item_value)
     return GeneralResponse(status=200, message="Context item updated successfully")
 
 

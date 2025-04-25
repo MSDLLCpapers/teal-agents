@@ -1,5 +1,6 @@
-from auth.authenticator import Authenticator, AuthResponse
 from pydantic import BaseModel
+
+from auth.authenticator import Authenticator, AuthResponse
 
 
 class UserIdOnlyAuthRequest(BaseModel):

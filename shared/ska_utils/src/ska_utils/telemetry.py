@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 from opentelemetry import trace
 from opentelemetry._logs import set_logger_provider
@@ -8,31 +7,31 @@ from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExp
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.metrics import set_meter_provider
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
-from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-from opentelemetry.sdk._logs.export import LogExporter, ConsoleLogExporter
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor, ConsoleLogExporter, LogExporter
 from opentelemetry.sdk.metrics import MeterProvider
-from opentelemetry.sdk.metrics.export import MetricExporter, ConsoleMetricExporter
-from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk.metrics.export import (
+    ConsoleMetricExporter,
+    MetricExporter,
+    PeriodicExportingMetricReader,
+)
 from opentelemetry.sdk.metrics.view import DropAggregation, View
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import (
-    SpanExporter,
-    ConsoleSpanExporter,
     BatchSpanProcessor,
+    ConsoleSpanExporter,
+    SpanExporter,
 )
 from opentelemetry.semconv.resource import ResourceAttributes
 
-from ska_utils import AppConfig, strtobool, Config
+from ska_utils import AppConfig, Config, strtobool
 
 TA_TELEMETRY_ENABLED = Config(
     env_name="TA_TELEMETRY_ENABLED", is_required=True, default_value="true"
 )
-TA_OTEL_ENDPOINT = Config(
-    env_name="TA_OTEL_ENDPOINT", is_required=False, default_value=None
-)
+TA_OTEL_ENDPOINT = Config(env_name="TA_OTEL_ENDPOINT", is_required=False, default_value=None)
 
-TELEMETRY_CONFIGS: List[Config] = [TA_TELEMETRY_ENABLED, TA_OTEL_ENDPOINT]
+TELEMETRY_CONFIGS: list[Config] = [TA_TELEMETRY_ENABLED, TA_OTEL_ENDPOINT]
 
 AppConfig.add_configs(TELEMETRY_CONFIGS)
 
@@ -40,12 +39,8 @@ AppConfig.add_configs(TELEMETRY_CONFIGS)
 class Telemetry:
     def __init__(self, service_name: str, app_config: AppConfig):
         self.service_name = service_name
-        self.resource = Resource.create(
-            {ResourceAttributes.SERVICE_NAME: self.service_name}
-        )
-        self._telemetry_enabled = strtobool(
-            str(app_config.get(TA_TELEMETRY_ENABLED.env_name))
-        )
+        self.resource = Resource.create({ResourceAttributes.SERVICE_NAME: self.service_name})
+        self._telemetry_enabled = strtobool(str(app_config.get(TA_TELEMETRY_ENABLED.env_name)))
         self.endpoint = app_config.get(TA_OTEL_ENDPOINT.env_name)
         self._check_enable_telemetry()
         self.tracer: trace.Tracer | None = self._get_tracer()
@@ -104,9 +99,7 @@ class Telemetry:
             exporter = ConsoleMetricExporter()
 
         meter_provider = MeterProvider(
-            metric_readers=[
-                PeriodicExportingMetricReader(exporter, export_interval_millis=5000)
-            ],
+            metric_readers=[PeriodicExportingMetricReader(exporter, export_interval_millis=5000)],
             resource=self.resource,
             views=[
                 # Dropping all instrument names except for those starting with "semantic_kernel"

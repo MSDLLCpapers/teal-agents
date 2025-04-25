@@ -11,7 +11,6 @@ dependencies = [
     "websockets",
     "pydantic",
     "pydantic-yaml",
-    "black",
     "opentelemetry-api",
     "opentelemetry-sdk",
     "opentelemetry-exporter-otlp-proto-grpc",
@@ -22,3 +21,62 @@ dependencies = [
 
 [tool.uv.sources]
 ska-utils = { path = "../../../../shared/ska_utils" }
+
+
+[dependency-groups]
+dev = [
+    "mypy",
+    "ruff",
+    "pytest",
+    "coverage",
+    "pytest-cov",
+    "hatchling",
+    "hatch",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "W",  # pycodestyle warnings
+    "F",  # pyflakes
+    "I",  # isort
+    "B",  # flake8-bugbear
+    "C4", # flake8-comprehensions
+    "UP", # pyupgrade
+]
+isort = { combine-as-imports = true }
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+strict = false
+disallow_incomplete_defs = false
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+files = [".", "tests/"]
+follow_imports = "skip"
+python_version = 3.11
+overrides = [
+  { module = [
+    "ska_utils.*",
+  ], ignore_missing_imports = true },
+]
+
+[tool.coverage.run]
+source = ["tests", "."]
+
+[tool.coverage.report]
+show_missing = true
+sort = "-Cover"
+exclude_also = [
+    # This is only executed while typechecking
+    "if TYPE_CHECKING:",
+    "@abc.abstractmethod",
+    "raise NotImplementedError",
+    "logger.debug",
+]

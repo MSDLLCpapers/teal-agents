@@ -1,5 +1,4 @@
 import json
-from typing import List
 
 import requests
 from opentelemetry.propagate import inject
@@ -16,7 +15,7 @@ class ReqAgent(BaseModel):
 
 class RequestPayload(BaseModel):
     conversation_history: Conversation
-    agent_list: List[ReqAgent]
+    agent_list: list[ReqAgent]
     current_message: str
 
 
@@ -39,7 +38,7 @@ class RecipientChooser:
 
     def __init__(self, agent: RecipientChooserAgent):
         self.agent = agent
-        self.agent_list: List[ReqAgent] = [
+        self.agent_list: list[ReqAgent] = [
             ReqAgent(name=agent.name, description=agent.description)
             for agent in self.agent.agent_catalog.agents.values()
         ]

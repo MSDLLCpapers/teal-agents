@@ -1,17 +1,17 @@
 import json
-import redis
-from typing import Dict
 
-from user_context.in_memory_context import ContextCacheResponse
-from user_context import UserContextCache
+import redis
 from ska_utils import AppConfig
+
 from configs import (
+    TA_REDIS_DB,
     TA_REDIS_HOST,
     TA_REDIS_PORT,
-    TA_REDIS_DB,
     TA_REDIS_TTL,
     TA_USER_INFORMATION_SOURCE_KEY,
 )
+from user_context import UserContextCache
+from user_context.in_memory_context import ContextCacheResponse
 
 
 class ExampleCustomUserContext(UserContextCache):
@@ -24,9 +24,7 @@ class ExampleCustomUserContext(UserContextCache):
             db=int(self.app_config.get(TA_REDIS_DB.env_name)),
         )
         self.ttl = int(self.app_config.get(TA_REDIS_TTL.env_name))
-        self.user_information_api_key = self.app_config.get(
-            TA_USER_INFORMATION_SOURCE_KEY.env_name
-        )
+        self.user_information_api_key = self.app_config.get(TA_USER_INFORMATION_SOURCE_KEY.env_name)
 
     def get_user_context_from_cache(self, user_id: str) -> ContextCacheResponse:
         try:
@@ -36,9 +34,7 @@ class ExampleCustomUserContext(UserContextCache):
                 user_context = self.fetch_user_information(user_id=user_id)
                 if not user_context:
                     return ContextCacheResponse(user_context=None)
-                self.redis_client.set(
-                    name=user_id, value=json.dumps(user_context), ex=self.ttl
-                )
+                self.redis_client.set(name=user_id, value=json.dumps(user_context), ex=self.ttl)
                 context_cache = self.redis_client.get(user_id)
 
             return ContextCacheResponse(user_context=json.loads(context_cache))
@@ -46,6 +42,6 @@ class ExampleCustomUserContext(UserContextCache):
             print(f"User context not available. Error message: {e}")
             return ContextCacheResponse(user_context=None)
 
-    def fetch_user_information(self, user_id: str) -> Dict | None:
+    def fetch_user_information(self, user_id: str) -> dict | None:
         api_key_for_user_information_source = self.user_information_api_key
         return {"user_id": user_id}

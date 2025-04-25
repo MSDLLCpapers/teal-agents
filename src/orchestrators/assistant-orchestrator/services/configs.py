@@ -1,24 +1,16 @@
 from ska_utils import Config
 
-TA_DYNAMO_HOST = Config(
-    env_name="TA_DYNAMO_HOST", is_required=False, default_value=None
-)
-TA_KONG_ENABLED = Config(
-    env_name="TA_KONG_ENABLED", is_required=True, default_value="false"
-)
+TA_DYNAMO_HOST = Config(env_name="TA_DYNAMO_HOST", is_required=False, default_value=None)
+TA_KONG_ENABLED = Config(env_name="TA_KONG_ENABLED", is_required=True, default_value="false")
 TA_VERIFY_IP = Config(env_name="TA_VERIFY_IP", is_required=True, default_value="false")
 
-TA_ENVIRONMENT = Config(
-    env_name="TA_ENVIRONMENT", is_required=False, default_value="dev"
-)
+TA_ENVIRONMENT = Config(env_name="TA_ENVIRONMENT", is_required=False, default_value="dev")
 
 TA_DYNAMO_TABLE_PREFIX = Config(
     env_name="TA_DYNAMO_TABLE_PREFIX", is_required=False, default_value=""
 )
 
-TA_DYNAMO_REGION = Config(
-    env_name="TA_DYNAMO_REGION", is_required=False, default_value="us-east-1"
-)
+TA_DYNAMO_REGION = Config(env_name="TA_DYNAMO_REGION", is_required=False, default_value="us-east-1")
 
 TA_CUSTOM_AUTH_ENABLED = Config(
     env_name="TA_CUSTOM_AUTH_ENABLED", is_required=True, default_value="false"

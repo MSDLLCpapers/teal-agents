@@ -1,18 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import Dict
 
 
 class ContextManager(ABC):
     @abstractmethod
-    def add_context(
-        self, orchestrator_name: str, user_id: str, item_key: str, item_value: str
-    ):
+    def add_context(self, orchestrator_name: str, user_id: str, item_key: str, item_value: str):
         pass
 
     @abstractmethod
-    def update_context(
-        self, orchestrator_name: str, user_id: str, item_key: str, item_value: str
-    ):
+    def update_context(self, orchestrator_name: str, user_id: str, item_key: str, item_value: str):
         pass
 
     @abstractmethod
@@ -20,5 +15,5 @@ class ContextManager(ABC):
         pass
 
     @abstractmethod
-    def get_context(self, orchestrator_name: str, user_id) -> Dict[str, str]:
+    def get_context(self, orchestrator_name: str, user_id) -> dict[str, str]:
         pass

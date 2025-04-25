@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import List
 
 from pydantic import BaseModel
 
@@ -27,9 +26,7 @@ def _parse_add_extra_data(value: str) -> (str, str, ContextType):
         raise ValueError("Key and value must be provided")
 
     ed_type_actual = (
-        ContextType.PERSISTENT
-        if ed_type == ContextType.PERSISTENT.value
-        else ContextType.TRANSIENT
+        ContextType.PERSISTENT if ed_type == ContextType.PERSISTENT.value else ContextType.TRANSIENT
     )
 
     return ed_key, ed_value, ed_type_actual
@@ -43,8 +40,8 @@ def _parse_update_extra_data(value: str) -> (str, str, ContextType):
     return ed_key, ed_value
 
 
-def parse_context_directives(extra_data: ExtraData) -> List[ContextDirective]:
-    directives: List[ContextDirective] = []
+def parse_context_directives(extra_data: ExtraData) -> list[ContextDirective]:
+    directives: list[ContextDirective] = []
     for item in extra_data.items:
         match item.key:
             case ContextDirectiveOp.SET.value:
@@ -70,9 +67,7 @@ def parse_context_directives(extra_data: ExtraData) -> List[ContextDirective]:
             case ContextDirectiveOp.UPDATE.value:
                 key, value = _parse_update_extra_data(item.value)
                 directives.append(
-                    ContextDirective(
-                        op=ContextDirectiveOp.UPDATE, key=key, value=value, type=None
-                    )
+                    ContextDirective(op=ContextDirectiveOp.UPDATE, key=key, value=value, type=None)
                 )
             case ContextDirectiveOp.DELETE.value:
                 directives.append(

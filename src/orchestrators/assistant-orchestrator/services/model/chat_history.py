@@ -1,4 +1,3 @@
-from typing import List
 
 from pydantic import BaseModel
 
@@ -16,4 +15,4 @@ class ChatHistory(BaseModel):
     user_id: str
     session_id: str
     previous_session: str | None
-    history: List[ChatHistoryItem]
+    history: list[ChatHistoryItem]

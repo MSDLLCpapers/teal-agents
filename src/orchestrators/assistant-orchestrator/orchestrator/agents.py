@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import AsyncIterable, Dict, List
+from collections.abc import AsyncIterable
 
 import requests
 import websockets
@@ -16,18 +16,18 @@ class ChatHistoryItem(BaseModel):
 
 
 class AgentInput(BaseModel):
-    chat_history: List[ChatHistoryItem]
-    user_context: Dict[str, str]
+    chat_history: list[ChatHistoryItem]
+    user_context: dict[str, str]
 
 
 def _conversation_to_agent_input(conv: Conversation) -> AgentInput:
-    chat_history: List[ChatHistoryItem] = []
+    chat_history: list[ChatHistoryItem] = []
     for item in conv.history:
         if hasattr(item, "recipient"):
             chat_history.append(ChatHistoryItem(role="user", content=item.content))
         elif hasattr(item, "sender"):
             chat_history.append(ChatHistoryItem(role="assistant", content=item.content))
-    user_context: Dict[str, str] = {}
+    user_context: dict[str, str] = {}
     for key, item in conv.user_context.items():
         user_context[key] = item.value
     return AgentInput(chat_history=chat_history, user_context=user_context)
@@ -75,15 +75,13 @@ class BaseAgent(ABC, BaseModel):
         response = requests.post(self.endpoint_api, data=input_message, headers=headers)
 
         if response.status_code != 200:
-            raise Exception(
-                f"Failed to invoke agent API: {response.status_code} - {response.text}"
-            )
+            raise Exception(f"Failed to invoke agent API: {response.status_code} - {response.text}")
 
         return response.json()
 
 
 class AgentCatalog(BaseModel):
-    agents: Dict[str, BaseAgent]
+    agents: dict[str, BaseAgent]
 
 
 class PromptAgent(BaseModel):
@@ -92,7 +90,7 @@ class PromptAgent(BaseModel):
 
 
 class FallbackInput(AgentInput):
-    agents: List[PromptAgent]
+    agents: list[PromptAgent]
 
 
 class FallbackAgent(BaseAgent):
@@ -102,7 +100,7 @@ class FallbackAgent(BaseAgent):
         super().__init__(**data)
 
     def get_invoke_input(self, agent_input: AgentInput) -> str:
-        agents: List[PromptAgent] = []
+        agents: list[PromptAgent] = []
         for agent in self.agent_catalog.agents.values():
             agents.append(PromptAgent(name=agent.name, description=agent.description))
         fallback_input = FallbackInput(
@@ -137,7 +135,7 @@ class OpenApiPath(BaseModel):
 
 class OpenApiResponse(BaseModel):
     model_config = ConfigDict(extra="allow")
-    paths: Dict[str, OpenApiPath]
+    paths: dict[str, OpenApiPath]
 
 
 class AgentBuilder:

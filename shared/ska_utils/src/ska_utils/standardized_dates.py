@@ -1,8 +1,7 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 class StandardDates:
-
     @staticmethod
     def get_date():
         """
@@ -12,7 +11,7 @@ class StandardDates:
             str: The current date and time in UTC in the
             format 'YYYY-MM-DDTHH:MM:SS.ffffZ'
         """
-        now_utc = datetime.now(timezone.utc)
+        now_utc = datetime.now(UTC)
         utc_string = now_utc.isoformat() + "Z"
         return utc_string
 

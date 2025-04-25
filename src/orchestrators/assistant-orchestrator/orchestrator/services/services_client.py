@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Dict
 
 from pydantic import BaseModel
 
@@ -46,15 +45,11 @@ class ServicesClient(ABC):
         pass
 
     @abstractmethod
-    def add_context_item(
-        self, user_id: str, item_key: str, item_value: str
-    ) -> GeneralResponse:
+    def add_context_item(self, user_id: str, item_key: str, item_value: str) -> GeneralResponse:
         pass
 
     @abstractmethod
-    def update_context_item(
-        self, user_id: str, item_key: str, item_value: str
-    ) -> GeneralResponse:
+    def update_context_item(self, user_id: str, item_key: str, item_value: str) -> GeneralResponse:
         pass
 
     @abstractmethod
@@ -62,5 +57,5 @@ class ServicesClient(ABC):
         pass
 
     @abstractmethod
-    def get_context_items(self, user_id: str) -> Dict[str, str]:
+    def get_context_items(self, user_id: str) -> dict[str, str]:
         pass

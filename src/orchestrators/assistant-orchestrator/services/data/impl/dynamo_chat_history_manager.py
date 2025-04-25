@@ -1,16 +1,17 @@
 import logging
 
-from typing import List
 from pynamodb.models import DoesNotExist
-from ska_utils import Singleton, AppConfig
+from ska_utils import AppConfig, Singleton
+
 from configs import TA_ENVIRONMENT
 from data import ChatHistoryManager
-from model import ChatHistoryItem, ChatHistory, MessageType
+from model import ChatHistory, ChatHistoryItem, MessageType
 from model.dynamo.chat_history import ChatHistory as DynamoChatHistory
 from model.dynamo.chat_history_item import ChatHistoryItem as DynamoChatHistoryItem
 from model.dynamo.last_chat_session import LastChatSession as DynamoLastChatSession
 
 logger = logging.getLogger(__name__)
+
 
 class DynamoChatHistoryManager(ChatHistoryManager, metaclass=Singleton):
     def __init__(self):
@@ -29,9 +30,7 @@ class DynamoChatHistoryManager(ChatHistoryManager, metaclass=Singleton):
                     read_capacity_units=1, write_capacity_units=1, wait=True
                 )
 
-    def set_last_session_id_for_user(
-        self, orchestrator_name: str, user_id: str, session_id: str
-    ):
+    def set_last_session_id_for_user(self, orchestrator_name: str, user_id: str, session_id: str):
         last_chat_session = DynamoLastChatSession(
             orchestrator=orchestrator_name, user_id=user_id, session_id=session_id
         )
@@ -40,9 +39,7 @@ class DynamoChatHistoryManager(ChatHistoryManager, metaclass=Singleton):
         except Exception as e:
             logger.exception(f"Error saving session_id: {session_id} to DB - Error: {e}")
 
-    def get_last_session_id_for_user(
-        self, orchestrator_name: str, user_id: str
-    ) -> str | None:
+    def get_last_session_id_for_user(self, orchestrator_name: str, user_id: str) -> str | None:
         try:
             last_chat_session = DynamoLastChatSession.get(orchestrator_name, user_id)
             return last_chat_session.session_id
@@ -50,10 +47,8 @@ class DynamoChatHistoryManager(ChatHistoryManager, metaclass=Singleton):
             logger.exception(f"Unable to load last session_id for user: {user_id} - Error: {e}")
             return None
 
-    def get_session_items(
-        self, orchestrator_name: str, session_id: str
-    ) -> List[ChatHistoryItem]:
-        chat_history_items: List[ChatHistoryItem] = []
+    def get_session_items(self, orchestrator_name: str, session_id: str) -> list[ChatHistoryItem]:
+        chat_history_items: list[ChatHistoryItem] = []
 
         dynamo_items = DynamoChatHistoryItem.query(session_id)
         for item in dynamo_items:
@@ -77,15 +72,15 @@ class DynamoChatHistoryManager(ChatHistoryManager, metaclass=Singleton):
             timestamp=item.timestamp,
             orchestrator=orchestrator_name,
             agent_name=item.agent_name,
-            message_type=DynamoChatHistoryManager._get_message_type_string(
-                item.message_type
-            ),
+            message_type=DynamoChatHistoryManager._get_message_type_string(item.message_type),
             message=item.message,
         )
         try:
             dynamo_item.save()
         except Exception as e:
-            logger.exception(f"Error adding session item to session_id: {session_id} in DB - Error: {e}")
+            logger.exception(
+                f"Error adding session item to session_id: {session_id} in DB - Error: {e}"
+            )
 
     def get_chat_history_session(
         self, orchestrator_name: str, user_id: str, session_id: str
@@ -106,9 +101,7 @@ class DynamoChatHistoryManager(ChatHistoryManager, metaclass=Singleton):
             logger.exception(f"Conversation with session_id: {session_id} not found - Error: {e}")
             return None
 
-    def add_chat_history_session(
-        self, orchestrator_name: str, chat_history: ChatHistory
-    ) -> None:
+    def add_chat_history_session(self, orchestrator_name: str, chat_history: ChatHistory) -> None:
         dynamo_history = DynamoChatHistory(
             user_id=chat_history.user_id,
             session_id=chat_history.session_id,
@@ -119,7 +112,6 @@ class DynamoChatHistoryManager(ChatHistoryManager, metaclass=Singleton):
             dynamo_history.save()
         except Exception as e:
             logger.exception(f"Error adding chat history session to DB - Error: {e}")
-        
 
     @staticmethod
     def _get_message_type_string(message_type: MessageType) -> str:

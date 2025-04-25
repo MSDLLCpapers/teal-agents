@@ -1,21 +1,20 @@
-from typing import List
+
 from fastapi import (
     WebSocket,
     WebSocketException,
     status,
 )
 from ska_utils import AppConfig, strtobool
+
 from configs import TA_AUTH_ENABLED
-from services import new_client, ServicesClient
+from services import ServicesClient, new_client
 
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: List[WebSocket] = []
+        self.active_connections: list[WebSocket] = []
 
-    async def connect(
-        self, service_name: str, websocket: WebSocket, ticket: str
-    ) -> str:
+    async def connect(self, service_name: str, websocket: WebSocket, ticket: str) -> str:
         cfg = AppConfig()
         if strtobool(str(cfg.get(TA_AUTH_ENABLED.env_name))):
             services_client: ServicesClient = new_client(service_name)

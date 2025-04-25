@@ -2,14 +2,16 @@ import logging
 import time
 import uuid
 
+from pynamodb.models import DoesNotExist
 from ska_utils import AppConfig, strtobool
-from configs import TA_VERIFY_IP, TA_ENVIRONMENT
+
+from configs import TA_ENVIRONMENT, TA_VERIFY_IP
 from data.ticket_manager import TicketManager
 from model.dynamo.ticket import Ticket as DynamoTicket
 from model.responses import VerifyTicketResponse
-from pynamodb.models import DoesNotExist
 
 logger = logging.getLogger(__name__)
+
 
 class DynamoTicketManager(TicketManager):
     def __init__(self):
@@ -18,9 +20,7 @@ class DynamoTicketManager(TicketManager):
 
         if cfg.get(TA_ENVIRONMENT.env_name) == "local":
             if not DynamoTicket.exists():
-                DynamoTicket.create_table(
-                    read_capacity_units=1, write_capacity_units=1, wait=True
-                )
+                DynamoTicket.create_table(read_capacity_units=1, write_capacity_units=1, wait=True)
 
     def verify_ticket(
         self, orchestrator_name: str, ticket: str, ip_address: str
@@ -40,9 +40,7 @@ class DynamoTicketManager(TicketManager):
             logger.exception(f"Error retrieving ticket: {ticket} from DB - Error: {e}")
             return VerifyTicketResponse(is_valid=False, user_id=None)
 
-    def create_ticket(
-        self, orchestrator_name: str, user_id: str, ip_address: str
-    ) -> str:
+    def create_ticket(self, orchestrator_name: str, user_id: str, ip_address: str) -> str:
         ticket = DynamoTicket(
             orchestrator=orchestrator_name,
             ticket=str(uuid.uuid4()),

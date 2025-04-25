@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import List, Dict
 
 from pydantic import BaseModel
 
@@ -27,8 +26,8 @@ class AgentMessage(BaseModel):
 class Conversation(BaseModel):
     conversation_id: str
     user_id: str
-    history: List[UserMessage | AgentMessage]
-    user_context: Dict[str, ContextItem]
+    history: list[UserMessage | AgentMessage]
+    user_context: dict[str, ContextItem]
 
     def add_user_message(self, content: str, recipient: str):
         self.history.append(UserMessage(content=content, recipient=recipient))
@@ -41,9 +40,7 @@ class Conversation(BaseModel):
     ) -> ContextItem:
         if item_key in self.user_context:
             raise ValueError(f"Context item already exists - {item_key}")
-        self.user_context[item_key] = ContextItem(
-            context_type=context_type, value=item_value
-        )
+        self.user_context[item_key] = ContextItem(context_type=context_type, value=item_value)
         return self.user_context[item_key]
 
     def update_context_item(self, item_key: str, item_value: str) -> ContextItem:

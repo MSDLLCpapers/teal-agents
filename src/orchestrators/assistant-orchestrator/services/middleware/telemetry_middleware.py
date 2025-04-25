@@ -11,9 +11,7 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.st = st
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
         context = extract(request.headers)
         with (
             self.st.tracer.start_as_current_span(

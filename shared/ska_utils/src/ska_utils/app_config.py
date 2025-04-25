@@ -1,6 +1,5 @@
 import json
 import os
-from typing import List
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -15,7 +14,7 @@ class Config(BaseModel):
 
 
 class AppConfig(metaclass=Singleton):
-    configs: List[Config] | None = None
+    configs: list[Config] | None = None
 
     @staticmethod
     def add_config(config: Config):
@@ -38,7 +37,7 @@ class AppConfig(metaclass=Singleton):
             AppConfig.configs.append(config)
 
     @staticmethod
-    def add_configs(configs: List[Config]):
+    def add_configs(configs: list[Config]):
         for config in configs:
             AppConfig._add_config(config)
         AppConfig()._reload_from_environment()
@@ -66,9 +65,7 @@ class AppConfig(metaclass=Singleton):
         for config in AppConfig.configs:
             self.props[config.env_name] = os.getenv(
                 config.env_name,
-                default=(
-                    config.default_value if config.default_value is not None else None
-                ),
+                default=(config.default_value if config.default_value is not None else None),
             )
         self.__validate_required_keys()
 
@@ -78,6 +75,4 @@ class AppConfig(metaclass=Singleton):
     def __validate_required_keys(self):
         for config in AppConfig.configs:
             if config.is_required and self.props[config.env_name] is None:
-                raise ValueError(
-                    f"Missing required configuration key: {config.env_name}"
-                )
+                raise ValueError(f"Missing required configuration key: {config.env_name}")

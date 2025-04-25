@@ -1,9 +1,9 @@
 from ska_utils import AppConfig
 
 from configs import (
-    TA_SERVICES_TYPE,
     TA_SERVICES_ENDPOINT,
     TA_SERVICES_TOKEN,
+    TA_SERVICES_TYPE,
 )
 from services.external_services_client import ExternalServicesClient
 from services.internal_services_client import InternalServicesClient

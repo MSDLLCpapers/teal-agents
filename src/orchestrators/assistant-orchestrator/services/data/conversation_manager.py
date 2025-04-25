@@ -1,18 +1,17 @@
 import time
 import uuid
 from contextlib import nullcontext
-from typing import List
 
 from ska_utils import get_telemetry
 
 from data import ChatHistoryManager
 from model import (
+    AgentMessage,
     ChatHistory,
     ChatHistoryItem,
+    ConversationResponse,
     MessageType,
     UserMessage,
-    AgentMessage,
-    ConversationResponse,
 )
 from model.responses import GeneralResponse
 
@@ -21,13 +20,9 @@ def _chat_history_item_to_message(
     history_item: ChatHistoryItem,
 ) -> UserMessage | AgentMessage:
     if history_item.message_type == MessageType.USER:
-        return UserMessage(
-            content=history_item.message, recipient=history_item.agent_name
-        )
+        return UserMessage(content=history_item.message, recipient=history_item.agent_name)
     else:
-        return AgentMessage(
-            content=history_item.message, sender=history_item.agent_name
-        )
+        return AgentMessage(content=history_item.message, sender=history_item.agent_name)
 
 
 class ConversationManager:
@@ -87,17 +82,13 @@ class ConversationManager:
                 if st.telemetry_enabled()
                 else nullcontext()
             ):
-                previous_session = self._get_last_chat_history_id(
-                    orchestrator_name, user_id
-                )
+                previous_session = self._get_last_chat_history_id(orchestrator_name, user_id)
             with (
                 st.tracer.start_as_current_span("retrieve-session-history")
                 if st.telemetry_enabled()
                 else nullcontext()
             ):
-                messages = self._load_messages(
-                    orchestrator_name, user_id, previous_session
-                )
+                messages = self._load_messages(orchestrator_name, user_id, previous_session)
         else:
             previous_session = None
             messages = []
@@ -129,13 +120,11 @@ class ConversationManager:
 
     def _load_messages(
         self, orchestrator_name: str, user_id: str, previous_session: str | None
-    ) -> List[UserMessage | AgentMessage]:
-        messages: List[UserMessage | AgentMessage] = []
+    ) -> list[UserMessage | AgentMessage]:
+        messages: list[UserMessage | AgentMessage] = []
         if previous_session:
-            all_items: List[ChatHistoryItem] = []
-            histories = self._load_chat_history(
-                orchestrator_name, user_id, previous_session
-            )
+            all_items: list[ChatHistoryItem] = []
+            histories = self._load_chat_history(orchestrator_name, user_id, previous_session)
             for history in histories:
                 all_items += history.history
             all_items.sort(key=lambda x: x.timestamp)
@@ -143,16 +132,12 @@ class ConversationManager:
                 messages.append(_chat_history_item_to_message(item))
         return messages
 
-    def _get_last_chat_history_id(
-        self, orchestrator_name: str, user_id: str
-    ) -> str | None:
-        return self.chat_history_manager.get_last_session_id_for_user(
-            orchestrator_name, user_id
-        )
+    def _get_last_chat_history_id(self, orchestrator_name: str, user_id: str) -> str | None:
+        return self.chat_history_manager.get_last_session_id_for_user(orchestrator_name, user_id)
 
     def _load_chat_history(
         self, orchestrator_name: str, user_id: str, session_id: str
-    ) -> List[ChatHistory]:
+    ) -> list[ChatHistory]:
         session_chat_history = self._load_chat_history_from_persistence(
             orchestrator_name, user_id, session_id
         )

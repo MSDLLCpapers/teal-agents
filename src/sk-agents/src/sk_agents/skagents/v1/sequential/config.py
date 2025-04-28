@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 
-from sk_agents.ska_types import Config as BaseConfig
+from sk_agents.ska_types import BaseConfig
 from sk_agents.skagents.v1.config import AgentConfig
 
 

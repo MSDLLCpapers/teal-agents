@@ -7,8 +7,8 @@ from semantic_kernel.contents.utils.author_role import AuthorRole
 
 from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
 from sk_agents.ska_types import (
+    BaseConfig,
     BaseHandler,
-    Config as BaseConfig,
     InvokeResponse,
     TokenUsage,
 )

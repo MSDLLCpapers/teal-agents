@@ -1,8 +1,8 @@
 from ska_utils import AppConfig
 
 from sk_agents.ska_types import (
+    BaseConfig,
     BaseHandler,
-    Config,
 )
 from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.skagents.kernel_builder import KernelBuilder
@@ -16,7 +16,7 @@ from sk_agents.skagents.v1.sequential.sequential_skagents import SequentialSkage
 from sk_agents.skagents.v1.sequential.task_builder import TaskBuilder
 
 
-def handle(config: Config, app_config: AppConfig, authorization: str | None = None):
+def handle(config: BaseConfig, app_config: AppConfig, authorization: str | None = None):
     if config.apiVersion != "skagents/v1":
         raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
 
@@ -30,7 +30,7 @@ def handle(config: Config, app_config: AppConfig, authorization: str | None = No
 
 
 def _handle_chat(
-    config: Config, app_config: AppConfig, authorization: str | None = None
+    config: BaseConfig, app_config: AppConfig, authorization: str | None = None
 ) -> BaseHandler:
     remote_plugin_loader = RemotePluginLoader(RemotePluginCatalog(app_config))
     chat_completion_builder = ChatCompletionBuilder(app_config)
@@ -41,7 +41,7 @@ def _handle_chat(
 
 
 def _handle_sequential(
-    config: Config, app_config: AppConfig, authorization: str | None = None
+    config: BaseConfig, app_config: AppConfig, authorization: str | None = None
 ) -> BaseHandler:
     remote_plugin_loader = RemotePluginLoader(RemotePluginCatalog(app_config))
     chat_completion_builder = ChatCompletionBuilder(app_config)

@@ -16,6 +16,26 @@ from sk_agents.extra_data_collector import (
 )
 
 
+class ConfigMetadata(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    description: str | None = None
+
+
+class BaseConfig(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    apiVersion: str
+    name: str | None = None
+    service_name: str | None = None
+    version: str | float | int
+    description: str | None = None
+    metadata: ConfigMetadata | None = None
+    input_type: str | None = None
+    output_type: str | None = None
+    spec: Any | None = None
+
+
 class ModelType(Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"

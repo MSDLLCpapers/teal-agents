@@ -1,5 +1,5 @@
-from typing import Dict
 import json
+
 import requests
 from opentelemetry.propagate import inject
 from pydantic import BaseModel
@@ -122,7 +122,6 @@ class ExternalServicesClient(ServicesClient):
         response = response.json()
         return GeneralResponse(**response)
 
-
     def verify_ticket(self, ticket: str, ip_address: str) -> VerifyTicketResponse:
         request = VerifyTicketRequest(ticket=ticket, ip_address=ip_address)
 
@@ -141,7 +140,6 @@ class ExternalServicesClient(ServicesClient):
             raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
         response = response.json()
         return VerifyTicketResponse(**response)
-
 
     def add_context_item(self, user_id: str, item_key: str, item_value: str) -> GeneralResponse:
         request = AddContextRequest(item_key=item_key, item_value=item_value)
@@ -162,7 +160,6 @@ class ExternalServicesClient(ServicesClient):
         response = response.json()
         return GeneralResponse(**response)
 
-
     def update_context_item(self, user_id: str, item_key: str, item_value: str) -> GeneralResponse:
         request = UpdateContextRequest(item_value=item_value)
 
@@ -182,7 +179,6 @@ class ExternalServicesClient(ServicesClient):
         response = response.json()
         return GeneralResponse(**response)
 
-
     def delete_context_item(self, user_id: str, item_key: str) -> GeneralResponse:
         headers = {
             "taAgwKey": self.token,
@@ -199,7 +195,6 @@ class ExternalServicesClient(ServicesClient):
         response = response.json()
         return GeneralResponse(**response)
 
-
     def get_context_items(self, user_id: str) -> dict[str, str]:
         headers = {
             "taAgwKey": self.token,
@@ -215,4 +210,3 @@ class ExternalServicesClient(ServicesClient):
             raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
         response = response.json()
         return response
-

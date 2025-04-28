@@ -79,7 +79,9 @@ class DynamoChatHistoryManager(ChatHistoryManager, metaclass=Singleton):
         try:
             dynamo_item.save()
         except Exception as e:
-            logger.exception(f"Error adding session item to session_id: {session_id} in DB - Error: {e}")
+            logger.exception(
+                f"Error adding session item to session_id: {session_id} in DB - Error: {e}"
+            )
             raise
 
     def get_chat_history_session(
@@ -113,7 +115,7 @@ class DynamoChatHistoryManager(ChatHistoryManager, metaclass=Singleton):
         except Exception as e:
             logger.exception(f"Error adding chat history session to DB - Error: {e}")
             raise
-        
+
     @staticmethod
     def _get_message_type_string(message_type: MessageType) -> str:
         match message_type:

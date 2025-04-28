@@ -1,4 +1,3 @@
-
 from pydantic_yaml import parse_yaml_file_as
 from ska_utils import AppConfig, initialize_telemetry
 

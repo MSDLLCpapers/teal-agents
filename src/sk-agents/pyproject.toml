@@ -55,6 +55,7 @@ dev = [
     "pytest-cov",
     "hatchling",
     "hatch",
+    "pytest-mock"
 ]
 
 [tool.ruff]
@@ -91,7 +92,8 @@ overrides = [
 ]
 
 [tool.coverage.run]
-source = ["tests", "src/sk_agents"]
+source = ["src/sk_agents"]
+omit = ["*/tests/*", "test_*", "__init__.py"]
 
 [tool.coverage.report]
 show_missing = true

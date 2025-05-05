@@ -62,7 +62,7 @@ class BaseAgent(ABC, BaseModel):
 
     def invoke_api(
         self, conv: Conversation, authorization: str | None = None
-    ) -> AsyncIterable[str]:
+    ) -> dict:
         """Invoke the agent via an HTTP API call."""
         base_input = _conversation_to_agent_input(conv)
         input_message = self.get_invoke_input(base_input)

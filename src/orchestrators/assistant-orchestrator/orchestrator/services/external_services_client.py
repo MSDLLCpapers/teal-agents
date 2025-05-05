@@ -48,19 +48,19 @@ class ExternalServicesClient(ServicesClient):
         self.orchestrator_name = orchestrator_name
         self.endpoint = endpoint
         self.token = token
-
-    def new_conversation(self, user_id: str, is_resumed: bool) -> Conversation:
-        request = NewConversationRequest(user_id=user_id, is_resumed=is_resumed)
-
-        headers = {
+        self.headers = {
             "taAgwKey": self.token,
         }
-        inject(headers)
+
+    def new_conversation(self, user_id: str, is_resumed: bool) -> Conversation:
+        conv_request = NewConversationRequest(user_id=user_id, is_resumed=is_resumed)
+
+        inject(self.headers)
         try:
             history_response = requests.post(
                 url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/conversation-history",
-                headers=headers,
-                data=request.model_dump_json(),
+                headers=self.headers,
+                data=conv_request.model_dump_json(),
             )
             history_response.raise_for_status()
         except requests.exceptions.HTTPError as e:
@@ -74,16 +74,13 @@ class ExternalServicesClient(ServicesClient):
         return Conversation(**history_response, user_id=user_id, user_context=user_context)
 
     def get_conversation(self, user_id: str, session_id: str) -> Conversation:
-        request = GetConversationRequest(user_id=user_id, session_id=session_id)
-        headers = {
-            "taAgwKey": self.token,
-        }
-        inject(headers)
+        conv_request = GetConversationRequest(user_id=user_id, session_id=session_id)
+        inject(self.headers)
         try:
             history_response = requests.get(
                 url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/conversation-history/{session_id}",
-                headers=headers,
-                data=request.model_dump_json(),
+                headers=self.headers,
+                data=conv_request.model_dump_json(),
             )
             history_response.raise_for_status()
         except requests.exceptions.HTTPError as e:
@@ -106,14 +103,11 @@ class ExternalServicesClient(ServicesClient):
             message_type=message_type, agent_name=agent_name, message=message
         )
 
-        headers = {
-            "taAgwKey": self.token,
-        }
-        inject(headers)
+        inject(self.headers)
         try:
             response = requests.post(
                 url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/conversation-history/{conversation_id}/messages",
-                headers=headers,
+                headers=self.headers,
                 data=request.model_dump_json(),
             )
             response.raise_for_status()
@@ -123,17 +117,14 @@ class ExternalServicesClient(ServicesClient):
         return GeneralResponse(**response)
 
     def verify_ticket(self, ticket: str, ip_address: str) -> VerifyTicketResponse:
-        request = VerifyTicketRequest(ticket=ticket, ip_address=ip_address)
+        ticket_request = VerifyTicketRequest(ticket=ticket, ip_address=ip_address)
 
-        headers = {
-            "taAgwKey": self.token,
-        }
-        inject(headers)
+        inject(self.headers)
         try:
             response = requests.post(
                 url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/tickets/verify",
-                headers=headers,
-                data=request.model_dump_json(),
+                headers=self.headers,
+                data=ticket_request.model_dump_json(),
             )
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
@@ -142,17 +133,14 @@ class ExternalServicesClient(ServicesClient):
         return VerifyTicketResponse(**response)
 
     def add_context_item(self, user_id: str, item_key: str, item_value: str) -> GeneralResponse:
-        request = AddContextRequest(item_key=item_key, item_value=item_value)
+        context_request = AddContextRequest(item_key=item_key, item_value=item_value)
 
-        headers = {
-            "taAgwKey": self.token,
-        }
-        inject(headers)
+        inject(self.headers)
         try:
             response = requests.post(
                 url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/users/{user_id}/context",
-                headers=headers,
-                data=request.model_dump_json(),
+                headers=self.headers,
+                data=context_request.model_dump_json(),
             )
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
@@ -161,17 +149,14 @@ class ExternalServicesClient(ServicesClient):
         return GeneralResponse(**response)
 
     def update_context_item(self, user_id: str, item_key: str, item_value: str) -> GeneralResponse:
-        request = UpdateContextRequest(item_value=item_value)
+        context_request = UpdateContextRequest(item_value=item_value)
 
-        headers = {
-            "taAgwKey": self.token,
-        }
-        inject(headers)
+        inject(self.headers)
         try:
             response = requests.put(
                 url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/users/{user_id}/context/{item_key}",
-                headers=headers,
-                data=request.model_dump_json(),
+                headers=self.headers,
+                data=context_request.model_dump_json(),
             )
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
@@ -180,14 +165,12 @@ class ExternalServicesClient(ServicesClient):
         return GeneralResponse(**response)
 
     def delete_context_item(self, user_id: str, item_key: str) -> GeneralResponse:
-        headers = {
-            "taAgwKey": self.token,
-        }
-        inject(headers)
+
+        inject(self.headers)
         try:
             response = requests.delete(
                 url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/users/{user_id}/context/{item_key}",
-                headers=headers,
+                headers=self.headers,
             )
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
@@ -196,14 +179,12 @@ class ExternalServicesClient(ServicesClient):
         return GeneralResponse(**response)
 
     def get_context_items(self, user_id: str) -> dict[str, str]:
-        headers = {
-            "taAgwKey": self.token,
-        }
-        inject(headers)
+
+        inject(self.headers)
         try:
             response = requests.get(
                 url=f"{self.endpoint}/services/v1/{self.orchestrator_name}/users/{user_id}/context",
-                headers=headers,
+                headers=self.headers,
             )
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:

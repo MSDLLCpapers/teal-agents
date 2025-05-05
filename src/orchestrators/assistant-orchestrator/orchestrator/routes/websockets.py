@@ -34,7 +34,7 @@ async def invoke_stream(
     websocket: WebSocket,
     ticket: str,
     resume: bool = False,
-    authorization: str = None,
+    authorization: str | None = None,
 ) -> None:
     jt = get_telemetry()
     with (

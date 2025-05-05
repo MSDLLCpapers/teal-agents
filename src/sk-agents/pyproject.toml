@@ -3,9 +3,9 @@ name = "sk-agents"
 dynamic = ["version"]
 description = "Teal Agents - Core Agent Framework"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
-    "semantic-kernel==1.22.1",
+    "semantic-kernel==1.29.0",
     "pyyaml",
     "pydantic",
     "pydantic-yaml",
@@ -17,7 +17,6 @@ dependencies = [
     "opentelemetry-exporter-otlp-proto-grpc",
     "ska-utils",
     "lock",
-    "dapr>=1.15.0",
 ]
 
 [project.urls]
@@ -60,7 +59,7 @@ dev = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = [
@@ -84,7 +83,7 @@ disallow_untyped_defs = false
 disallow_untyped_calls = false
 files = ["src/sk_agents/", "tests/"]
 follow_imports = "skip"
-python_version = 3.11
+python_version = 3.13
 overrides = [
   { module = [
     "ska_utils.*",

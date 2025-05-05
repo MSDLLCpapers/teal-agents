@@ -36,8 +36,14 @@ class Task:
         self.agent = agent
         self.extra_data_collector = extra_data_collector
 
-    def _get_user_message_with_inputs(self, inputs: dict[str, Any] | None = None) -> str:
-        return self.instructions if inputs is None else Template(self.instructions).render(inputs)
+    def _get_user_message_with_inputs(
+        self, inputs: dict[str, Any] | None = None
+    ) -> str:
+        return (
+            self.instructions
+            if inputs is None
+            else Template(self.instructions).render(inputs)
+        )
 
     @staticmethod
     def _embedded_image_to_image_content(
@@ -82,7 +88,7 @@ class Task:
         chunks = []
         async for chunk in self.agent.invoke_stream(history):
             chunks.append(chunk)
-            yield chunk
+            yield str(chunk)
         if not self.extra_data_collector.is_empty():
             yield ExtraDataPartial(
                 extra_data=self.extra_data_collector.get_extra_data()
@@ -104,7 +110,9 @@ class Task:
         async for content in self.agent.invoke(history):
             response_content.append(content)
             history.add_message(content)
-            call_usage = get_token_usage_for_response(self.agent.get_model_type(), content)
+            call_usage = get_token_usage_for_response(
+                self.agent.get_model_type(), content
+            )
             completion_tokens += call_usage.completion_tokens
             prompt_tokens += call_usage.prompt_tokens
             total_tokens += call_usage.total_tokens

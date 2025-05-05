@@ -25,7 +25,7 @@ class CustomUserContextHelper:
         class_name = self.app_config.get(TA_CUSTOM_USER_CONTEXT_CLASS_NAME.env_name)
         return getattr(self.module, class_name)()
 
-    def _get_custom_user_context_config(self) -> (str, str):
+    def _get_custom_user_context_config(self) -> tuple[str, str]:
         custom_auth_module = self.app_config.get(TA_CUSTOM_USER_CONTEXT_MODULE.env_name)
         if not custom_auth_module:
             raise ValueError("Custom user context module is enabled but not defined")

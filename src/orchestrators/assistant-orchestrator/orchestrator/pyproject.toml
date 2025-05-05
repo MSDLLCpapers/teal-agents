@@ -32,7 +32,13 @@ dev = [
     "pytest-cov",
     "hatchling",
     "hatch",
+    "pytest-aiohttp",
+    "pytest-mock"
 ]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "session"
+asyncio_mode = "auto"
 
 [tool.ruff]
 line-length = 100
@@ -68,7 +74,8 @@ overrides = [
 ]
 
 [tool.coverage.run]
-source = ["tests", "."]
+source = ["."]
+omit = ["*/tests/*", "test_*", "__init__.py"]
 
 [tool.coverage.report]
 show_missing = true

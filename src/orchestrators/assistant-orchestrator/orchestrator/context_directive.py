@@ -20,7 +20,7 @@ class ContextDirective(BaseModel):
     type: ContextType | None = None
 
 
-def _parse_add_extra_data(value: str) -> (str, str, ContextType):
+def _parse_add_extra_data(value: str) -> tuple[str, str, ContextType]:
     (ed_key, ed_value, ed_type) = value.split(":", maxsplit=3)
     if not ed_key or not ed_value:
         raise ValueError("Key and value must be provided")
@@ -32,7 +32,7 @@ def _parse_add_extra_data(value: str) -> (str, str, ContextType):
     return ed_key, ed_value, ed_type_actual
 
 
-def _parse_update_extra_data(value: str) -> (str, str, ContextType):
+def _parse_update_extra_data(value: str) -> tuple[str, str]:
     (ed_key, ed_value) = value.split(":", maxsplit=2)
     if not ed_key or not ed_value:
         raise ValueError("Key and value must be provided")

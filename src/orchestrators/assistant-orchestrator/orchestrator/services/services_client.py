@@ -16,6 +16,36 @@ class GeneralResponse(BaseModel):
     message: str
 
 
+class UserNotFoundResponse(GeneralResponse):
+    def __init__(self):
+        super().__init__(status=404, message="User not found")
+
+
+class ItemNotFoundResponse(GeneralResponse):
+    def __init__(self):
+        super().__init__(status=404, message="Item not found")
+
+
+class ItemUpdatedResponse(GeneralResponse):
+    def __init__(self):
+        super().__init__(status=200, message="Item updated successfully")
+
+
+class ItemDeleteResponse(GeneralResponse):
+    def __init__(self):
+        super().__init__(status=200, message="Item deleted successfully")
+
+
+class AgentMessageResponse(GeneralResponse):
+    def __init__(self):
+        super().__init__(status=200, message="Agent message added successfully")
+
+
+class UserMessageResponse(GeneralResponse):
+    def __init__(self):
+        super().__init__(status=200, message="User message added successfully")
+
+
 class VerifyTicketResponse(BaseModel):
     is_valid: bool
     user_id: str | None = None

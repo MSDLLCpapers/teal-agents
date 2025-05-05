@@ -1,13 +1,13 @@
 from contextlib import nullcontext
 
-from dapr.clients import DaprClient
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import StreamingResponse
 from opentelemetry.propagate import extract
-from ska_utils import AppConfig, get_telemetry
+from redis import Redis
+from ska_utils import AppConfig, get_telemetry, RedisStreamsEventPublisher
 
 from sk_agents.a2a_types import A2AInvokeEvent, A2AInvokeResponse, A2AEventType
-from sk_agents.configs import TA_A2A_EVENT_SOURCE_NAME
+from sk_agents.configs import TA_REDIS_HOST, TA_REDIS_PORT
 from sk_agents.ska_types import (
     BaseConfig,
     BaseHandler,
@@ -124,24 +124,26 @@ class Routes:
         async def invoke_a2a(a2a_event: A2AInvokeEvent) -> A2AInvokeResponse:
             _assert_valid_event(a2a_event)
 
-            event_source_name = app_config.get(TA_A2A_EVENT_SOURCE_NAME.env_name)
-            with DaprClient() as client:
-                try:
-                    client.publish_event(
-                        pubsub_name=event_source_name,
-                        topic_name=f"{name}/{version}",
-                        data=a2a_event.model_dump_json(),
-                        data_content_type="application/json",
-                    )
-                    return A2AInvokeResponse(
-                        event_id=a2a_event.event_id,
-                        topic=f"{name}/{version}/{a2a_event.event_id}",
-                    )
-                except Exception as e:
-                    raise HTTPException(
-                        status_code=500,
-                        detail=f"Failed to publish event: {str(e)}",
-                    )
+            publisher = RedisStreamsEventPublisher(
+                r=Redis(
+                    host=app_config.get(TA_REDIS_HOST.env_name),
+                    port=int(app_config.get(TA_REDIS_PORT.env_name)),
+                )
+            )
+            try:
+                publisher.publish_event(
+                    topic_name=f"{name}/{version}",
+                    event_data=a2a_event.model_dump_json(),
+                )
+                return A2AInvokeResponse(
+                    event_id=a2a_event.event_id,
+                    topic=f"{name}/{version}/{a2a_event.event_id}",
+                )
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to publish event: {str(e)}",
+                )
 
         return router
 

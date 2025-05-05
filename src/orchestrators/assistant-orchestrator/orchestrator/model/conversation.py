@@ -36,14 +36,14 @@ class Conversation(BaseModel):
         self.history.append(AgentMessage(content=content, sender=sender))
 
     def add_context_item(
-        self, item_key: str, item_value: str, context_type: ContextType
+        self, item_key: str, item_value: str | None, context_type: ContextType
     ) -> ContextItem:
         if item_key in self.user_context:
             raise ValueError(f"Context item already exists - {item_key}")
         self.user_context[item_key] = ContextItem(context_type=context_type, value=item_value)
         return self.user_context[item_key]
 
-    def update_context_item(self, item_key: str, item_value: str) -> ContextItem:
+    def update_context_item(self, item_key: str, item_value: str | None) -> ContextItem:
         if item_key not in self.user_context:
             raise ValueError(f"Context item does not exist - {item_key}")
         self.user_context[item_key].value = item_value

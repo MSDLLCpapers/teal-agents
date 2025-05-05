@@ -2,6 +2,12 @@ import uuid
 
 from model import AgentMessage, ContextItem, Conversation, UserMessage
 from services.services_client import (
+    ItemDeleteResponse,
+    UserNotFoundResponse,
+    ItemNotFoundResponse,
+    ItemUpdatedResponse,
+    AgentMessageResponse,
+    UserMessageResponse,
     GeneralResponse,
     MessageType,
     ServicesClient,
@@ -63,9 +69,9 @@ class InternalServicesClient(ServicesClient):
         message: str,
     ) -> GeneralResponse:
         if message_type == MessageType.AGENT:
-            return GeneralResponse(status=200, message="Agent message added successfully")
+            return AgentMessageResponse()
         elif message_type == MessageType.USER:
-            return GeneralResponse(status=200, message="User message added successfully")
+            return UserMessageResponse()
         else:
             raise Exception("Failed to add conversation message")
 
@@ -76,23 +82,23 @@ class InternalServicesClient(ServicesClient):
         if user_id not in self.contexts:
             self.contexts[user_id] = {}
         self.contexts[user_id][item_key] = item_value
-        return GeneralResponse(status=200, message="Item added successfully")
+        return ItemUpdatedResponse()
 
     def update_context_item(self, user_id: str, item_key: str, item_value: str) -> GeneralResponse:
         if user_id not in self.contexts:
-            return GeneralResponse(status=404, message="User not found")
+            return UserNotFoundResponse()
         if item_key not in self.contexts[user_id]:
-            return GeneralResponse(status=404, message="Item not found")
+            return ItemNotFoundResponse()
         self.contexts[user_id][item_key] = item_value
-        return GeneralResponse(status=200, message="Item updated successfully")
+        return ItemDeleteResponse()
 
     def delete_context_item(self, user_id: str, item_key: str) -> GeneralResponse:
         if user_id not in self.contexts:
-            return GeneralResponse(status=404, message="User not found")
+            return UserNotFoundResponse()
         if item_key not in self.contexts[user_id]:
-            return GeneralResponse(status=404, message="Item not found")
+            return ItemNotFoundResponse()
         del self.contexts[user_id][item_key]
-        return GeneralResponse(status=200, message="Item deleted successfully")
+        return ItemDeleteResponse()
 
     def get_context_items(self, user_id: str) -> dict[str, str]:
         if user_id not in self.contexts:

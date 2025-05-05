@@ -26,6 +26,7 @@ _config: Config | None = None
 _agent_catalog: AgentCatalog | None = None
 _fallback_agent: Agent | None = None
 _user_context_helper: CustomUserContextHelper = CustomUserContextHelper(app_config)
+_user_context: UserContextCache | None = None
 
 
 def initialize() -> None:
@@ -40,6 +41,12 @@ def initialize() -> None:
 
     config_file = app_config.get(TA_SERVICE_CONFIG.env_name)
     _config = parse_yaml_file_as(Config, config_file)
+
+    if _config is None:
+        raise TypeError("_config was None which should not happen")
+
+    if _config.spec is None:
+        raise TypeError("_config.spec was None which should not happen")
 
     initialize_telemetry(_config.service_name, app_config)
 
@@ -69,36 +76,48 @@ def initialize() -> None:
 def get_conv_manager() -> ConversationManager:
     if _conv_manager is None:
         initialize()
+        if _conv_manager is None:
+            raise TypeError("_conv_manager is None")
     return _conv_manager
 
 
 def get_conn_manager() -> ConnectionManager:
     if _conn_manager is None:
         initialize()
+        if _conn_manager is None:
+            raise TypeError("_conn_manager is None")
     return _conn_manager
 
 
 def get_rec_chooser() -> RecipientChooser:
     if _rec_chooser is None:
         initialize()
+        if _rec_chooser is None:
+            raise TypeError("_rec_chooser is None")
     return _rec_chooser
 
 
 def get_config() -> Config:
     if _config is None:
         initialize()
+        if _config is None:
+            raise TypeError("_config is None")
     return _config
 
 
 def get_agent_catalog() -> AgentCatalog:
     if _agent_catalog is None:
         initialize()
+        if _agent_catalog is None:
+            raise TypeError("_agent_catalog is None")
     return _agent_catalog
 
 
 def get_fallback_agent() -> Agent:
     if _fallback_agent is None:
         initialize()
+        if _fallback_agent is None:
+            raise TypeError("_fallback_agent is None")
     return _fallback_agent
 
 

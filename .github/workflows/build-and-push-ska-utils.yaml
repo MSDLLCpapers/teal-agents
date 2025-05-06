@@ -1,0 +1,42 @@
+name: Build and push teal-utils to PyPI
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    environment:
+      name: pypi
+      url: https://pypi.org/p/teal-agent-utils
+    permissions:
+      id-token: write # Important for trusted publishing to PyPI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        working-directory: ./shared/ska_utils
+        run: make sync
+      - name: Lint
+        working-directory: ./shared/ska_utils
+        run: make lint
+      - name: Type check
+        working-directory: ./shared/ska_utils
+        run: make mypy
+      - name: Build package
+        working-directory: ./shared/ska_utils
+        run: uv build
+      - name: Publish to PyPI
+        working-directory: ./shared/ska_utils
+        uses: pypa/gh-action-pypi-publish@release/v1
+

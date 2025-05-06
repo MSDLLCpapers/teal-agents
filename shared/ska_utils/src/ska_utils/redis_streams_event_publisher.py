@@ -1,5 +1,6 @@
 from redis import Redis
 
+
 class RedisStreamsEventPublisher:
     def __init__(self, r: Redis):
         self._r = r

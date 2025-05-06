@@ -4,9 +4,9 @@ import threading
 import typing
 import uuid
 from abc import ABC, abstractmethod
-from typing import TypeVar, Generic
-from pydantic import BaseModel, TypeAdapter
+from typing import Generic, TypeVar
 
+from pydantic import BaseModel, TypeAdapter
 from redis import Redis
 from redis.exceptions import ResponseError
 
@@ -21,11 +21,11 @@ class MaxWaitExceededError(Exception):
 
 class RedisStreamsEventHandler(ABC, Generic[TEventType]):
     def __init__(
-            self,
-            topic_name: str,
-            r: Redis,
-            event_types: type[TEventType],
-            max_message_wait: int = -1,
+        self,
+        topic_name: str,
+        r: Redis,
+        event_types: type[TEventType],
+        max_message_wait: int = -1,
     ):
         self._topic_name = topic_name
         self._group_name = f"{self._topic_name}/consumers"
@@ -43,7 +43,7 @@ class RedisStreamsEventHandler(ABC, Generic[TEventType]):
         try:
             return TypeAdapter(event_types)
         except Exception as e:
-            raise TypeError(f"Failed to create TypeAdapter for {event_types!r}: {e}")
+            raise TypeError(f"Failed to create TypeAdapter for {event_types!r}: {e}") from e
 
     @staticmethod
     def _validate_event_types(event_types: type[TEventType]) -> type[TEventType]:
@@ -96,9 +96,7 @@ class RedisStreamsEventHandler(ABC, Generic[TEventType]):
         try:
             result = self._r.xgroup_create(self._topic_name, self._group_name, 0, True)
             if result:
-                self._logger.info(
-                    f"Consumer group {self._group_name} created successfully"
-                )
+                self._logger.info(f"Consumer group {self._group_name} created successfully")
             else:
                 raise RuntimeError("Failed to create consumer group")
         except ResponseError as e:
@@ -108,7 +106,7 @@ class RedisStreamsEventHandler(ABC, Generic[TEventType]):
                 raise e
 
     # noinspection PyTypeChecker
-    def _decode_event(self, event: StreamsType) -> (str, TEventType):
+    def _decode_event(self, event: StreamsType) -> tuple[str, TEventType]:
         try:
             event_id = event[0][1][0][0].decode()
             event_data_str = event[0][1][0][1][b"event_data"].decode()

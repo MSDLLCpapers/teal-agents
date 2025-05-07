@@ -132,7 +132,7 @@ class ExternalServicesClient(ServicesClient):
         response = response.json()
         return VerifyTicketResponse(**response)
 
-    def add_context_item(self, user_id: str, item_key: str, item_value: str) -> GeneralResponse:
+    def add_context_item(self, user_id: str, item_key: str, item_value: str | None) -> GeneralResponse:
         context_request = AddContextRequest(item_key=item_key, item_value=item_value)
 
         inject(self.headers)
@@ -148,7 +148,7 @@ class ExternalServicesClient(ServicesClient):
         response = response.json()
         return GeneralResponse(**response)
 
-    def update_context_item(self, user_id: str, item_key: str, item_value: str) -> GeneralResponse:
+    def update_context_item(self, user_id: str, item_key: str, item_value: str | None) -> GeneralResponse:
         context_request = UpdateContextRequest(item_value=item_value)
 
         inject(self.headers)
@@ -178,7 +178,7 @@ class ExternalServicesClient(ServicesClient):
         response = response.json()
         return GeneralResponse(**response)
 
-    def get_context_items(self, user_id: str) -> dict[str, str]:
+    def get_context_items(self, user_id: str) -> dict[str, str | None]:
 
         inject(self.headers)
         try:

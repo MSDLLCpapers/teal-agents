@@ -35,6 +35,9 @@ class ItemDeleteResponse(GeneralResponse):
     def __init__(self):
         super().__init__(status=200, message="Item deleted successfully")
 
+class ItemAddedResponse(GeneralResponse):
+    def __init__(self):
+        super().__init__(status=200, message="Item added successfully")
 
 class AgentMessageResponse(GeneralResponse):
     def __init__(self):
@@ -75,11 +78,11 @@ class ServicesClient(ABC):
         pass
 
     @abstractmethod
-    def add_context_item(self, user_id: str, item_key: str, item_value: str) -> GeneralResponse:
+    def add_context_item(self, user_id: str, item_key: str, item_value: str | None) -> GeneralResponse:
         pass
 
     @abstractmethod
-    def update_context_item(self, user_id: str, item_key: str, item_value: str) -> GeneralResponse:
+    def update_context_item(self, user_id: str, item_key: str, item_value: str | None) -> GeneralResponse:
         pass
 
     @abstractmethod
@@ -87,5 +90,5 @@ class ServicesClient(ABC):
         pass
 
     @abstractmethod
-    def get_context_items(self, user_id: str) -> dict[str, str]:
+    def get_context_items(self, user_id: str) -> dict[str, str | None]:
         pass

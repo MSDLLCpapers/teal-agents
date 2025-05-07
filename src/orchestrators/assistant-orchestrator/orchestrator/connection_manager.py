@@ -21,6 +21,8 @@ class ConnectionManager:
             if not result.is_valid:
                 raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION)
             user_id = result.user_id
+            if user_id is None:
+                user_id = "default"
         else:
             user_id = "default"
         await websocket.accept()

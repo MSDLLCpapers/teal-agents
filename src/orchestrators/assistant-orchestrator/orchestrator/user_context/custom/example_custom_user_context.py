@@ -41,6 +41,6 @@ class ExampleCustomUserContext(UserContextCache):
             print(f"User context not available. Error message: {e}")
             return ContextCacheResponse(user_context=None)
 
-    def fetch_user_information(self, user_id: str) -> dict | None:
+    def fetch_user_information(self, user_id: str) -> dict:
         api_key_for_user_information_source = self.user_information_api_key
         return {"user_id": user_id}

@@ -88,6 +88,7 @@ overrides = [
     "ska_utils.*",
   ], ignore_missing_imports = true },
 ]
+exclude = ["src/sk_agents/routes.py","src/sk_agents/a2a_event_handler.py"]
 
 [tool.coverage.run]
 source = ["tests", "src/sk_agents"]

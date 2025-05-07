@@ -4,43 +4,71 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    # All PRs, including stacked PRs
 
 jobs:
-  build:
+  lint:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Setup uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
-
       - name: Install dependencies
         working-directory: ./src/sk-agents
         run: make sync
-      
+      - name: Run lint
+        working-directory: ./src/sk-agents
+        run: make lint
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        working-directory: ./src/sk-agents
+        run: make sync
+      - name: Run tests with coverage
+        working-directory: ./src/sk-agents
+        run: make coverage
+
+  build:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        working-directory: ./src/sk-agents
+        run: uv sync
       - name: Extract version with hatch
         id: extract_version
         working-directory: ./src/sk-agents
         run: |
           VERSION=$( uv run hatch version )
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-
       - name: Build Docker image
         run: |
           docker build -t ghcr.io/teal-agents/teal-agents:${{ steps.extract_version.outputs.VERSION }} -f teal-agents.Dockerfile .
           docker tag ghcr.io/teal-agents/teal-agents:${{ steps.extract_version.outputs.VERSION }} ghcr.io/teal-agents/teal-agents:latest
-
       - name: Log in to Docker registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-
       - name: Push Docker image
         run: |
           docker push ghcr.io/teal-agents/teal-agents:${{ steps.extract_version.outputs.VERSION }}

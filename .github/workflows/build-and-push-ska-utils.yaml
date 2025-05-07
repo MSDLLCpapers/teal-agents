@@ -1,14 +1,48 @@
-name: Build and push teal-utils to PyPI
+name: Build and push teal-utils
 
 on:
   push:
     branches:
       - main
+  pull_request:
+    # All PRs, including stacked PRs
 
 permissions:
   contents: read
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        working-directory: ./src/sk-agents
+        run: make sync
+      - name: Run lint
+        working-directory: ./src/sk-agents
+        run: make lint
+
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        working-directory: ./src/sk-agents
+        run: make sync
+      - name: Run tests with coverage
+        working-directory: ./src/sk-agents
+        run: make coverage
+
   publish:
     environment:
       name: pypi
@@ -16,7 +50,7 @@ jobs:
     permissions:
       id-token: write # Important for trusted publishing to PyPI
     runs-on: ubuntu-latest
-
+    if: github.event_name == 'push'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,17 +60,11 @@ jobs:
           enable-cache: true
       - name: Install dependencies
         working-directory: ./shared/ska_utils
-        run: make sync
-      - name: Lint
-        working-directory: ./shared/ska_utils
-        run: make lint
-      - name: Type check
-        working-directory: ./shared/ska_utils
-        run: make mypy
+        run: uv sync
       - name: Build package
         working-directory: ./shared/ska_utils
         run: uv build
       - name: Publish to PyPI
-        working-directory: ./shared/ska_utils
         uses: pypa/gh-action-pypi-publish@release/v1
-
+        with:
+          packages-dir: ./shared/ska_utils/dist/

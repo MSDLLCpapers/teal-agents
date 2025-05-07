@@ -1981,7 +1981,6 @@ dev = [
 
 [[package]]
 name = "ska-utils"
-version = "0.1.17"
 source = { directory = "../../shared/ska_utils" }
 dependencies = [
     { name = "opentelemetry-exporter-otlp-proto-grpc" },

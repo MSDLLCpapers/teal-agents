@@ -22,9 +22,7 @@ from sk_agents.skagents.v1.utils import (
 
 
 class ChatAgents(BaseHandler):
-    def __init__(
-        self, config: BaseConfig, agent_builder: AgentBuilder, is_v2: bool = False
-    ):
+    def __init__(self, config: BaseConfig, agent_builder: AgentBuilder, is_v2: bool = False):
         if not is_v2:
             if config.input_type not in [
                 "BaseInput",
@@ -49,18 +47,14 @@ class ChatAgents(BaseHandler):
             for key, value in inputs["user_context"].items():
                 content += f"  {key}: {value}\n"
             chat_history.add_message(
-                ChatMessageContent(
-                    role=AuthorRole.USER, items=[TextContent(text=content)]
-                )
+                ChatMessageContent(role=AuthorRole.USER, items=[TextContent(text=content)])
             )
 
     async def invoke_stream(
         self, inputs: dict[str, Any] | None = None
     ) -> AsyncIterable[PartialResponse | InvokeResponse]:
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(
-            self.config.get_agent(), extra_data_collector
-        )
+        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
 
         # Initialize tasks count and token metrics
         completion_tokens: int = 0
@@ -83,9 +77,7 @@ class ChatAgents(BaseHandler):
             total_tokens += call_usage.total_tokens
             try:
                 # Attempt to parse as ExtraDataPartial
-                extra_data_partial: ExtraDataPartial = ExtraDataPartial.new_from_json(
-                    content
-                )
+                extra_data_partial: ExtraDataPartial = ExtraDataPartial.new_from_json(content)
                 extra_data_collector.add_extra_data_items(extra_data_partial.extra_data)
             except Exception:
                 if len(content) > 0:
@@ -110,9 +102,7 @@ class ChatAgents(BaseHandler):
         inputs: dict[str, Any] | None = None,
     ) -> InvokeResponse:
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(
-            self.config.get_agent(), extra_data_collector
-        )
+        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
         chat_history = ChatHistory()
         ChatAgents._augment_with_user_context(inputs=inputs, chat_history=chat_history)
         parse_chat_history(chat_history, inputs)

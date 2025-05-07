@@ -7,12 +7,8 @@ TA_SERVICE_CONFIG = Config(
 TA_REMOTE_PLUGIN_PATH = Config(
     env_name="TA_REMOTE_PLUGIN_PATH", is_required=False, default_value=None
 )
-TA_TYPES_MODULE = Config(
-    env_name="TA_TYPES_MODULE", is_required=False, default_value=None
-)
-TA_PLUGIN_MODULE = Config(
-    env_name="TA_PLUGIN_MODULE", is_required=False, default_value=None
-)
+TA_TYPES_MODULE = Config(env_name="TA_TYPES_MODULE", is_required=False, default_value=None)
+TA_PLUGIN_MODULE = Config(env_name="TA_PLUGIN_MODULE", is_required=False, default_value=None)
 TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE = Config(
     env_name="TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE",
     is_required=False,

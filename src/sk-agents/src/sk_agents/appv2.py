@@ -19,9 +19,7 @@ from sk_agents.utils import initialize_plugin_loader
 
 class AppV2:
     @staticmethod
-    def run(
-        name: str, version: str, app_config: AppConfig, config: BaseConfig, app: FastAPI
-    ):
+    def run(name: str, version: str, app_config: AppConfig, config: BaseConfig, app: FastAPI):
         config_file = app_config.get(TA_SERVICE_CONFIG.env_name)
         agents_path = str(os.path.dirname(config_file))
 
@@ -29,7 +27,7 @@ class AppV2:
 
         root_handler = config.apiVersion.split("/")[0]
 
-        if config.metadata.description is not None:
+        if config.metadata is not None and config.metadata.description is not None:
             description = config.metadata.description
         else:
             description = f"{config.name} API"
@@ -67,8 +65,6 @@ class AppV2:
             prefix=f"/{name}/{version}",
         )
         app.include_router(
-            Routes.get_a2a_rest_routes(
-                name=name, version=version, app_config=app_config
-            ),
+            Routes.get_a2a_rest_routes(name=name, version=version, app_config=app_config),
             prefix=f"/{name}/{version}",
         )

@@ -1,6 +1,6 @@
 from typing import Any
 
-from sk_agents.module_loader import ModuleLoader
+from ska_utils import ModuleLoader
 
 
 class PluginLoader:

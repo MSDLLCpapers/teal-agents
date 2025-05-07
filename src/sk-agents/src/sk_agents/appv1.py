@@ -36,6 +36,8 @@ class AppV1:
 
         root_handler = config.apiVersion.split("/")[0]
 
+        if config.input_type is None:
+            raise ValueError("Missing mandatory config property: input_type")
         input_class = type_loader.get_type(config.input_type)
 
         output_class = Any

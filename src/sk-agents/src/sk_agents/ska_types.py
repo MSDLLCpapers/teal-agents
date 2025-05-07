@@ -129,10 +129,12 @@ class PartialResponse(BaseModel):
     output_partial: str
 
 
-class BaseHandler:
+class BaseHandler(ABC):
+    @abstractmethod
     async def invoke(self, inputs: dict[str, Any] | None = None) -> InvokeResponse:
         pass
 
+    @abstractmethod
     async def invoke_stream(
         self, inputs: dict[str, Any] | None = None
     ) -> AsyncIterable[str] | AsyncIterable[PartialResponse | InvokeResponse]:

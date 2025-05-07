@@ -4,17 +4,17 @@ from typing import Any
 
 from redis import Redis
 from ska_utils import (
-    RedisStreamsEventHandler,
-    get_telemetry,
     AppConfig,
+    RedisStreamsEventHandler,
     RedisStreamsEventPublisher,
+    get_telemetry,
 )
 
 from sk_agents.a2a_types import (
-    A2AInvokeEvent,
-    A2ANonRecoverableError,
     A2AErrorResponse,
     A2AEventType,
+    A2AInvokeEvent,
+    A2ANonRecoverableError,
 )
 from sk_agents.configs import TA_REDIS_HOST, TA_REDIS_PORT
 from sk_agents.ska_types import BaseConfig, BaseHandler
@@ -93,9 +93,7 @@ class A2AEventHandler(RedisStreamsEventHandler[A2AInvokeEvent]):
             self._publish_error_event(event_id, 500, str(e))
             raise A2ANonRecoverableError(str(e)) from e
 
-    async def _invoke(
-        self, event_id: str, handler: BaseHandler, inputs: dict[str, Any]
-    ) -> None:
+    async def _invoke(self, event_id: str, handler: BaseHandler, inputs: dict[str, Any]) -> None:
         try:
             output = await handler.invoke(inputs=inputs)
             self._publish_task_event(event_id, invoke_response_to_a2a_event(output))
@@ -114,9 +112,7 @@ class A2AEventHandler(RedisStreamsEventHandler[A2AInvokeEvent]):
             self._publish_error_event(
                 event_id, 500, f"Unknown apiVersion: {self._config.apiVersion}"
             )
-            raise A2ANonRecoverableError(
-                f"Unknown apiVersion: {self._config.apiVersion}"
-            )
+            raise A2ANonRecoverableError(f"Unknown apiVersion: {self._config.apiVersion}")
 
     def _publish_error_event(self, event_id: str, status_code: int, message: str):
         self._publish_task_event(
@@ -130,9 +126,7 @@ class A2AEventHandler(RedisStreamsEventHandler[A2AInvokeEvent]):
         )
 
     def _publish_task_event(self, event_id: str, event: str):
-        self._publisher.publish_event(
-            topic_name=f"{self._topic_name}/{event_id}", event_data=event
-        )
+        self._publisher.publish_event(topic_name=f"{self._topic_name}/{event_id}", event_data=event)
 
     @staticmethod
     def _authorize_task(event: A2AInvokeEvent) -> str:

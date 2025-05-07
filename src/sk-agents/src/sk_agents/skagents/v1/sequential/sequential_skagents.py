@@ -70,7 +70,7 @@ class SequentialSkagents(BaseHandler):
 
         type_loader = get_type_loader()
         output_type = type_loader.get_type(output_type_str)
-        response: InvokeResponse[output_type] = InvokeResponse[output_type](
+        response = InvokeResponse[output_type](
             token_usage=TokenUsage(
                 completion_tokens=current_response.token_usage.completion_tokens
                 + transformed_response.token_usage.completion_tokens,

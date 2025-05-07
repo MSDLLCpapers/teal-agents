@@ -34,16 +34,13 @@ class Task:
         self.description = description
         self.instructions = instructions
         self.agent = agent
-        self.extra_data_collector = extra_data_collector
+        if extra_data_collector:
+            self.extra_data_collector = extra_data_collector
+        else:
+            self.extra_data_collector = ExtraDataCollector()
 
-    def _get_user_message_with_inputs(
-        self, inputs: dict[str, Any] | None = None
-    ) -> str:
-        return (
-            self.instructions
-            if inputs is None
-            else Template(self.instructions).render(inputs)
-        )
+    def _get_user_message_with_inputs(self, inputs: dict[str, Any] | None = None) -> str:
+        return self.instructions if inputs is None else Template(self.instructions).render(inputs)
 
     @staticmethod
     def _embedded_image_to_image_content(
@@ -110,9 +107,7 @@ class Task:
         async for content in self.agent.invoke(history):
             response_content.append(content)
             history.add_message(content)
-            call_usage = get_token_usage_for_response(
-                self.agent.get_model_type(), content
-            )
+            call_usage = get_token_usage_for_response(self.agent.get_model_type(), content)
             completion_tokens += call_usage.completion_tokens
             prompt_tokens += call_usage.prompt_tokens
             total_tokens += call_usage.total_tokens

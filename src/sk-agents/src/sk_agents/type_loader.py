@@ -1,6 +1,6 @@
 from semantic_kernel.kernel_pydantic import KernelBaseModel
+from ska_utils import ModuleLoader
 
-from sk_agents.module_loader import ModuleLoader
 from sk_agents.ska_types import (
     BaseEmbeddedImage,
     BaseInput,

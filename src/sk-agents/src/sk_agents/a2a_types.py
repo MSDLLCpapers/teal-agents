@@ -27,9 +27,7 @@ class A2ABaseEvent(BaseModel):
 
 class A2AInvokeEvent(A2ABaseEvent):
     event_id: str
-    event_type: Literal[A2AEventType.INVOKE, A2AEventType.INVOKE_STREAM] = (
-        A2AEventType.INVOKE
-    )
+    event_type: Literal[A2AEventType.INVOKE, A2AEventType.INVOKE_STREAM] = A2AEventType.INVOKE
     event_data: BaseMultiModalInput
 
 

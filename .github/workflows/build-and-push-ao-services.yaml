@@ -43,7 +43,7 @@ jobs:
 
   build:
     runs-on: ubuntu-latest
-    # if: github.event_name == 'push'
+    if: github.event_name == 'push'
     needs: tests
     steps:
       - name: Checkout code

@@ -1,2 +1,2 @@
-from .authenticator import Authenticator, AuthResponse
-from .custom_auth_helper import CustomAuthHelper
+from .authenticator import Authenticator as Authenticator, AuthResponse as AuthResponse
+from .custom_auth_helper import CustomAuthHelper as CustomAuthHelper

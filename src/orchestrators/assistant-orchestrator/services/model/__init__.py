@@ -13,7 +13,7 @@ from .requests import (
 )
 from .responses import (
     AgentMessage as AgentMessage,
-    AuthenticationResponse,
+    AuthenticationResponse as AuthenticationResponse,
     ConversationResponse as ConversationResponse,
     CreateTicketResponse as CreateTicketResponse,
     GeneralResponse as GeneralResponse,

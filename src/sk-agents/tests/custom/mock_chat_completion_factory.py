@@ -4,9 +4,7 @@ from src.sk_agents.ska_types import ChatCompletionFactory, ModelType
 
 
 class MockChatCompletionFactory(ChatCompletionFactory):
-    _OPENAI_MODELS: list[str] = [
-        "gpt-model"
-    ]
+    _OPENAI_MODELS: list[str] = ["gpt-model"]
     _ANTHROPIC_MODELS: list[str] = [
         "claude-model",
     ]
@@ -30,10 +28,7 @@ class MockChatCompletionFactory(ChatCompletionFactory):
 
     def get_chat_completion_for_model_name(self, model_name: str, service_id: str):
         if model_name in MockChatCompletionFactory._OPENAI_MODELS:
-            return {
-                "service_id": service_id,
-                "ai_model_id": model_name
-            }
+            return {"service_id": service_id, "ai_model_id": model_name}
         raise ValueError("Model type not supported")
 
     def get_model_type_for_name(self, model_name: str) -> ModelType:

@@ -64,7 +64,7 @@ class ExternalServicesClient(ServicesClient):
             )
             history_response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            raise Exception(f"ERROR: {json.loads(e.response.text['detail'])}")
+            raise Exception(f"ERROR: {json.loads(e.response.text['detail'])}") from e
         history_response = history_response.json()
         user_context_response = self.get_context_items(user_id)
         user_context: dict[str, ContextItem] = {}
@@ -84,7 +84,7 @@ class ExternalServicesClient(ServicesClient):
             )
             history_response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
+            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}") from e
         history_response = history_response.json()
         user_context_response = self.get_context_items(user_id)
         user_context: dict[str, ContextItem] = {}
@@ -112,7 +112,7 @@ class ExternalServicesClient(ServicesClient):
             )
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
+            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}") from e
         response = response.json()
         return GeneralResponse(**response)
 
@@ -128,11 +128,13 @@ class ExternalServicesClient(ServicesClient):
             )
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
+            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}") from e
         response = response.json()
         return VerifyTicketResponse(**response)
 
-    def add_context_item(self, user_id: str, item_key: str, item_value: str | None) -> GeneralResponse:
+    def add_context_item(
+        self, user_id: str, item_key: str, item_value: str | None
+    ) -> GeneralResponse:
         context_request = AddContextRequest(item_key=item_key, item_value=item_value)
 
         inject(self.headers)
@@ -144,11 +146,13 @@ class ExternalServicesClient(ServicesClient):
             )
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
+            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}") from e
         response = response.json()
         return GeneralResponse(**response)
 
-    def update_context_item(self, user_id: str, item_key: str, item_value: str | None) -> GeneralResponse:
+    def update_context_item(
+        self, user_id: str, item_key: str, item_value: str | None
+    ) -> GeneralResponse:
         context_request = UpdateContextRequest(item_value=item_value)
 
         inject(self.headers)
@@ -160,12 +164,11 @@ class ExternalServicesClient(ServicesClient):
             )
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
+            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}") from e
         response = response.json()
         return GeneralResponse(**response)
 
     def delete_context_item(self, user_id: str, item_key: str) -> GeneralResponse:
-
         inject(self.headers)
         try:
             response = requests.delete(
@@ -174,12 +177,11 @@ class ExternalServicesClient(ServicesClient):
             )
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
+            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}") from e
         response = response.json()
         return GeneralResponse(**response)
 
     def get_context_items(self, user_id: str) -> dict[str, str | None]:
-
         inject(self.headers)
         try:
             response = requests.get(
@@ -188,6 +190,6 @@ class ExternalServicesClient(ServicesClient):
             )
             response.raise_for_status()
         except requests.exceptions.HTTPError as e:
-            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}")
+            raise Exception(f"ERROR: {json.loads(e.response.text)['detail']}") from e
         response = response.json()
         return response

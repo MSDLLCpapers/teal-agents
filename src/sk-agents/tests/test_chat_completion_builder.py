@@ -24,7 +24,8 @@ def app_config_fixture():
 
 
 def test_init_with_no_module(setup_env_fixture, app_config_fixture):
-    os.environ.pop("TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE", None)
+    os.environ.pop("TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE", default=None)
+    AppConfig.add_configs(configs)
     chat_completion_builder = ChatCompletionBuilder(app_config_fixture)
     assert isinstance(chat_completion_builder, ChatCompletionBuilder)
 

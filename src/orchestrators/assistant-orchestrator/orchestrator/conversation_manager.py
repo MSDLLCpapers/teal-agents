@@ -66,15 +66,15 @@ class ConversationManager:
         self,
         conversation: Conversation,
         item_key: str,
-        item_value: str,
-        context_type: ContextType,
+        item_value: str | None,
+        context_type: ContextType | None,
     ) -> None:
         item = conversation.add_context_item(item_key, item_value, context_type)
         if item.context_type == ContextType.PERSISTENT:
             self.services_client.add_context_item(conversation.user_id, item_key, item_value)
 
     def update_context_item(
-        self, conversation: Conversation, item_key: str, item_value: str
+        self, conversation: Conversation, item_key: str, item_value: str | None
     ) -> None:
         item = conversation.update_context_item(item_key, item_value)
         if item.context_type == ContextType.PERSISTENT:
@@ -85,7 +85,7 @@ class ConversationManager:
         if item.context_type == ContextType.PERSISTENT:
             self.services_client.delete_context_item(conversation.user_id, item_key)
 
-    def upsert_context_item(self, conversation: Conversation, key: str, value: str) -> None:
+    def upsert_context_item(self, conversation: Conversation, key: str, value: str | None) -> None:
         try:
             self.update_context_item(conversation, key, value)
         except ValueError:

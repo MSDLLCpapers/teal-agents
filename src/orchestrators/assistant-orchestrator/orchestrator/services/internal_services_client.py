@@ -6,6 +6,7 @@ from services.services_client import (
     UserNotFoundResponse,
     ItemNotFoundResponse,
     ItemUpdatedResponse,
+    ItemAddedResponse,
     AgentMessageResponse,
     UserMessageResponse,
     GeneralResponse,
@@ -23,7 +24,7 @@ class InternalServicesClient(ServicesClient):
     def __init__(self):
         self.last_conversation: dict[str, str] = {}
         self.conversations: dict[str, InternalConversation] = {}
-        self.contexts: dict[str, dict[str, str]] = {}
+        self.contexts: dict[str, dict[str, str | None]] = {}
 
     def new_conversation(self, user_id: str, is_resumed: bool) -> Conversation:
         message_list: list[UserMessage | AgentMessage] = []
@@ -78,19 +79,19 @@ class InternalServicesClient(ServicesClient):
     def verify_ticket(self, ticket: str, ip_address: str) -> VerifyTicketResponse:
         return VerifyTicketResponse(is_valid=True, user_id="default")
 
-    def add_context_item(self, user_id: str, item_key: str, item_value: str) -> GeneralResponse:
+    def add_context_item(self, user_id: str, item_key: str, item_value: str | None) -> GeneralResponse:
         if user_id not in self.contexts:
             self.contexts[user_id] = {}
         self.contexts[user_id][item_key] = item_value
-        return ItemUpdatedResponse()
+        return ItemAddedResponse()
 
-    def update_context_item(self, user_id: str, item_key: str, item_value: str) -> GeneralResponse:
+    def update_context_item(self, user_id: str, item_key: str, item_value: str | None) -> GeneralResponse:
         if user_id not in self.contexts:
             return UserNotFoundResponse()
         if item_key not in self.contexts[user_id]:
             return ItemNotFoundResponse()
         self.contexts[user_id][item_key] = item_value
-        return ItemDeleteResponse()
+        return ItemUpdatedResponse()
 
     def delete_context_item(self, user_id: str, item_key: str) -> GeneralResponse:
         if user_id not in self.contexts:
@@ -100,7 +101,7 @@ class InternalServicesClient(ServicesClient):
         del self.contexts[user_id][item_key]
         return ItemDeleteResponse()
 
-    def get_context_items(self, user_id: str) -> dict[str, str]:
+    def get_context_items(self, user_id: str) -> dict[str, str | None]:
         if user_id not in self.contexts:
             return {}
         return self.contexts[user_id]

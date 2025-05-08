@@ -91,7 +91,8 @@ overrides = [
 exclude = ["src/sk_agents/routes.py","src/sk_agents/a2a_event_handler.py"]
 
 [tool.coverage.run]
-source = ["tests", "src/sk_agents"]
+source = ["src/sk_agents"]
+omit = ["*/tests/*", "test_*", "__init__.py"]
 
 [tool.coverage.report]
 show_missing = true

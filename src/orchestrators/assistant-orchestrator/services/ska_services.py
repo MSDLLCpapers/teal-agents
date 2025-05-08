@@ -79,7 +79,7 @@ ticket_manager: TicketManager = get_ticket_manager()
 context_manager: ContextManager = get_context_manager()
 
 auth_helper: CustomAuthHelper = CustomAuthHelper(app_config)
-authenticator: Authenticator[type] = auth_helper.get_authenticator()
+authenticator: Authenticator[auth_helper.get_request_type()] = auth_helper.get_authenticator()
 
 
 @app.post("/services/v1/{orchestrator_name}/authenticate")

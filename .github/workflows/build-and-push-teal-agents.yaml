@@ -75,33 +75,3 @@ jobs:
         run: |
           docker push ghcr.io/teal-agents/teal-agents:${{ steps.extract_version.outputs.VERSION }}
           docker push ghcr.io/teal-agents/teal-agents:latest
-
-  publish:
-    environment:
-      name: pypi
-      url: https://pypi.org/p/teal-agents
-    permissions:
-      id-token: write # Important for trusted publishing to PyPI
-    runs-on: ubuntu-latest
-    # needs: build
-    # if: github.event_name == 'push'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-      - name: Install dependencies
-        working-directory: ./src/sk-agents
-        run: uv sync
-      - name: Build package
-        working-directory: ./src/sk-agents
-        run: uv build --python 3.13 --python-preference only-managed --sdist --wheel . --out-dir dist
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          packages-dir: ./src/sk-agents/dist/
-          verbose: true

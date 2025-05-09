@@ -37,7 +37,7 @@ header_scheme = APIKeyHeader(name="authorization", auto_error=False)
 )
 async def get_conversation_by_id(user_id: str, conversation_id: str):
     try:
-        conv = conv_manager.get_conversation(user_id, conversation_id)
+        conv = await conv_manager.get_conversation(user_id, conversation_id)
     except Exception as e:
         raise HTTPException(
             status_code=404,
@@ -61,7 +61,7 @@ async def add_conversation_message_by_id(
     jt = get_telemetry()
 
     try:
-        conv = conv_manager.get_conversation(user_id, conversation_id)
+        conv = await conv_manager.get_conversation(user_id, conversation_id)
     except Exception as e:
         raise HTTPException(
             status_code=404,
@@ -73,7 +73,7 @@ async def add_conversation_message_by_id(
         in_memory_user_context = cache_user_context.get_user_context_from_cache(
             user_id=user_id
         ).model_dump()["user_context"]
-        conv_manager.add_transient_context(conv, in_memory_user_context)
+        await conv_manager.add_transient_context(conv, in_memory_user_context)
     with (
         jt.tracer.start_as_current_span("conversation-turn")
         if jt.telemetry_enabled()
@@ -106,7 +106,7 @@ async def add_conversation_message_by_id(
         ):
             # Add the current message to conversation history
             try:
-                conv_manager.add_user_message(conv, request.message, sel_agent_name)
+                await conv_manager.add_user_message(conv, request.message, sel_agent_name)
             except Exception as e:
                 raise HTTPException(
                     status_code=500,
@@ -127,7 +127,7 @@ async def add_conversation_message_by_id(
                 if extra_data is not None:
                     extra_data_instance = ExtraData.new_from_json(extra_data)
                     context_directives = parse_context_directives(extra_data_instance)
-                    conv_manager.process_context_directives(conv, context_directives)
+                    await conv_manager.process_context_directives(conv, context_directives)
 
             except Exception as e:
                 print(f"Error processing extra data: {e}")
@@ -142,14 +142,14 @@ async def add_conversation_message_by_id(
         ):
             # Add response to conversation history
             try:
-                conv_manager.add_agent_message(conv, agent_response, sel_agent_name)
+                await conv_manager.add_agent_message(conv, agent_response, sel_agent_name)
             except Exception as e:
                 raise HTTPException(
                     status_code=500,
                     detail=f"Error adding response to conversation history --- {e}",
                 ) from e
-
-    return {"conversation": conv_manager.get_last_response(conv)}
+        conversation_result = await conv_manager.get_last_response(conv)
+    return {"conversation": conversation_result}
 
 
 @router.post(
@@ -165,7 +165,7 @@ async def new_conversation(user_id: str):
         else nullcontext()
     ):
         try:
-            conv = conv_manager.new_conversation(user_id, False)
+            conv = await conv_manager.new_conversation(user_id, False)
         except Exception as e:
             raise HTTPException(
                 status_code=500, detail=f"Error creating new conversation --- {e}"

@@ -1,6 +1,6 @@
 import json
 
-import requests
+import aiohttp
 from opentelemetry.propagate import inject
 from pydantic import BaseModel, ConfigDict
 
@@ -76,15 +76,21 @@ class RecipientChooser:
             "taAgwKey": self.agent.api_key,
         }
         inject(headers)
-        response = requests.post(
-            self.agent.endpoint,
-            headers=headers,
-            data=body_json,
-        ).json()
-        if response:
-            response_payload = ResponsePayload(**response)
-            clean_json = RecipientChooser._clean_output(response_payload.output_raw)
-            sel_agent: SelectedAgent = SelectedAgent(**json.loads(clean_json))
-            return sel_agent
-        else:
-            raise Exception("Unable to determine recipient")
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                self.agent.endpoint,
+                headers=headers,
+                data=body_json,
+            ) as response:
+                if response.status == 200:
+                    response_json = await response.json()
+                    response_payload = ResponsePayload(**response_json)
+                    clean_json = RecipientChooser._clean_output(
+                        response_payload.output_raw
+                    )
+                    sel_agent: SelectedAgent = SelectedAgent(
+                        **json.loads(clean_json)
+                    )
+                    return sel_agent
+                else:
+                    raise Exception("Unable to determine recipient")

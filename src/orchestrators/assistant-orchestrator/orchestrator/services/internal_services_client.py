@@ -2,16 +2,16 @@ import uuid
 
 from model import AgentMessage, ContextItem, Conversation, UserMessage
 from services.services_client import (
+    AgentMessageResponse,
+    GeneralResponse,
+    ItemAddedResponse,
     ItemDeleteResponse,
-    UserNotFoundResponse,
     ItemNotFoundResponse,
     ItemUpdatedResponse,
-    ItemAddedResponse,
-    AgentMessageResponse,
-    UserMessageResponse,
-    GeneralResponse,
     MessageType,
     ServicesClient,
+    UserMessageResponse,
+    UserNotFoundResponse,
     VerifyTicketResponse,
 )
 
@@ -79,13 +79,17 @@ class InternalServicesClient(ServicesClient):
     def verify_ticket(self, ticket: str, ip_address: str) -> VerifyTicketResponse:
         return VerifyTicketResponse(is_valid=True, user_id="default")
 
-    def add_context_item(self, user_id: str, item_key: str, item_value: str | None) -> GeneralResponse:
+    def add_context_item(
+        self, user_id: str, item_key: str, item_value: str | None
+    ) -> GeneralResponse:
         if user_id not in self.contexts:
             self.contexts[user_id] = {}
         self.contexts[user_id][item_key] = item_value
         return ItemAddedResponse()
 
-    def update_context_item(self, user_id: str, item_key: str, item_value: str | None) -> GeneralResponse:
+    def update_context_item(
+        self, user_id: str, item_key: str, item_value: str | None
+    ) -> GeneralResponse:
         if user_id not in self.contexts:
             return UserNotFoundResponse()
         if item_key not in self.contexts[user_id]:

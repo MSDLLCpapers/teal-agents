@@ -3,6 +3,7 @@ import logging
 from typing import Generic, Type
 
 import requests
+import aiohttp
 from dapr.ext.workflow import WorkflowActivityContext
 from ska_utils import AppConfig, strtobool
 
@@ -27,7 +28,7 @@ class AgentInvoker(Generic[TAgentInput, TAgentOutput]):
     def _get_agent_endpoint(self) -> str:
         return f"{self._http_or_https()}://{self.agpt_gw_host}/{self.agent_name}/{self.agent_version}"
 
-    def invoke_agent(
+    async def invoke_agent(
         self, agent_input: TAgentInput, output_type: type[TAgentOutput] | None = None
     ) -> TAgentOutput | str:
         endpoint: str = self._get_agent_endpoint()
@@ -41,17 +42,18 @@ class AgentInvoker(Generic[TAgentInput, TAgentOutput]):
                 if hasattr(agent_input, "__dict__")
                 else agent_input
             )
-            response = requests.post(
-                endpoint,
-                data=body_json,
-                headers=headers,
-            )
-            response.raise_for_status()
-            if output_type:
-                response_json = response.json()["output_pydantic"]
-                return output_type(**response_json)
-            else:
-                return response.json()["output_raw"]
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    endpoint,
+                    data=body_json,
+                    headers=headers,
+                ) as response:
+                    response.raise_for_status()
+                    if output_type:
+                        response_json = response.json()["output_pydantic"]
+                        return output_type(**response_json)
+                    else:
+                        return response.json()["output_raw"]
         except Exception as e:
             self.logger.error(f"Error invoking agent: {str(e)}")
             return str(e)
@@ -90,7 +92,7 @@ def create_agent_input(
     )
 
 
-def invoke_agent_task(
+async def invoke_agent_task(
     ctx: WorkflowActivityContext, agent_input: AgentActivityInput
 ) -> TAgentOutput | str:
     if agent_input.output_type:
@@ -98,4 +100,4 @@ def invoke_agent_task(
     else:
         output_type = None
     agent_invoker = AgentInvoker(agent_input.agent_name, agent_input.agent_version)
-    return agent_invoker.invoke_agent(agent_input.agent_input, output_type)
+    return await agent_invoker.invoke_agent(agent_input.agent_input, output_type)

@@ -83,9 +83,7 @@ authenticator: Authenticator[auth_helper.get_request_type()] = auth_helper.get_a
 
 
 @app.post("/services/v1/{orchestrator_name}/authenticate")
-async def authenticate_user(
-    orchestrator_name: str, payload: auth_helper.get_request_type()
-) -> AuthenticationResponse:
+async def authenticate_user(orchestrator_name: str, payload: type) -> AuthenticationResponse:
     auth_response = authenticator.authenticate(orchestrator_name, payload)
     if auth_response.success:
         return AuthenticationResponse(
@@ -97,7 +95,7 @@ async def authenticate_user(
 
 @app.post("/services/v1/{orchestrator_name}/tickets", tags=["Tickets"])
 async def create_ticket(
-    orchestrator_name: str, payload: auth_helper.get_request_type(), request: Request
+    orchestrator_name: str, payload: type, request: Request
 ) -> CreateTicketResponse:
     ip_address: str
     if strtobool(str(app_config.get(TA_KONG_ENABLED.env_name))):
@@ -116,7 +114,7 @@ async def create_ticket(
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"{type(e).__name__} - {e.msg}",
-            )
+            ) from e
     else:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Authentication Failed")
 
@@ -130,7 +128,7 @@ async def verify_ticket(
     except DoesNotExist as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"{type(e).__name__} - {e.msg}"
-        )
+        ) from e
 
 
 @app.post(
@@ -148,7 +146,7 @@ async def new_conversation(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"{type(e).__name__} - {e.msg}",
-        )
+        ) from e
 
 
 @app.get(
@@ -165,7 +163,7 @@ async def get_conversation_message(
     except DoesNotExist as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"{type(e).__name__} - {e.msg}"
-        )
+        ) from e
 
 
 @app.post(
@@ -189,7 +187,7 @@ async def add_conversation_message(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"{type(e).__name__} - {e.msg}",
-        )
+        ) from e
 
 
 @app.post("/services/v1/{orchestrator_name}/users/{user_id}/context", tags=["Users"])
@@ -204,7 +202,7 @@ async def create_context_item(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"{type(e).__name__} - {e.msg}",
-        )
+        ) from e
     return GeneralResponse(status=200, message="Context item added successfully")
 
 
@@ -224,7 +222,7 @@ async def update_context_item(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"{type(e).__name__} - {e.msg}",
-        )
+        ) from e
     return GeneralResponse(status=200, message="Context item updated successfully")
 
 
@@ -240,12 +238,12 @@ async def delete_context_item(
     except DoesNotExist as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"{type(e).__name__} - {e.msg}"
-        )
+        ) from e
     except DeleteError as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"{type(e).__name__} - {e.msg}",
-        )
+        ) from e
     return GeneralResponse(status=200, message="Context item deleted successfully")
 
 
@@ -257,7 +255,7 @@ async def get_context_items(orchestrator_name: str, user_id: str) -> dict[str, s
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"{type(e).__name__} - {e.msg}",
-        )
+        ) from e
 
 
 @app.get(

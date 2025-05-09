@@ -35,7 +35,7 @@ class CustomAuthHelper:
         class_name = self.app_config.get(TA_CUSTOM_AUTHENTICATOR.env_name)
         return getattr(self.module, class_name)()
 
-    def _get_custom_auth_config(self) -> (str, str, str):
+    def _get_custom_auth_config(self) -> tuple[str, str, str]:
         custom_auth_module = self.app_config.get(TA_CUSTOM_AUTH_MODULE.env_name)
         if not custom_auth_module:
             raise ValueError("Custom auth module is enabled but not defined")

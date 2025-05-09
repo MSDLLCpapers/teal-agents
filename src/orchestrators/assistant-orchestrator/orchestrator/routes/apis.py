@@ -42,7 +42,7 @@ async def get_conversation_by_id(user_id: str, conversation_id: str):
         raise HTTPException(
             status_code=404,
             detail=f"Unable to get conversation with conversation_id: {conversation_id} --- {e}",
-        )
+        ) from e
 
     return {"conversation": conv}
 
@@ -66,7 +66,7 @@ async def add_conversation_message_by_id(
         raise HTTPException(
             status_code=404,
             detail=f"Unable to get conversation with conversation_id: {conversation_id} --- {e}",
-        )
+        ) from e
 
     in_memory_user_context = None
     if cache_user_context:
@@ -91,7 +91,7 @@ async def add_conversation_message_by_id(
                 raise HTTPException(
                     status_code=500,
                     detail=f"Error retrieving agent to handle conversation message --- {e}",
-                )
+                ) from e
 
             if selected_agent.agent_name not in agent_catalog.agents:
                 agent = fallback_agent
@@ -111,7 +111,7 @@ async def add_conversation_message_by_id(
                 raise HTTPException(
                     status_code=500,
                     detail=f"Error adding new message to conversation history --- {e}",
-                )
+                ) from e
 
         with (
             jt.tracer.start_as_current_span("agent-response")
@@ -147,7 +147,7 @@ async def add_conversation_message_by_id(
                 raise HTTPException(
                     status_code=500,
                     detail=f"Error adding response to conversation history --- {e}",
-                )
+                ) from e
 
     return {"conversation": conv_manager.get_last_response(conv)}
 
@@ -167,7 +167,9 @@ async def new_conversation(user_id: str):
         try:
             conv = conv_manager.new_conversation(user_id, False)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error creating new conversation --- {e}")
+            raise HTTPException(
+                status_code=500, detail=f"Error creating new conversation --- {e}"
+            ) from e
 
     return {"conversation_id": conv.conversation_id, "user_id": conv.user_id}
 

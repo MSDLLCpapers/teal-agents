@@ -17,6 +17,7 @@ dependencies = [
     "pynamodb",
     "ska-utils",
     "redis>=5.2.1",
+    "aiohttp"
 ]
 
 [tool.uv.sources]

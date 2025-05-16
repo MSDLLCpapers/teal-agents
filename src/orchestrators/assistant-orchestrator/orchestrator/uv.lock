@@ -1097,6 +1097,7 @@ wheels = [
 name = "orchestrator"
 source = { editable = "." }
 dependencies = [
+    { name = "aiohttp" },
     { name = "fastapi", extra = ["standard"] },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-grpc" },
@@ -1127,6 +1128,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "aiohttp" },
     { name = "fastapi", extras = ["standard"] },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp-proto-grpc" },

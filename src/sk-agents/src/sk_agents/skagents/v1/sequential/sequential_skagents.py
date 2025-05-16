@@ -128,11 +128,11 @@ class SequentialSkagents(BaseHandler):
             )
 
         # Process and stream back final task results
-        async for chunk in self.tasks[-1].invoke_stream(history=chat_history, inputs=task_inputs):
-            # Initialize content as the partial message in chunk
-            content = chunk.content
+        async for content in self.tasks[-1].invoke_stream(history=chat_history, inputs=task_inputs):
             # Calculate usage metrics if chunk contains usage metadata
-            call_usage = get_token_usage_for_response(self.tasks[-1].agent.get_model_type(), chunk)
+            call_usage = get_token_usage_for_response(
+                self.tasks[-1].agent.get_model_type(), content
+            )
             completion_tokens += call_usage.completion_tokens
             prompt_tokens += call_usage.prompt_tokens
             total_tokens += call_usage.total_tokens

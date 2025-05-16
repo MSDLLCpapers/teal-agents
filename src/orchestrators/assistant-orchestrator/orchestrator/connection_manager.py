@@ -17,7 +17,7 @@ class ConnectionManager:
         cfg = AppConfig()
         if strtobool(str(cfg.get(TA_AUTH_ENABLED.env_name))):
             services_client: ServicesClient = new_client(service_name)
-            result = services_client.verify_ticket(ticket, websocket.client.host)
+            result = await services_client.verify_ticket(ticket, websocket.client.host)
             if not result.is_valid:
                 raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION)
             user_id = result.user_id

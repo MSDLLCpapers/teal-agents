@@ -44,7 +44,7 @@ async def invoke_stream(
     ):
         is_resumed = True if resume else False
         user_id = await conn_manager.connect(config.service_name, websocket, ticket)
-        conv = conv_manager.new_conversation(user_id, is_resumed=is_resumed)
+        conv = await conv_manager.new_conversation(user_id, is_resumed=is_resumed)
 
     try:
         while True:
@@ -75,7 +75,7 @@ async def invoke_stream(
                     else nullcontext()
                 ):
                     # Add the current message to conversation history
-                    conv_manager.add_user_message(conv, message, sel_agent_name)
+                    await conv_manager.add_user_message(conv, message, sel_agent_name)
 
                 # Notify the client of which agent
                 # will be handling this message
@@ -98,7 +98,7 @@ async def invoke_stream(
                         try:
                             extra_data: ExtraData = ExtraData.new_from_json(content)
                             context_directives = parse_context_directives(extra_data)
-                            conv_manager.process_context_directives(conv, context_directives)
+                            await conv_manager.process_context_directives(conv, context_directives)
                         except Exception:
                             response = f"{response}{content}"
                             await websocket.send_text(content)
@@ -109,6 +109,6 @@ async def invoke_stream(
                     else nullcontext()
                 ):
                     # Add response to conversation history
-                    conv_manager.add_agent_message(conv, response, sel_agent_name)
+                    await conv_manager.add_agent_message(conv, response, sel_agent_name)
     except WebSocketDisconnect:
         conn_manager.disconnect(websocket)

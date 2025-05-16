@@ -54,6 +54,8 @@ dev = [
     "pytest-cov",
     "hatchling",
     "hatch",
+    "pytest-mock",
+    "pytest-asyncio",
 ]
 
 [tool.ruff]

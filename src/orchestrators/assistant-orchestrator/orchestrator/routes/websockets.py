@@ -109,10 +109,6 @@ async def invoke_stream(
                     else nullcontext()
                 ):
                     # Add response to conversation history
-                    await conv_manager.add_agent_message(
-                        conv,
-                        response,
-                        sel_agent_name
-                    )
+                    await conv_manager.add_agent_message(conv, response, sel_agent_name)
     except WebSocketDisconnect:
         conn_manager.disconnect(websocket)

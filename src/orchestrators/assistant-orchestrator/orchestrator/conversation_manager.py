@@ -25,7 +25,9 @@ class ConversationManager:
             user_context=conversation.user_context,
         )
 
-    async def add_user_message(self, conversation: Conversation, content: str, recipient: str) -> None:
+    async def add_user_message(
+        self, conversation: Conversation, content: str, recipient: str
+    ) -> None:
         await self.services_client.add_conversation_message(
             conversation_id=conversation.conversation_id,
             message_type=MessageType.USER,
@@ -34,7 +36,9 @@ class ConversationManager:
         )
         conversation.add_user_message(content, recipient)
 
-    async def add_agent_message(self, conversation: Conversation, content: str, sender: str) -> None:
+    async def add_agent_message(
+        self, conversation: Conversation, content: str, sender: str
+    ) -> None:
         await self.services_client.add_conversation_message(
             conversation_id=conversation.conversation_id,
             message_type=MessageType.AGENT,
@@ -78,14 +82,18 @@ class ConversationManager:
     ) -> None:
         item = conversation.update_context_item(item_key, item_value)
         if item.context_type == ContextType.PERSISTENT:
-            await self.services_client.update_context_item(conversation.user_id, item_key, item_value)
+            await self.services_client.update_context_item(
+                conversation.user_id, item_key, item_value
+            )
 
     async def delete_context_item(self, conversation: Conversation, item_key: str) -> None:
         item = conversation.delete_context_item(item_key)
         if item.context_type == ContextType.PERSISTENT:
             await self.services_client.delete_context_item(conversation.user_id, item_key)
 
-    async def upsert_context_item(self, conversation: Conversation, key: str, value: str | None) -> None:
+    async def upsert_context_item(
+        self, conversation: Conversation, key: str, value: str | None
+    ) -> None:
         try:
             await self.update_context_item(conversation, key, value)
         except ValueError:

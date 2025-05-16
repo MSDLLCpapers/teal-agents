@@ -1,7 +1,7 @@
 import json
 
-import requests
 import aiohttp
+import requests
 from opentelemetry.propagate import inject
 from pydantic import BaseModel
 
@@ -54,10 +54,7 @@ class ExternalServicesClient(ServicesClient):
         }
 
     async def new_conversation(self, user_id: str, is_resumed: bool) -> Conversation:
-        conv_request = NewConversationRequest(
-            user_id=user_id,
-            is_resumed=is_resumed
-        )
+        conv_request = NewConversationRequest(user_id=user_id, is_resumed=is_resumed)
         inject(self.headers)
         async with aiohttp.ClientSession() as session:
             try:
@@ -68,9 +65,7 @@ class ExternalServicesClient(ServicesClient):
                 ) as response:
                     if response.status != 200:
                         error_detail = await response.text()
-                        raise Exception(
-                            f"ERROR: {json.loads(error_detail)['detail']}"
-                        )
+                        raise Exception(f"ERROR: {json.loads(error_detail)['detail']}")
                     history_response = await response.json()
             except aiohttp.ClientError as e:
                 raise Exception(f"HTTP request failed: {str(e)}") from e
@@ -78,15 +73,8 @@ class ExternalServicesClient(ServicesClient):
         user_context_response = await self.get_context_items(user_id)
         user_context: dict[str, ContextItem] = {}
         for key, value in user_context_response.items():
-            user_context[key] = ContextItem(
-                value=value,
-                context_type=ContextType.PERSISTENT
-            )
-        return Conversation(
-            **history_response,
-            user_id=user_id,
-            user_context=user_context
-        )
+            user_context[key] = ContextItem(value=value, context_type=ContextType.PERSISTENT)
+        return Conversation(**history_response, user_id=user_id, user_context=user_context)
 
     async def get_conversation(self, user_id: str, session_id: str) -> Conversation:
         conv_request = GetConversationRequest(user_id=user_id, session_id=session_id)
@@ -108,16 +96,9 @@ class ExternalServicesClient(ServicesClient):
         user_context_response = await self.get_context_items(user_id)
         user_context: dict[str, ContextItem] = {}
         for key, value in user_context_response.items():
-            user_context[key] = ContextItem(
-                value=value,
-                context_type=ContextType.PERSISTENT
-            )
+            user_context[key] = ContextItem(value=value, context_type=ContextType.PERSISTENT)
 
-        return Conversation(
-            **history_response,
-            user_id=user_id,
-            user_context=user_context
-        )
+        return Conversation(**history_response, user_id=user_id, user_context=user_context)
 
     async def add_conversation_message(
         self,
@@ -131,7 +112,10 @@ class ExternalServicesClient(ServicesClient):
         )
 
         inject(self.headers)
-        url = f"{self.endpoint}/services/v1/{self.orchestrator_name}/conversation-history/{conversation_id}/messages"
+        url = (
+            f"{self.endpoint}/services/v1/{self.orchestrator_name}"
+            f"/conversation-history/{conversation_id}/messages"
+        )
 
         async with aiohttp.ClientSession() as session:
             try:
@@ -211,7 +195,10 @@ class ExternalServicesClient(ServicesClient):
 
     async def delete_context_item(self, user_id: str, item_key: str) -> GeneralResponse:
         inject(self.headers)
-        url = f"{self.endpoint}/services/v1/{self.orchestrator_name}/users/{user_id}/context/{item_key}"
+        url = (
+            f"{self.endpoint}/services/v1/{self.orchestrator_name}"
+            f"/users/{user_id}/context/{item_key}"
+        )
 
         async with aiohttp.ClientSession(headers=self.headers) as session:
             try:

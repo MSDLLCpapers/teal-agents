@@ -85,12 +85,8 @@ class RecipientChooser:
                 if response.status == 200:
                     response_json = await response.json()
                     response_payload = ResponsePayload(**response_json)
-                    clean_json = RecipientChooser._clean_output(
-                        response_payload.output_raw
-                    )
-                    sel_agent: SelectedAgent = SelectedAgent(
-                        **json.loads(clean_json)
-                    )
+                    clean_json = RecipientChooser._clean_output(response_payload.output_raw)
+                    sel_agent: SelectedAgent = SelectedAgent(**json.loads(clean_json))
                     return sel_agent
                 else:
                     raise Exception("Unable to determine recipient")

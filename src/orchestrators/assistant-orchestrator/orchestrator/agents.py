@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterable
 
-import requests
 import aiohttp
+import requests
 import websockets
 from opentelemetry.propagate import inject
 from pydantic import BaseModel, ConfigDict
@@ -61,7 +61,6 @@ class BaseAgent(ABC, BaseModel):
             async for message in ws:
                 yield message
 
-  
     async def invoke_api(self, conv: Conversation, authorization: str | None = None) -> dict:
         """Invoke the agent via an HTTP API call."""
         base_input = _conversation_to_agent_input(conv)
@@ -75,9 +74,7 @@ class BaseAgent(ABC, BaseModel):
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                self.endpoint_api,
-                data=input_message,
-                headers=headers
+                self.endpoint_api, data=input_message, headers=headers
             ) as response:
                 if response.status != 200:
                     raise Exception(
@@ -85,7 +82,7 @@ class BaseAgent(ABC, BaseModel):
                     )
                 return await response.json()
 
-        
+
 class AgentCatalog(BaseModel):
     agents: dict[str, BaseAgent]
 

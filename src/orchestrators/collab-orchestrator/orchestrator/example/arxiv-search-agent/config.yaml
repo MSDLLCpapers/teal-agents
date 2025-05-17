@@ -1,14 +1,20 @@
-apiVersion: skagents/v1
-kind: Chat
-description: >
-  An agent that can search Arxiv for papers related to a given topic, including abstracts
-service_name: ArxivSearchAgent
+# nonk8s
+apiVersion: skagents/v2alpha1
+kind: Agent
+name: ArxivSearchAgent
 version: 0.1
-input_type: BaseMultiModalInput
+metadata:
+  description: >
+    An agent that can search Arxiv for papers related to a given topic, including abstracts
+  skills:
+    - name: search_arxiv
+      description: >
+        Search Arxiv for papers related to a given topic, including abstracts
+      examples:
+        - Find research papers about narwhals
 spec:
   agent:
-    name: default
-    role: Default Agent
+    name: ArxivSearchAgent
     model: gpt-4o
     system_prompt: >
       You are a helpful AI assistant. Solve tasks using your tools.

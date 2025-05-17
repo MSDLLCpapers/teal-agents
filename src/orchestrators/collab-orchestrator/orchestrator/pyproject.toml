@@ -16,6 +16,8 @@ dependencies = [
     "ska-utils",
     "black>=25.1.0",
     "dapr>=1.15.0",
+    "httpx>=0.28.1",
+    "httpx-sse>=0.4.0",
 ]
 
 [tool.uv.sources]

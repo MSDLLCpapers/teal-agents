@@ -144,6 +144,9 @@
         .agent-header.active::before {
             content: "-";
         }
+        .agent-header-static::before {
+            content: "";
+        }
         .agent-content {
             display: none;
             padding: 10px;
@@ -238,8 +241,12 @@
 
 <script>
     let eventSource;
-    // Task tracking - map task_id to agent info and DOM elements
-    let tasks = {};
+    // Map request_id to agent info and DOM elements for partial-responses
+    let partials = {};
+    // Store plan's request_id for final-response matching
+    let planRequestId = null;
+    // Track the first event type and request_id for main chat final-response
+    let firstMainEvent = null; // { type: 'plan'|'manager-response', request_id: string }
 
     // Initialize marked for Markdown rendering
     marked.setOptions({
@@ -276,24 +283,15 @@
         document.getElementById('sendButton').disabled = false;
     }
 
-    function flushPartialBuffer(taskId) {
-        const task = tasks[taskId];
-        if (!task || !task.partialBuffer) return;
-
-        task.content.innerHTML += task.partialBuffer;
-        task.partialBuffer = '';
-
-        const partialSpan = task.content.querySelector('.partialSpan');
-        if (partialSpan) {
-            partialSpan.parentNode.removeChild(partialSpan);
-        }
-
-        task.content.scrollTop = task.content.scrollHeight;
-    }
-
     function flushAllPartialBuffers() {
-        for (const taskId in tasks) {
-            flushPartialBuffer(taskId);
+        for (const requestId in partials) {
+            const section = partials[requestId];
+            if (!section || !section.buffer) continue;
+            section.content.innerHTML += section.buffer;
+            section.buffer = '';
+            const partialSpan = section.content.querySelector('.partialSpan');
+            if (partialSpan) partialSpan.remove();
+            section.content.scrollTop = section.content.scrollHeight;
         }
     }
 
@@ -324,24 +322,18 @@
         mainChat.scrollTop = mainChat.scrollHeight;
     }
 
-    function createAgentSection(taskId, agentName, taskGoal) {
-        // Flush any existing buffers for this task if it exists
-        if (tasks[taskId]) {
-            flushPartialBuffer(taskId);
-        }
-
+    function createAgentRequestSection(agentName, requestId, taskGoal) {
         const workingChat = document.getElementById('workingChat');
-
-        // Create header element
+        // Create expandable header
         const header = document.createElement('div');
         header.className = 'agent-header';
-        header.innerHTML = `Request to <strong>${agentName}</strong>: ${taskGoal}`;
-
+        header.innerHTML = `Request sent to <strong>${agentName}</strong>.`;
         // Create content container
         const content = document.createElement('div');
         content.className = 'agent-content';
-
-        // Add click event to toggle
+        content.style.display = 'none';
+        content.innerHTML = `<div><strong>Message:</strong> ${taskGoal}</div>`;
+        // Toggle expand/collapse
         header.addEventListener('click', function() {
             this.classList.toggle('active');
             if (content.style.display === 'block') {
@@ -350,60 +342,70 @@
                 content.style.display = 'block';
             }
         });
-
         workingChat.appendChild(header);
         workingChat.appendChild(content);
         workingChat.scrollTop = workingChat.scrollHeight;
+    }
 
-        // Store task information
-        tasks[taskId] = {
-            header: header,
-            content: content,
-            partialBuffer: '',
-            agentName: agentName
+    function createPartialResponseSection(requestId, agentName) {
+        const workingChat = document.getElementById('workingChat');
+        // Create collapsible header
+        const header = document.createElement('div');
+        header.className = 'agent-header';
+        header.innerHTML = `Message received from <strong>${agentName}</strong>`;
+        // Create content container
+        const content = document.createElement('div');
+        content.className = 'agent-content';
+        content.style.display = 'none';
+        // Toggle expand/collapse
+        header.addEventListener('click', function() {
+            this.classList.toggle('active');
+            if (content.style.display === 'block') {
+                content.style.display = 'none';
+            } else {
+                content.style.display = 'block';
+            }
+        });
+        workingChat.appendChild(header);
+        workingChat.appendChild(content);
+        workingChat.scrollTop = workingChat.scrollHeight;
+        // Store for future partials
+        partials[requestId] = {
+            header,
+            content,
+            buffer: '',
+            agentName
         };
     }
 
-    function createManagerResultSection(result) {
-        flushAllPartialBuffers();
-
-        const workingChat = document.getElementById('workingChat');
-
-        // Create header element
-        const header = document.createElement('div');
-        header.className = 'agent-header active';
-        header.innerHTML = `<strong>Orchestrator</strong> is providing result`;
-
-        // Create content container
-        const content = document.createElement('div');
-        content.className = 'agent-content';
-        content.style.display = 'block';
-        content.textContent = result;
-
-        // Add click event to toggle
-        header.addEventListener('click', function() {
-            this.classList.toggle('active');
-            if (content.style.display === 'block') {
-                content.style.display = 'none';
-            } else {
-                content.style.display = 'block';
-            }
-        });
-
-        workingChat.appendChild(header);
-        workingChat.appendChild(content);
-        workingChat.scrollTop = workingChat.scrollHeight;
+    function appendPartialResponse(requestId, agentName, content) {
+        if (!partials[requestId]) {
+            createPartialResponseSection(requestId, agentName);
+        }
+        const section = partials[requestId];
+        section.buffer += content;
+        // Show buffer in a .partialSpan
+        let partialSpan = section.content.querySelector('.partialSpan');
+        if (!partialSpan) {
+            partialSpan = document.createElement('span');
+            partialSpan.className = 'partialSpan';
+            section.content.appendChild(partialSpan);
+        }
+        partialSpan.textContent = section.buffer;
+        section.content.scrollTop = section.content.scrollHeight;
     }
 
     function displayPlan(planData) {
         flushAllPartialBuffers();
+        // Save plan's request_id for final-response matching
+        planRequestId = planData.request_id;
 
         const workingChat = document.getElementById('workingChat');
 
         // Create header element for the plan
         const planHeader = document.createElement('div');
         planHeader.className = 'agent-header active';
-        planHeader.innerHTML = `<strong>Orchestrator</strong> developed the following plan`;
+        planHeader.innerHTML = `<strong>Planner</strong> developed the following plan`;
 
         // Create content container for the plan
         const planContent = document.createElement('div');
@@ -470,22 +472,21 @@
         workingChat.scrollTop = workingChat.scrollHeight;
     }
 
-    function appendPartialContent(taskId, content) {
-        if (!tasks[taskId]) return;
-
-        tasks[taskId].partialBuffer += content;
-
-        let partialSpan = tasks[taskId].content.querySelector('.partialSpan');
-        if (!partialSpan) {
-            partialSpan = document.createElement('span');
-            partialSpan.className = 'partialSpan';
-            tasks[taskId].content.appendChild(partialSpan);
-        }
-
-        partialSpan.textContent = tasks[taskId].partialBuffer;
-
-        // Auto-scroll the content container
-        tasks[taskId].content.scrollTop = tasks[taskId].content.scrollHeight;
+    // New: create a static, non-expandable box for manager messages
+    function createManagerMessageBox(requestId, message) {
+        const workingChat = document.getElementById('workingChat');
+        const box = document.createElement('div');
+        box.className = 'agent-header agent-header-static';
+        box.innerHTML = message;
+        workingChat.appendChild(box);
+        workingChat.scrollTop = workingChat.scrollHeight;
+        // Store for possible future updates (if needed)
+        partials[requestId] = {
+            header: box,
+            content: box, // for compatibility, though not used
+            buffer: '',
+            agentName: 'Manager'
+        };
     }
 
     function sendMessage() {
@@ -505,24 +506,34 @@
             eventSource.close();
         }
 
-        // Clear tasks for a new conversation
-        tasks = {};
+        // Clear state for new conversation
+        partials = {};
+        planRequestId = null;
+        firstMainEvent = null;
         const workingChat = document.getElementById('workingChat');
         workingChat.innerHTML = '';
 
-        fetch('http://localhost:8000/CollaborationOrchestrator/0.1/sse', {
+        fetch('http://localhost:8000/CollaborationOrchestrator/0.1/browser', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 chat_history: [
-                    { role: 'user', content: userMessage }
+                    {
+                        role: 'user',
+                        items: [
+                            {
+                                content_type: 'text',
+                                content: userMessage
+                            }
+                        ]
+                    }
                 ]
             })
         })
             .then(response => response.json())
             .then(data => {
                 const sessionId = data.session_id;
-                eventSource = new EventSource('http://localhost:8000/CollaborationOrchestrator/0.1/sse/' + sessionId);
+                eventSource = new EventSource('http://localhost:8000/CollaborationOrchestrator/0.1/browser/' + sessionId);
                 setupEventHandlers(eventSource);
             })
             .catch(error => {
@@ -533,57 +544,68 @@
     }
 
     function setupEventHandlers(source) {
-        source.addEventListener('PLAN', (event) => {
+        // Remove all old event handlers, add new ones for new event types
+
+        // Helper to set firstMainEvent if not already set
+        function setFirstMainEvent(type, request_id) {
+            if (!firstMainEvent) {
+                firstMainEvent = { type, request_id };
+            }
+        }
+
+        source.addEventListener('plan', (event) => {
             const data = JSON.parse(event.data);
+            setFirstMainEvent('plan', data.request_id);
             displayPlan(data);
         });
 
-        source.addEventListener('MANAGER_RESPONSE', (event) => {
-            flushAllPartialBuffers();
+        source.addEventListener('manager-response', (event) => {
             const data = JSON.parse(event.data);
-            if (data.next_action === 'abort') {
-                appendToMainChat('[ABORT] ' + data.action_detail.abort_reason);
-                hideLoadingIndicator();
+            setFirstMainEvent('manager-response', data.request_id);
+
+            // Only handle specific next_action values
+            if (data.next_action === 'assign_new_task') {
+                const agentName = data.action_detail && data.action_detail.agent_name ? data.action_detail.agent_name : 'Unknown';
+                createManagerMessageBox(
+                    data.request_id,
+                    `Manager is assigning task to <strong>${agentName}</strong>`
+                );
             } else if (data.next_action === 'provide_result') {
-                // Move the result to the workingChat instead of mainChat
-                createManagerResultSection(data.action_detail.result);
+                createManagerMessageBox(
+                    data.request_id,
+                    'Manager is providing result'
+                );
             }
+            // else: ignore this manager-response event
         });
 
-        source.addEventListener('AGENT_REQUEST', (event) => {
+        source.addEventListener('agent-request', (event) => {
             const data = JSON.parse(event.data);
-            // Create collapsible section for this agent using task_id
-            createAgentSection(data.task_id, data.agent_name, data.task_goal);
+            createAgentRequestSection(data.agent_name, data.request_id, data.task_goal);
         });
 
-        source.addEventListener('PARTIAL_AGENT_RESPONSE', (event) => {
+        source.addEventListener('partial-response', (event) => {
             const data = JSON.parse(event.data);
-            // Append to the correct task's content by task_id
-            appendPartialContent(data.task_id, data.partial_result);
+            appendPartialResponse(data.request_id, data.source, data.output_partial || '');
         });
 
-        source.addEventListener('AGENT_RESPONSE', (event) => {
+        source.addEventListener('final-response', (event) => {
             const data = JSON.parse(event.data);
-            // Flush the buffer for this specific task
-            flushPartialBuffer(data.task_id);
-        });
-
-        source.addEventListener('ERROR', (event) => {
-            flushAllPartialBuffers();
-            const data = JSON.parse(event.data);
-            appendToMainChat('<span class="user-message">Assistant:</span><br/> ' + data.abort_reason);
-            source.close();
-            enableUserInput();
-            hideLoadingIndicator();
-        });
-
-        source.addEventListener('FINAL', (event) => {
-            flushAllPartialBuffers();
-            const data = JSON.parse(event.data);
-            appendToMainChat('<span class="user-message">Assistant:</span><br/> ' + data.result);
-            source.close();
-            enableUserInput();
-            hideLoadingIndicator();
+            // Only display if request_id matches the first main event's request_id
+            if (firstMainEvent && data.request_id === firstMainEvent.request_id) {
+                flushAllPartialBuffers();
+                appendToMainChat(marked.parse(data.output_raw || ''));
+                // Add static box for Planner if first event was a plan
+                if (firstMainEvent.type === 'plan') {
+                    createManagerMessageBox(
+                        'planner-final-result-' + data.request_id,
+                        'Planner is providing result'
+                    );
+                }
+                source.close();
+                enableUserInput();
+                hideLoadingIndicator();
+            }
         });
 
         source.onerror = () => {

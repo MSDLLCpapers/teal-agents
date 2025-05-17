@@ -52,7 +52,9 @@ class Routes:
             ):
                 match root_handler_name:
                     case "skagents":
-                        handler: BaseHandler = skagents_handle(config, app_config, authorization)
+                        handler: BaseHandler = skagents_handle(
+                            config, app_config, authorization
+                        )
                     case _:
                         raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
 
@@ -62,9 +64,12 @@ class Routes:
 
         @router.post("/sse")
         @docstring_parameter(description)
-        async def invoke_sse(inputs: input_class, request: Request) -> StreamingResponse:
+        async def invoke_sse(
+            inputs: input_class, request: Request
+        ) -> StreamingResponse:
             """
-            Stream data to the client using Server-Sent Events (SSE).
+            {0}
+            Initiate SSE call
             """
             st = get_telemetry()
             context = extract(request.headers)
@@ -86,7 +91,9 @@ class Routes:
                                 config, app_config, authorization
                             )
                             # noinspection PyTypeChecker
-                            async for content in handler.invoke_stream(inputs=inv_inputs):
+                            async for content in handler.invoke_stream(
+                                inputs=inv_inputs
+                            ):
                                 yield get_sse_event_for_response(content)
                         case _:
                             raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
@@ -96,12 +103,16 @@ class Routes:
         return router
 
     @staticmethod
-    def get_a2a_rest_routes(name: str, version: str, app_config: AppConfig) -> APIRouter:
+    def get_a2a_rest_routes(
+        name: str, version: str, description: str, app_config: AppConfig
+    ) -> APIRouter:
         router = APIRouter()
 
         def _assert_valid_event(a2a_event: A2AInvokeEvent) -> None:
             if not a2a_event.event_id:
-                raise HTTPException(status_code=400, detail="Invalid event data - Missing event_id")
+                raise HTTPException(
+                    status_code=400, detail="Invalid event data - Missing event_id"
+                )
             if not a2a_event.event_type or (
                 a2a_event.event_type != A2AEventType.INVOKE
                 and a2a_event.event_type != A2AEventType.INVOKE_STREAM
@@ -111,7 +122,12 @@ class Routes:
                 )
 
         @router.post("/a2a")
+        @docstring_parameter(description)
         async def invoke_a2a(a2a_event: A2AInvokeEvent) -> A2AInvokeResponse:
+            """
+            {0}
+            Invoke via event for A2A
+            """
             _assert_valid_event(a2a_event)
 
             publisher = RedisStreamsEventPublisher(
@@ -173,7 +189,9 @@ class Routes:
                                 config, app_config, authorization
                             )
                             # noinspection PyTypeChecker
-                            async for content in handler.invoke_stream(inputs=inv_inputs):
+                            async for content in handler.invoke_stream(
+                                inputs=inv_inputs
+                            ):
                                 if isinstance(content, PartialResponse):
                                     await websocket.send_text(content.output_partial)
                             await websocket.close()

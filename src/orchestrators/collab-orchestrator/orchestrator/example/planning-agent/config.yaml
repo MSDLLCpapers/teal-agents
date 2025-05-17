@@ -1,3 +1,4 @@
+#nonk8s
 apiVersion: skagents/v1
 kind: Sequential
 description: >

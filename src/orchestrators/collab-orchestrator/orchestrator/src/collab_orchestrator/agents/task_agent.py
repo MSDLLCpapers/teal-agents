@@ -1,28 +1,16 @@
-from enum import Enum
-from typing import Literal, List, Optional, AsyncIterable
+from typing import List, AsyncIterable
 
-import aiohttp
-from collab_orchestrator.agents.invokable_agent import InvokableAgent
+from httpx_sse import ServerSentEvent
 from pydantic import BaseModel
 
-
-class ContentType(Enum):
-    IMAGE = "image"
-    TEXT = "text"
-
-
-class MultiModalItem(BaseModel):
-    content_type: ContentType
-    content: str
-
-
-class HistoryMultiModalMessage(BaseModel):
-    role: Literal["user", "assistant"]
-    items: List[MultiModalItem]
-
-
-class BaseMultiModalInput(BaseModel):
-    chat_history: Optional[List[HistoryMultiModalMessage]] = None
+from collab_orchestrator.agents.invokable_agent import InvokableAgent
+from collab_orchestrator.co_types.requests import (
+    HistoryMultiModalMessage,
+    MultiModalItem,
+    ContentType,
+    BaseMultiModalInput,
+)
+from collab_orchestrator.co_types.responses import PartialResponse, InvokeResponse
 
 
 class PreRequisite(BaseModel):
@@ -55,7 +43,7 @@ class TaskAgent(InvokableAgent):
 
     @staticmethod
     def _build_chat_history(
-        goal: str, pre_reqs: List[PreRequisite] | None = None
+        session_id: str, goal: str, pre_reqs: List[PreRequisite] | None = None
     ) -> BaseMultiModalInput:
         chat_history_messages: List[HistoryMultiModalMessage] = []
         for pre_req in pre_reqs:
@@ -66,21 +54,16 @@ class TaskAgent(InvokableAgent):
                 items=[MultiModalItem(content_type=ContentType.TEXT, content=goal)],
             )
         )
-        return BaseMultiModalInput(chat_history=chat_history_messages)
+        return BaseMultiModalInput(
+            session_id=session_id, chat_history=chat_history_messages
+        )
 
-    async def perform_task(
+    async def perform_task_sse(
         self,
-        session: aiohttp.ClientSession,
+        session_id: str,
         goal: str,
         pre_requisites: List[PreRequisite] | None = None,
-    ) -> str:
-        chat_history = TaskAgent._build_chat_history(goal, pre_requisites)
-        response = await self.invoke(session, chat_history)
-        return response["output_raw"]
-
-    async def perform_task_stream(
-        self, goal: str, pre_requisites: List[PreRequisite] | None = None
-    ) -> AsyncIterable[str]:
-        chat_history = TaskAgent._build_chat_history(goal, pre_requisites)
-        async for content in self.invoke_stream(chat_history):
-            yield content
+    ) -> AsyncIterable[PartialResponse | InvokeResponse | ServerSentEvent]:
+        chat_history = TaskAgent._build_chat_history(session_id, goal, pre_requisites)
+        async for response in self.invoke_sse(chat_history):
+            yield response

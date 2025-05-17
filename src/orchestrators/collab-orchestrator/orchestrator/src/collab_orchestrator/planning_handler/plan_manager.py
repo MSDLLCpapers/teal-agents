@@ -1,7 +1,7 @@
 from typing import List
 
 from collab_orchestrator.agents import BaseAgent
-from collab_orchestrator.co_types import ChatHistory
+from collab_orchestrator.co_types.requests import BaseMultiModalInput
 from collab_orchestrator.planning_handler.plan import Plan
 from collab_orchestrator.planning_handler.planning_agent import PlanningAgent
 
@@ -16,7 +16,7 @@ class PlanManager:
 
     async def generate_plan(
         self,
-        chat_history: ChatHistory,
+        chat_history: BaseMultiModalInput,
         overall_goal: str,
         task_agents: List[BaseAgent],
     ) -> Plan:

@@ -2,10 +2,14 @@ from enum import Enum
 from typing import List
 
 import aiohttp
+from pydantic import BaseModel
+
 from collab_orchestrator.agents import BaseAgent
 from collab_orchestrator.agents.invokable_agent import InvokableAgent
-from collab_orchestrator.co_types import ChatHistory, ChatHistoryItem
-from pydantic import BaseModel
+from collab_orchestrator.co_types.requests import (
+    BaseMultiModalInput,
+    HistoryMultiModalMessage,
+)
 
 
 class TeamBaseAgent(BaseModel):
@@ -21,7 +25,7 @@ class ConversationMessage(BaseModel):
 
 
 class ManagerInput(BaseModel):
-    chat_history: List[ChatHistoryItem] | None = None
+    chat_history: List[HistoryMultiModalMessage] | None = None
     overall_goal: str
     agent_list: List[TeamBaseAgent]
     conversation: List[ConversationMessage] | None = None
@@ -49,6 +53,10 @@ class AssignTaskOutput(BaseModel):
 
 
 class ManagerOutput(BaseModel):
+    session_id: str | None = None
+    source: str | None = None
+    request_id: str | None = None
+
     next_action: Action
     action_detail: ResultOutput | AbortOutput | AssignTaskOutput
 
@@ -56,7 +64,7 @@ class ManagerOutput(BaseModel):
 class ManagerAgent(InvokableAgent):
     async def determine_next_action(
         self,
-        chat_history: ChatHistory,
+        chat_history: BaseMultiModalInput,
         overall_goal: str,
         task_agents: List[BaseAgent],
         conversation: List[ConversationMessage],

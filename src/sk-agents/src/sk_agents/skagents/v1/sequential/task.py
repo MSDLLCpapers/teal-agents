@@ -15,6 +15,9 @@ from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
 from sk_agents.ska_types import EmbeddedImage, InvokeResponse, TokenUsage
 from sk_agents.skagents.v1.sk_agent import SKAgent
 from sk_agents.skagents.v1.utils import get_token_usage_for_response
+from semantic_kernel.contents.streaming_chat_message_content import (
+    StreamingChatMessageContent,
+)
 
 
 class StreamOptions(KernelBaseModel):
@@ -39,8 +42,14 @@ class Task:
         else:
             self.extra_data_collector = ExtraDataCollector()
 
-    def _get_user_message_with_inputs(self, inputs: dict[str, Any] | None = None) -> str:
-        return self.instructions if inputs is None else Template(self.instructions).render(inputs)
+    def _get_user_message_with_inputs(
+        self, inputs: dict[str, Any] | None = None
+    ) -> str:
+        return (
+            self.instructions
+            if inputs is None
+            else Template(self.instructions).render(inputs)
+        )
 
     @staticmethod
     def _embedded_image_to_image_content(
@@ -79,13 +88,13 @@ class Task:
         self,
         history: ChatHistory,
         inputs: dict[str, Any] | None = None,
-    ) -> AsyncIterable[str]:
+    ) -> AsyncIterable[StreamingChatMessageContent | str]:
         message = self._get_message(inputs)
         history.add_message(message)
         chunks = []
         async for chunk in self.agent.invoke_stream(history):
             chunks.append(chunk)
-            yield str(chunk)
+            yield chunk
         if not self.extra_data_collector.is_empty():
             yield ExtraDataPartial(
                 extra_data=self.extra_data_collector.get_extra_data()
@@ -107,7 +116,9 @@ class Task:
         async for content in self.agent.invoke(history):
             response_content.append(content)
             history.add_message(content)
-            call_usage = get_token_usage_for_response(self.agent.get_model_type(), content)
+            call_usage = get_token_usage_for_response(
+                self.agent.get_model_type(), content
+            )
             completion_tokens += call_usage.completion_tokens
             prompt_tokens += call_usage.prompt_tokens
             total_tokens += call_usage.total_tokens

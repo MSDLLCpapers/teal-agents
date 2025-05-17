@@ -3,13 +3,19 @@ from contextlib import nullcontext
 from copy import deepcopy
 from typing import List, Dict
 
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
+from pydantic_yaml import parse_yaml_file_as
+from ska_utils import AppConfig, strtobool, initialize_telemetry, get_telemetry
+
 from collab_orchestrator.agents import (
     AgentGateway,
     BaseAgentBuilder,
     BaseAgent,
     TaskAgent,
 )
-from collab_orchestrator.co_types import BaseConfig, ChatHistory, KindHandler
+from collab_orchestrator.co_types import BaseConfig, KindHandler
+from collab_orchestrator.co_types.requests import BaseMultiModalInput
 from collab_orchestrator.configs import (
     CONFIGS,
     TA_SERVICE_CONFIG,
@@ -18,10 +24,6 @@ from collab_orchestrator.configs import (
     TA_AGW_KEY,
 )
 from collab_orchestrator.handler_factory import HandlerFactory
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
-from pydantic_yaml import parse_yaml_file_as
-from ska_utils import AppConfig, strtobool, initialize_telemetry, get_telemetry
 
 
 def docstring_parameter(*sub):
@@ -93,19 +95,32 @@ async def initialize():
         await handler.initialize()
 
 
-app = FastAPI()
+app = FastAPI(
+    openapi_url=f"/{config.service_name}/{config.version}/openapi.json",
+    docs_url=f"/{config.service_name}/{config.version}/docs",
+    redoc_url=f"/{config.service_name}/{config.version}/redoc",
+)
 app.add_event_handler("startup", initialize)
 
-session_cache: Dict[str, ChatHistory] = {}
+session_cache: Dict[str, BaseMultiModalInput] = {}
+
+
+@app.post(f"/{config.service_name}/{config.version}")
+@docstring_parameter(description)
+async def invoke_sse():
+    """
+    {0}
+
+    """
+    return {"message": "This is a non-functional endpoint"}
 
 
 @app.post(f"/{config.service_name}/{config.version}/sse")
 @docstring_parameter(description)
-async def invoke_sse(chat_history: ChatHistory):
+async def invoke_sse(chat_history: BaseMultiModalInput):
     """
     {0}
 
-    SSE Handler
     """
 
     if not chat_history:
@@ -113,16 +128,53 @@ async def invoke_sse(chat_history: ChatHistory):
     if chat_history.chat_history[-1].role != "user":
         raise HTTPException(status_code=400, detail="First message must be from user")
 
-    session_id = str(uuid.uuid4())
+    if not chat_history.session_id:
+        chat_history.session_id = uuid.uuid4().hex
+
+    request = chat_history.chat_history.pop()
+
+    return StreamingResponse(
+        handler.invoke(chat_history, request.items[-1].content),
+        media_type="text/event-stream",
+    )
+
+
+@app.post(f"/{config.service_name}/{config.version}/browser")
+@docstring_parameter(description)
+async def invoke_browser(chat_history: BaseMultiModalInput):
+    """
+    {0}
+
+    Initiate a session for a browser - Since EventSource only supports GET calls
+    and for the agent/orchestrator to work it needs input, call this endpoint
+    first to create a session and then call the GET endpoint with the session ID.
+    """
+
+    if not chat_history:
+        raise HTTPException(status_code=400, detail="Chat history is required")
+    if chat_history.chat_history[-1].role != "user":
+        raise HTTPException(status_code=400, detail="First message must be from user")
+
+    session_id: str
+    if chat_history.session_id:
+        session_id = chat_history.session_id
+    else:
+        session_id = str(uuid.uuid4().hex)
+        chat_history.session_id = session_id
     session_cache[session_id] = chat_history
 
     return {"session_id": session_id}
 
 
-@app.get(f"/{config.service_name}/{config.version}/sse/{{session_id}}")
-async def get_sse_response(session_id: str):
+@app.get(f"/{config.service_name}/{config.version}/browser/{{session_id}}")
+@docstring_parameter(description)
+async def get_browser_response(session_id: str):
     """
-    SSE Handler
+    {0}
+
+    Execute a session for a browser - Using the previously established session
+    ID (via the POST browser endpoint), use this endpoint with EventSource to
+    receive the SSE event stream in a browser.
     """
 
     if not session_id:
@@ -134,6 +186,6 @@ async def get_sse_response(session_id: str):
     request = chat_history.chat_history.pop()
 
     return StreamingResponse(
-        handler.invoke(chat_history, request.content),
+        handler.invoke(chat_history, request.items[-1].content),
         media_type="text/event-stream",
     )

@@ -49,6 +49,10 @@ class Step(BaseModel):
 
 
 class Plan(BaseModel):
+    session_id: str | None = None
+    source: str | None = None
+    request_id: str | None = None
+
     steps: List[Step]
 
     @staticmethod

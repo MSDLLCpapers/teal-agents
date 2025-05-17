@@ -1,14 +1,20 @@
-apiVersion: skagents/v1
-kind: Chat
-description: >
-  Generate a report based on a given topic
-service_name: AssistantAgent
+# nonk8s
+apiVersion: skagents/v2alpha1
+kind: Agent
+name: AssistantAgent
 version: 0.1
-input_type: BaseMultiModalInput
+metadata:
+  description: >
+    Generate a report based on a given topic
+  skills:
+    - name: generate_report
+      description: >
+        Generate a report based on a given topic
+      examples:
+        - Using the context provided, generate a comprehensive report on narwhals
 spec:
   agent:
-    name: default
-    role: Default Agent
+    name: AssistantAgent
     model: gpt-4o
     system_prompt: >
       You are a helpful assistant. Your task is to synthesize data extracted

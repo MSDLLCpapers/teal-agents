@@ -1,10 +1,14 @@
 from typing import List
 
 import aiohttp
+from pydantic import BaseModel
+
 from collab_orchestrator.agents import BaseAgent
 from collab_orchestrator.agents.invokable_agent import InvokableAgent
-from collab_orchestrator.co_types import ChatHistory, ChatHistoryItem
-from pydantic import BaseModel
+from collab_orchestrator.co_types.requests import (
+    HistoryMultiModalMessage,
+    BaseMultiModalInput,
+)
 
 
 class PlanningBaseAgent(BaseModel):
@@ -13,7 +17,7 @@ class PlanningBaseAgent(BaseModel):
 
 
 class GeneratePlanRequest(BaseModel):
-    chat_history: List[ChatHistoryItem] | None = None
+    chat_history: List[HistoryMultiModalMessage] | None = None
     overall_goal: str
     agent_list: List[PlanningBaseAgent]
 
@@ -39,7 +43,7 @@ class GeneratePlanResponse(BaseModel):
 class PlanningAgent(InvokableAgent):
     async def generate_plan(
         self,
-        chat_history: ChatHistory,
+        chat_history: BaseMultiModalInput,
         overall_goal: str,
         task_agents: List[BaseAgent],
     ) -> GeneratePlanResponse:

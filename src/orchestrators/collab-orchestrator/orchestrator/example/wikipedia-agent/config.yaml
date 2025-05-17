@@ -1,14 +1,20 @@
-apiVersion: skagents/v1
-kind: Chat
-description: >
-  An agent that can search Wikipedia for answers to question on a specific topic.
-service_name: WikipediaAgent
+# nonk8s
+apiVersion: skagents/v2alpha1
+kind: Agent
+name: WikipediaAgent
 version: 0.1
-input_type: BaseMultiModalInput
+metadata:
+  description: >
+    An agent that can search Wikipedia for answers to question on a specific topic.
+  skills:
+    - name: search_wikipedia
+      description: >
+        An agent that can search Wikipedia for answers to question on a specific topic.
+      examples:
+        - Search wikipedia for information on narwhals
 spec:
   agent:
-    name: default
-    role: Default Agent
+    name: WikipediaAgent
     model: gpt-4o
     system_prompt: >
       You are a helpful research assistant great at interpreting ambiguous

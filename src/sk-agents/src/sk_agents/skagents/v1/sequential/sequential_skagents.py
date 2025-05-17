@@ -1,4 +1,5 @@
 import json
+import uuid
 from collections.abc import AsyncIterable
 from copy import deepcopy
 from typing import Any
@@ -34,6 +35,9 @@ class SequentialSkagents(BaseHandler):
         else:
             raise ValueError("Invalid config")
 
+        self.name = config.service_name
+        self.version = config.version
+
         self.kernel_builder = kernel_builder
 
         task_configs = self.config.get_tasks()
@@ -41,7 +45,9 @@ class SequentialSkagents(BaseHandler):
         self.tasks = []
         for i in range(len(sorted_configs) - 1):
             task_config = sorted_configs[i]
-            self.tasks.append(task_builder.build_task(task_config, self.config.get_agents()))
+            self.tasks.append(
+                task_builder.build_task(task_config, self.config.get_agents())
+            )
         self.tasks.append(
             task_builder.build_task(
                 sorted_configs[-1],
@@ -50,14 +56,18 @@ class SequentialSkagents(BaseHandler):
             )
         )
 
-    async def _transform_output_if_required(self, response: InvokeResponse) -> InvokeResponse:
+    async def _transform_output_if_required(
+        self, response: InvokeResponse
+    ) -> InvokeResponse:
         if self.tasks[-1].agent.so_supported():
             type_loader = get_type_loader()
             output_type = type_loader.get_type(self.config.config.output_type)
             response.output_pydantic = output_type(**json.loads(response.output_raw))
             return response
         else:
-            return await self._transform_output(response, self.config.config.output_type)
+            return await self._transform_output(
+                response, self.config.config.output_type
+            )
 
     async def _transform_output(
         self, current_response: InvokeResponse, output_type_str: str
@@ -112,9 +122,22 @@ class SequentialSkagents(BaseHandler):
         parse_chat_history(chat_history, inputs)
         task_inputs = SequentialSkagents._parse_task_inputs(inputs)
 
+        session_id: str
+        if "session_id" in inputs and inputs["session_id"]:
+            session_id = inputs["session_id"]
+        else:
+            session_id = str(uuid.uuid4().hex)
+        request_id = str(uuid.uuid4().hex)
+
         # Process and stream back intermediate tasks results
         for task in self.tasks[:-1]:
-            i_response = await task.invoke(history=chat_history, inputs=task_inputs)
+            i_response: InvokeResponse = await task.invoke(
+                history=chat_history, inputs=task_inputs
+            )
+            i_response.session_id = session_id
+            i_response.source = f"{self.name}:{self.version}"
+            i_response.request_id = request_id
+
             task_inputs[f"_{task.name}"] = i_response.output_raw
             completion_tokens += i_response.token_usage.completion_tokens
             prompt_tokens += i_response.token_usage.prompt_tokens
@@ -128,25 +151,39 @@ class SequentialSkagents(BaseHandler):
             )
 
         # Process and stream back final task results
-        async for chunk in self.tasks[-1].invoke_stream(history=chat_history, inputs=task_inputs):
+        async for chunk in self.tasks[-1].invoke_stream(
+            history=chat_history, inputs=task_inputs
+        ):
             # Initialize content as the partial message in chunk
             content = chunk.content
             # Calculate usage metrics if chunk contains usage metadata
-            call_usage = get_token_usage_for_response(self.tasks[-1].agent.get_model_type(), chunk)
+            call_usage = get_token_usage_for_response(
+                self.tasks[-1].agent.get_model_type(), chunk
+            )
             completion_tokens += call_usage.completion_tokens
             prompt_tokens += call_usage.prompt_tokens
             total_tokens += call_usage.total_tokens
             try:
                 # Attempt to parse as ExtraDataPartial
-                extra_data_partial: ExtraDataPartial = ExtraDataPartial.new_from_json(content)
+                extra_data_partial: ExtraDataPartial = ExtraDataPartial.new_from_json(
+                    content
+                )
                 collector.add_extra_data_items(extra_data_partial.extra_data)
             except Exception:
                 # Handle and return partial response
                 final_response.append(content)
-                yield PartialResponse(output_partial=content)
+                yield PartialResponse(
+                    session_id=session_id,
+                    source=f"{self.name}:{self.version}",
+                    request_id=request_id,
+                    output_partial=content,
+                )
         # Build the final response with InvokeResponse
         final_response = "".join(final_response)
         response = InvokeResponse(
+            session_id=session_id,
+            source=f"{self.name}:{self.version}",
+            request_id=request_id,
             token_usage=TokenUsage(
                 completion_tokens=completion_tokens,
                 prompt_tokens=prompt_tokens,
@@ -173,6 +210,14 @@ class SequentialSkagents(BaseHandler):
         chat_history = ChatHistory()
         parse_chat_history(chat_history, inputs)
         task_inputs = SequentialSkagents._parse_task_inputs(inputs)
+
+        session_id: str
+        if "session_id" in inputs and inputs["session_id"]:
+            session_id = inputs["session_id"]
+        else:
+            session_id = str(uuid.uuid4().hex)
+        request_id = str(uuid.uuid4().hex)
+
         for task in self.tasks:
             i_response = await task.invoke(history=chat_history, inputs=task_inputs)
             task_inputs[f"_{task.name}"] = i_response.output_raw
@@ -183,6 +228,9 @@ class SequentialSkagents(BaseHandler):
             task_no += 1
         last_message = chat_history.messages[-1].content
         response = InvokeResponse(
+            session_id=session_id,
+            source=f"{self.name}:{self.version}",
+            request_id=request_id,
             token_usage=TokenUsage(
                 completion_tokens=completion_tokens,
                 prompt_tokens=prompt_tokens,

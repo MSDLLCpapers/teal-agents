@@ -60,13 +60,6 @@ services:
     env_file: "search-agent.env"
     volumes:
       - ./wikipedia-agent:/app/src/sk-agents/agents
-  weather-agent:
-    image: teal-agents:latest
-    ports:
-      - "8105:8000"
-    env_file: "weather.env"
-    volumes:
-      - ./weather:/app/src/sk-agents/agents
   planning-agent:
     image: teal-agents:latest
     ports:

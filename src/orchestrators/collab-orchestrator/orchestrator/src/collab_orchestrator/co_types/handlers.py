@@ -1,9 +1,9 @@
 from pydantic import BaseModel
 
 
-class FinalResult(BaseModel):
-    result: str
-
-
 class AbortResult(BaseModel):
+    session_id: str | None = None
+    source: str | None = None
+    request_id: str | None = None
+
     abort_reason: str

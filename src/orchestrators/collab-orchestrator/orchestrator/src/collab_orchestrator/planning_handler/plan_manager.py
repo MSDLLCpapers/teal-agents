@@ -1,7 +1,7 @@
 from typing import List
 
 from collab_orchestrator.agents import BaseAgent
-from collab_orchestrator.co_types.requests import BaseMultiModalInput
+from collab_orchestrator.co_types import BaseMultiModalInput
 from collab_orchestrator.planning_handler.plan import Plan
 from collab_orchestrator.planning_handler.planning_agent import PlanningAgent
 

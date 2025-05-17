@@ -15,11 +15,6 @@ class EventType(Enum):
     FINAL_RESPONSE = "final-response"
 
 
-class EventResponse(BaseModel, Generic[T]):
-    event_type: EventType
-    data: T
-
-
 class ErrorResponse(BaseModel):
     session_id: str | None = None
     source: str | None = None
@@ -59,12 +54,6 @@ class InvokeResponse(BaseModel, Generic[T]):
     extra_data: ExtraData | None = None
     output_raw: str | None = None
     output_pydantic: T | None = None
-
-
-class IntermediateTaskResponse(BaseModel):
-    task_no: int
-    task_name: str
-    response: InvokeResponse
 
 
 class PartialResponse(BaseModel):

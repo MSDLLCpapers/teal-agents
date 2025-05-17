@@ -4,9 +4,8 @@ from typing import List
 import aiohttp
 from pydantic import BaseModel
 
-from collab_orchestrator.agents import BaseAgent
-from collab_orchestrator.agents.invokable_agent import InvokableAgent
-from collab_orchestrator.co_types.requests import (
+from collab_orchestrator.agents import BaseAgent, InvokableAgent
+from collab_orchestrator.co_types import (
     BaseMultiModalInput,
     HistoryMultiModalMessage,
 )

@@ -6,8 +6,7 @@ from collab_orchestrator.agents import (
     BaseAgent,
     TaskAgent,
 )
-from collab_orchestrator.co_types import BaseConfig
-from collab_orchestrator.co_types import KindHandler
+from collab_orchestrator.co_types import BaseConfig, KindHandler
 from collab_orchestrator.planning_handler.planning_handler import PlanningHandler
 from collab_orchestrator.team_handler.team_handler import TeamHandler
 from ska_utils import Singleton

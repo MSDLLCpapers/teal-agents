@@ -1,8 +1,9 @@
 from typing import List
 
-from collab_orchestrator.agents.task_agent import PreRequisite
-from collab_orchestrator.team_handler.manager_agent import ConversationMessage
 from pydantic import BaseModel
+
+from collab_orchestrator.agents import PreRequisite
+from collab_orchestrator.team_handler.manager_agent import ConversationMessage
 
 
 class Conversation(BaseModel):

@@ -5,7 +5,7 @@ from httpx_sse import ServerSentEvent
 from pydantic import BaseModel
 
 from collab_orchestrator.agents import BaseAgent, AgentGateway
-from collab_orchestrator.co_types.responses import PartialResponse, InvokeResponse
+from collab_orchestrator.co_types import PartialResponse, InvokeResponse
 
 
 class InvokableAgent:

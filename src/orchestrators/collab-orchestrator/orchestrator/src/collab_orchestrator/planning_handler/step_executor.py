@@ -5,15 +5,15 @@ from typing import AsyncIterable, List, Dict
 from httpx_sse import ServerSentEvent
 from ska_utils import get_telemetry
 
-from collab_orchestrator.agents import TaskAgent
-from collab_orchestrator.agents.task_agent import PreRequisite
+from collab_orchestrator.agents import TaskAgent, PreRequisite
 from collab_orchestrator.co_types import (
     new_event_response,
     EventType,
     AgentRequestEvent,
     ErrorResponse,
+    PartialResponse,
+    InvokeResponse,
 )
-from collab_orchestrator.co_types.responses import PartialResponse, InvokeResponse
 from collab_orchestrator.planning_handler.plan import ExecutableTask, TaskStatus, Step
 
 

@@ -7,7 +7,7 @@ from httpx_sse import aconnect_sse, ServerSentEvent
 from opentelemetry.propagate import inject
 from pydantic import BaseModel
 
-from collab_orchestrator.co_types.responses import PartialResponse, InvokeResponse
+from collab_orchestrator.co_types import PartialResponse, InvokeResponse
 
 
 class AgentGateway(BaseModel):
@@ -57,7 +57,7 @@ class AgentGateway(BaseModel):
             "taAgwKey": self.agw_key,
         }
         endpoint = self._get_sse_endpoint_for_agent(agent_name, agent_version)
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             async with aconnect_sse(
                 client,
                 "POST",

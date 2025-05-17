@@ -14,8 +14,7 @@ from collab_orchestrator.agents import (
     BaseAgent,
     TaskAgent,
 )
-from collab_orchestrator.co_types import BaseConfig, KindHandler
-from collab_orchestrator.co_types.requests import BaseMultiModalInput
+from collab_orchestrator.co_types import BaseConfig, KindHandler, BaseMultiModalInput
 from collab_orchestrator.configs import (
     CONFIGS,
     TA_SERVICE_CONFIG,

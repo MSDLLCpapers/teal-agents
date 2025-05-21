@@ -11,7 +11,7 @@ RUN groupadd -g 1000 skagent && \
 
 USER skagent
 
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 ENV PATH=$PATH:/home/skagent/.local/bin
 
 WORKDIR /app

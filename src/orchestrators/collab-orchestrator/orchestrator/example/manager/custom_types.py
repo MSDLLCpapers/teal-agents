@@ -1,9 +1,8 @@
 from enum import Enum
-from typing import List
 
-from sk_agents.ska_types import HistoryMessage
 from pydantic import BaseModel
 from semantic_kernel.kernel_pydantic import KernelBaseModel
+from sk_agents.ska_types import HistoryMessage
 
 
 class Agent(BaseModel):
@@ -19,10 +18,10 @@ class ConversationMessage(BaseModel):
 
 
 class ManagerInput(KernelBaseModel):
-    chat_history: List[HistoryMessage] | None = None
+    chat_history: list[HistoryMessage] | None = None
     overall_goal: str
-    agent_list: List[Agent]
-    conversation: List[ConversationMessage] | None = None
+    agent_list: list[Agent]
+    conversation: list[ConversationMessage] | None = None
 
 
 class Action(Enum):

@@ -9,6 +9,9 @@ from semantic_kernel.contents import (
     TextContent,
 )
 from semantic_kernel.contents.chat_history import ChatHistory
+from semantic_kernel.contents.streaming_chat_message_content import (
+    StreamingChatMessageContent,
+)
 from semantic_kernel.kernel_pydantic import KernelBaseModel
 
 from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
@@ -79,13 +82,13 @@ class Task:
         self,
         history: ChatHistory,
         inputs: dict[str, Any] | None = None,
-    ) -> AsyncIterable[str]:
+    ) -> AsyncIterable[StreamingChatMessageContent | str]:
         message = self._get_message(inputs)
         history.add_message(message)
         contents = []
         async for content in self.agent.invoke_stream(history):
             contents.append(content)
-            yield str(content)
+            yield content
         if not self.extra_data_collector.is_empty():
             yield ExtraDataPartial(
                 extra_data=self.extra_data_collector.get_extra_data()

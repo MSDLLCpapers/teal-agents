@@ -2,8 +2,8 @@
 apiVersion: skagents/v1
 kind: PlanningOrchestrator
 description: >
-  Group Orchestrator for demo
-service_name: CollaborationOrchestrator
+  A research assistant with access to Wikipedia and Arxiv
+service_name: AltCollabOrchestrator
 version: 0.1
 spec:
   planning_agent: PlanningAgent:0.1

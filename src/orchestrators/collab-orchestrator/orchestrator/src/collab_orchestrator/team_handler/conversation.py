@@ -1,19 +1,16 @@
-from typing import List
-
-from collab_orchestrator.agents.task_agent import PreRequisite
-from collab_orchestrator.team_handler.manager_agent import ConversationMessage
 from pydantic import BaseModel
+
+from collab_orchestrator.agents import PreRequisite
+from collab_orchestrator.team_handler.manager_agent import ConversationMessage
 
 
 class Conversation(BaseModel):
-    messages: List[ConversationMessage]
+    messages: list[ConversationMessage]
 
-    def to_pre_requisites(self) -> List[PreRequisite]:
-        pre_requisites: List[PreRequisite] = []
+    def to_pre_requisites(self) -> list[PreRequisite]:
+        pre_requisites: list[PreRequisite] = []
         for message in self.messages:
-            pre_requisites.append(
-                PreRequisite(goal=message.instructions, result=message.result)
-            )
+            pre_requisites.append(PreRequisite(goal=message.instructions, result=message.result))
         return pre_requisites
 
     def add_item(self, task_id: str, agent_name: str, instructions: str, result: str):

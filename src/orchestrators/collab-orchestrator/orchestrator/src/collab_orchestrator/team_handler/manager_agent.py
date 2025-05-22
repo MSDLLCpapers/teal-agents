@@ -1,11 +1,13 @@
 from enum import Enum
-from typing import List
 
 import aiohttp
-from collab_orchestrator.agents import BaseAgent
-from collab_orchestrator.agents.invokable_agent import InvokableAgent
-from collab_orchestrator.co_types import ChatHistory, ChatHistoryItem
 from pydantic import BaseModel
+
+from collab_orchestrator.agents import BaseAgent, InvokableAgent
+from collab_orchestrator.co_types import (
+    BaseMultiModalInput,
+    HistoryMultiModalMessage,
+)
 
 
 class TeamBaseAgent(BaseModel):
@@ -21,10 +23,10 @@ class ConversationMessage(BaseModel):
 
 
 class ManagerInput(BaseModel):
-    chat_history: List[ChatHistoryItem] | None = None
+    chat_history: list[HistoryMultiModalMessage] | None = None
     overall_goal: str
-    agent_list: List[TeamBaseAgent]
-    conversation: List[ConversationMessage] | None = None
+    agent_list: list[TeamBaseAgent]
+    conversation: list[ConversationMessage] | None = None
 
 
 class Action(Enum):
@@ -49,6 +51,10 @@ class AssignTaskOutput(BaseModel):
 
 
 class ManagerOutput(BaseModel):
+    session_id: str | None = None
+    source: str | None = None
+    request_id: str | None = None
+
     next_action: Action
     action_detail: ResultOutput | AbortOutput | AssignTaskOutput
 
@@ -56,15 +62,13 @@ class ManagerOutput(BaseModel):
 class ManagerAgent(InvokableAgent):
     async def determine_next_action(
         self,
-        chat_history: ChatHistory,
+        chat_history: BaseMultiModalInput,
         overall_goal: str,
-        task_agents: List[BaseAgent],
-        conversation: List[ConversationMessage],
+        task_agents: list[BaseAgent],
+        conversation: list[ConversationMessage],
     ) -> ManagerOutput:
         team_task_agents = [
-            TeamBaseAgent(
-                name=f"{agent.name}:{agent.version}", description=agent.description
-            )
+            TeamBaseAgent(name=f"{agent.name}:{agent.version}", description=agent.description)
             for agent in task_agents
         ]
         request = ManagerInput(

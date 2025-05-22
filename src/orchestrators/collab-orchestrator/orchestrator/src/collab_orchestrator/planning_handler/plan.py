@@ -1,12 +1,12 @@
 from enum import Enum
-from typing import List
+
+from pydantic import BaseModel
 
 from collab_orchestrator.planning_handler.planning_agent import (
-    Task,
-    Step as PlanStep,
     GeneratePlanResponse,
+    Step as PlanStep,
+    Task,
 )
-from pydantic import BaseModel
 
 
 class TaskStatus(Enum):
@@ -16,7 +16,7 @@ class TaskStatus(Enum):
 
 class ExecutableTask(BaseModel):
     task_id: str
-    prerequisite_tasks: List[str]
+    prerequisite_tasks: list[str]
     task_goal: str
     task_agent: str
     status: TaskStatus = TaskStatus.TODO
@@ -36,20 +36,22 @@ class ExecutableTask(BaseModel):
 
 class Step(BaseModel):
     step_number: int
-    step_tasks: List[ExecutableTask]
+    step_tasks: list[ExecutableTask]
 
     @staticmethod
     def new_from_plan_step(plan_step: PlanStep) -> "Step":
         return Step(
             step_number=plan_step.step_number,
-            step_tasks=[
-                ExecutableTask.new_from_plan_task(task) for task in plan_step.step_tasks
-            ],
+            step_tasks=[ExecutableTask.new_from_plan_task(task) for task in plan_step.step_tasks],
         )
 
 
 class Plan(BaseModel):
-    steps: List[Step]
+    session_id: str | None = None
+    source: str | None = None
+    request_id: str | None = None
+
+    steps: list[Step]
 
     @staticmethod
     def new_from_response(response: GeneratePlanResponse) -> "Plan":

@@ -1,10 +1,11 @@
-from typing import List
-
 import aiohttp
-from collab_orchestrator.agents import BaseAgent
-from collab_orchestrator.agents.invokable_agent import InvokableAgent
-from collab_orchestrator.co_types import ChatHistory, ChatHistoryItem
 from pydantic import BaseModel
+
+from collab_orchestrator.agents import BaseAgent, InvokableAgent
+from collab_orchestrator.co_types import (
+    BaseMultiModalInput,
+    HistoryMultiModalMessage,
+)
 
 
 class PlanningBaseAgent(BaseModel):
@@ -13,40 +14,38 @@ class PlanningBaseAgent(BaseModel):
 
 
 class GeneratePlanRequest(BaseModel):
-    chat_history: List[ChatHistoryItem] | None = None
+    chat_history: list[HistoryMultiModalMessage] | None = None
     overall_goal: str
-    agent_list: List[PlanningBaseAgent]
+    agent_list: list[PlanningBaseAgent]
 
 
 class Task(BaseModel):
     task_id: str
-    prerequisite_tasks: List[str]
+    prerequisite_tasks: list[str]
     task_goal: str
     task_agent: str
 
 
 class Step(BaseModel):
     step_number: int
-    step_tasks: List[Task]
+    step_tasks: list[Task]
 
 
 class GeneratePlanResponse(BaseModel):
     can_succeed: bool
     reasoning: str | None = None
-    steps: List[Step] | None
+    steps: list[Step] | None
 
 
 class PlanningAgent(InvokableAgent):
     async def generate_plan(
         self,
-        chat_history: ChatHistory,
+        chat_history: BaseMultiModalInput,
         overall_goal: str,
-        task_agents: List[BaseAgent],
+        task_agents: list[BaseAgent],
     ) -> GeneratePlanResponse:
         planning_task_agents = [
-            PlanningBaseAgent(
-                name=f"{agent.name}:{agent.version}", description=agent.description
-            )
+            PlanningBaseAgent(name=f"{agent.name}:{agent.version}", description=agent.description)
             for agent in task_agents
         ]
         request = GeneratePlanRequest(

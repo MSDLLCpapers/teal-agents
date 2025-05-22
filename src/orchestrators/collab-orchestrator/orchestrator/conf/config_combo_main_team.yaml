@@ -9,6 +9,5 @@ spec:
   max_rounds: 10
   manager_agent: TeamManagerAgent:0.1
   agents:
-    - WikipediaAgent:0.1
-    - ArxivSearchAgent:0.1
+    - AltCollabOrchestrator:0.1
     - AssistantAgent:0.1

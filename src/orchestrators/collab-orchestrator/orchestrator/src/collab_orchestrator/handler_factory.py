@@ -1,17 +1,14 @@
-from typing import List
+from ska_utils import Singleton, Telemetry
 
 from collab_orchestrator.agents import (
     AgentGateway,
-    BaseAgentBuilder,
     BaseAgent,
+    BaseAgentBuilder,
     TaskAgent,
 )
-from collab_orchestrator.co_types import BaseConfig
-from collab_orchestrator.co_types import KindHandler
+from collab_orchestrator.co_types import BaseConfig, KindHandler
 from collab_orchestrator.planning_handler.planning_handler import PlanningHandler
 from collab_orchestrator.team_handler.team_handler import TeamHandler
-from ska_utils import Singleton
-from ska_utils import Telemetry
 
 
 class HandlerFactory(metaclass=Singleton):
@@ -26,8 +23,8 @@ class HandlerFactory(metaclass=Singleton):
         config: BaseConfig,
         agent_gateway: AgentGateway,
         base_agent_builder: BaseAgentBuilder,
-        task_agents_bases: List[BaseAgent],
-        task_agents: List[TaskAgent],
+        task_agents_bases: list[BaseAgent],
+        task_agents: list[TaskAgent],
     ):
         self.t = t
         self.config = config

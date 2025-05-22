@@ -73,6 +73,8 @@ class HistoryMultiModalMessage(BaseModel):
 
 
 class BaseMultiModalInput(KernelBaseModel):
+    session_id: str | None = None
+
     chat_history: list[HistoryMultiModalMessage] | None = None
 
 
@@ -113,6 +115,10 @@ T = TypeVar("T")
 class InvokeResponse(BaseModel, Generic[T]):
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
 
+    session_id: str | None = None
+    source: str | None = None
+    request_id: str | None = None
+
     token_usage: TokenUsage
     extra_data: ExtraData | None = None
     output_raw: str | None = None
@@ -126,6 +132,10 @@ class IntermediateTaskResponse(BaseModel):
 
 
 class PartialResponse(BaseModel):
+    session_id: str | None = None
+    source: str | None = None
+    request_id: str | None = None
+
     output_partial: str
 
 

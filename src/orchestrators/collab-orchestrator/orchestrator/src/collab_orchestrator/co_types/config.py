@@ -1,12 +1,10 @@
-from typing import List, Optional
-
 from pydantic import BaseModel, ConfigDict
 
 
 class SpecBase(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    agents: List[str]
+    agents: list[str]
 
 
 class BaseConfig(BaseModel):
@@ -14,7 +12,7 @@ class BaseConfig(BaseModel):
 
     apiVersion: str
     kind: str
-    description: Optional[str] = None
+    description: str | None = None
     service_name: str
     version: float
     spec: SpecBase

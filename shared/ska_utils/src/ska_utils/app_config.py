@@ -43,6 +43,11 @@ class AppConfig(metaclass=Singleton):
             AppConfig._add_config(config)
         AppConfig()._reload_from_environment()
 
+    # The following @classmethod is used for unit testing purposes
+    @classmethod
+    def reset(cls):
+        cls.configs = None
+
     def __init__(self):
         if AppConfig.configs is None:
             raise ValueError("AppConfig.configs is not initialized")
@@ -58,7 +63,8 @@ class AppConfig(metaclass=Singleton):
                 for key, value in env_dict.items():
                     os.environ[key] = value
             except json.JSONDecodeError as e:
-                logging.warn(f"Error parsing TA_ENV_STORE environment variable - {e}")
+                logging.warning(f"Error parsing TA_ENV_STORE environment variable - {e}")
+                raise
 
     def _reload_from_environment(self):
         self._parse_ta_env_store()

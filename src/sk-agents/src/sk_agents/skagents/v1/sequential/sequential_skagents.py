@@ -1,10 +1,12 @@
 import json
+import logging
 from collections.abc import AsyncIterable
 from copy import deepcopy
 from typing import Any
 
 from semantic_kernel.contents.chat_history import ChatHistory
 
+from sk_agents.exceptions import AgentInvokeException, InvalidConfigException
 from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
 from sk_agents.ska_types import (
     BaseConfig,
@@ -21,6 +23,8 @@ from sk_agents.skagents.v1.sequential.task_builder import TaskBuilder
 from sk_agents.skagents.v1.utils import get_token_usage_for_response, parse_chat_history
 from sk_agents.type_loader import get_type_loader
 
+logger = logging.getLogger(__name__)
+
 
 class SequentialSkagents(BaseHandler):
     def __init__(
@@ -32,11 +36,17 @@ class SequentialSkagents(BaseHandler):
         if hasattr(config, "spec"):
             self.config = Config(config=config)
         else:
-            raise ValueError("Invalid config")
+            raise InvalidConfigException(
+                f"Invalid config: Expected 'spec' attribute, got {config.__dict__}"
+            )
 
         self.kernel_builder = kernel_builder
 
         task_configs = self.config.get_tasks()
+        if not task_configs:
+            raise InvalidConfigException(
+                f"Invalid agent configuration: Expected 'spec.tasks', got {config.spec.tasks}"
+            )
         sorted_configs = sorted(task_configs, key=lambda x: x.task_no)
         self.tasks = []
         for i in range(len(sorted_configs) - 1):
@@ -114,19 +124,23 @@ class SequentialSkagents(BaseHandler):
 
         # Process and stream back intermediate tasks results
         for task in self.tasks[:-1]:
-            i_response = await task.invoke(history=chat_history, inputs=task_inputs)
-            task_inputs[f"_{task.name}"] = i_response.output_raw
-            completion_tokens += i_response.token_usage.completion_tokens
-            prompt_tokens += i_response.token_usage.prompt_tokens
-            total_tokens += i_response.token_usage.total_tokens
-            collector.add_extra_data_items(i_response.extra_data)
-            task_no += 1
-            yield IntermediateTaskResponse(
-                task_no=task_no,
-                task_name=task.name,
-                response=i_response,
-            )
-
+            try:
+                i_response = await task.invoke(history=chat_history, inputs=task_inputs)
+                task_inputs[f"_{task.name}"] = i_response.output_raw
+                completion_tokens += i_response.token_usage.completion_tokens
+                prompt_tokens += i_response.token_usage.prompt_tokens
+                total_tokens += i_response.token_usage.total_tokens
+                collector.add_extra_data_items(i_response.extra_data)
+                task_no += 1
+                yield IntermediateTaskResponse(
+                    task_no=task_no,
+                    task_name=task.name,
+                    response=i_response,
+                )
+            except Exception as e:
+                raise AgentInvokeException(
+                    f"Error while invoking task {task.name}: {str(e)}"
+                ) from e
         # Process and stream back final task results
         async for content in self.tasks[-1].invoke_stream(history=chat_history, inputs=task_inputs):
             # Calculate usage metrics if chunk contains usage metadata
@@ -144,6 +158,7 @@ class SequentialSkagents(BaseHandler):
                 # Handle and return partial response
                 final_response.append(content)
                 yield PartialResponse(output_partial=content)
+        logger.info(f"Token count after invoking Agent: {total_tokens}")
         # Build the final response with InvokeResponse
         final_response = "".join(final_response)
         response = InvokeResponse(
@@ -174,13 +189,19 @@ class SequentialSkagents(BaseHandler):
         parse_chat_history(chat_history, inputs)
         task_inputs = SequentialSkagents._parse_task_inputs(inputs)
         for task in self.tasks:
-            i_response = await task.invoke(history=chat_history, inputs=task_inputs)
-            task_inputs[f"_{task.name}"] = i_response.output_raw
-            completion_tokens += i_response.token_usage.completion_tokens
-            prompt_tokens += i_response.token_usage.prompt_tokens
-            total_tokens += i_response.token_usage.total_tokens
-            collector.add_extra_data_items(i_response.extra_data)
-            task_no += 1
+            try:
+                i_response = await task.invoke(history=chat_history, inputs=task_inputs)
+                task_inputs[f"_{task.name}"] = i_response.output_raw
+                completion_tokens += i_response.token_usage.completion_tokens
+                prompt_tokens += i_response.token_usage.prompt_tokens
+                total_tokens += i_response.token_usage.total_tokens
+                collector.add_extra_data_items(i_response.extra_data)
+                task_no += 1
+            except Exception as e:
+                raise AgentInvokeException(
+                    f"Error while invoking task {task.name}: {str(e)}"
+                ) from e
+        logger.info(f"Token count after invoking Agent: {total_tokens}")
         last_message = chat_history.messages[-1].content
         response = InvokeResponse(
             token_usage=TokenUsage(

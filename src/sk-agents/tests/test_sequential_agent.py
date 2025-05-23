@@ -1,5 +1,6 @@
 import pytest
 
+from sk_agents.exceptions import AgentInvokeException, InvalidConfigException
 from sk_agents.extra_data_collector import ExtraDataCollector
 from sk_agents.ska_types import BaseConfig, InvokeResponse, TokenUsage
 from sk_agents.skagents.kernel_builder import KernelBuilder
@@ -28,6 +29,13 @@ def config():
         instructions="test task instruction",
         agent="test agent",
     )
+    task_2 = TaskConfig(
+        name="task # 2",
+        task_no=2,
+        description="test task description",
+        instructions="test task instruction",
+        agent="test agent",
+    )
     config = BaseConfig(
         apiVersion="v1",
         description="test-agent",
@@ -35,7 +43,7 @@ def config():
         version=0.1,
         input_type="BaseInput",
         output_type=None,
-        spec=Spec(agents=[test_agent], tasks=[task]),
+        spec=Spec(agents=[test_agent], tasks=[task, task_2]),
     )
     return config
 
@@ -74,6 +82,14 @@ def task_invoke_response_mock(mocker):
 
     mocker.patch("sk_agents.skagents.v1.sequential.task.Task.invoke", side_effect=mock_invoke)
     return mock_response
+
+
+@pytest.fixture
+def task_invoke_exception_response_mock(mocker):
+    async def mock_error(*args, **kwargs):
+        raise Exception(" **** Mocked error while invoking agent ****")
+
+    mocker.patch("sk_agents.skagents.v1.sequential.task.Task.invoke", side_effect=mock_error)
 
 
 @pytest.fixture
@@ -190,3 +206,56 @@ def test_init_sequential(config, mock_task_builder, mock_kernel_builder) -> None
     skagents = SequentialSkagents(config, mock_kernel_builder, mock_task_builder)
     assert skagents is not None
     assert skagents.tasks is not None
+
+
+def test_invalid_agent_config_spec(config, mock_task_builder, mock_kernel_builder) -> None:
+    """
+    Test:
+    InvalidConfigException is raised
+    """
+    delattr(config, "spec")
+
+    with pytest.raises(InvalidConfigException):
+        SequentialSkagents(config, mock_kernel_builder, mock_task_builder)
+
+
+def test_invalid_agent_tasks(config, mock_task_builder, mock_kernel_builder) -> None:
+    """
+    Test:
+    SequentialSkagents without tasks
+    """
+    config.spec.tasks = []
+    with pytest.raises(InvalidConfigException):
+        SequentialSkagents(config, mock_kernel_builder, mock_task_builder)
+
+
+@pytest.mark.asyncio
+async def test_sequential_invoke_exception_error(
+    config,
+    mock_task_builder,
+    mock_kernel_builder,
+    task_invoke_exception_response_mock,
+    mock_extra_data_collector,
+    mocker,
+) -> None:
+    """
+    Test:
+    AgentInvokeException error is raised
+    """
+
+    skagents = SequentialSkagents(config, mock_kernel_builder, mock_task_builder)
+    test_input = {"test_input_key": "test_input_value", "chat_history": []}
+    mocker.patch.object(
+        SequentialSkagents,
+        "_parse_task_inputs",
+        return_value={"parsed_inputs": test_input["test_input_key"]},
+    )
+    mocker.patch(
+        "sk_agents.skagents.v1.sequential.sequential_skagents.parse_chat_history",
+        return_value=MockChatHistory,
+    )
+    mocker.patch(
+        "sk_agents.skagents.v1.sequential.sequential_skagents.ChatHistory", new=MockChatHistory
+    )
+    with pytest.raises(AgentInvokeException):
+        await skagents.invoke(inputs=test_input)

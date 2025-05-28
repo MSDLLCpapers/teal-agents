@@ -141,7 +141,7 @@ async def new_conversation(
     orchestrator_name: str, payload: NewConversationRequest, request: Request
 ) -> ConversationResponse:
     try:
-        return conversation_manager.new_conversation(
+        return await conversation_manager.new_conversation(
             orchestrator_name, payload.user_id, payload.is_resumed
         )
     except Exception as e:
@@ -159,7 +159,7 @@ async def get_conversation_message(
     orchestrator_name: str, payload: GetConversationRequest, request: Request
 ) -> ConversationResponse:
     try:
-        return conversation_manager.get_conversation(
+        return await conversation_manager.get_conversation(
             orchestrator_name, payload.user_id, payload.session_id
         )
     except DoesNotExist as e:
@@ -178,7 +178,7 @@ async def add_conversation_message(
     request: AddConversationMessageRequest,
 ) -> GeneralResponse:
     try:
-        return conversation_manager.add_conversation_message(
+        return await conversation_manager.add_conversation_message(
             orchestrator_name=orchestrator_name,
             conversation_id=conversation_id,
             message_type=request.message_type,

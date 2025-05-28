@@ -53,18 +53,18 @@ class ConversationManager:
         for directive in directives:
             match directive.op:
                 case ContextDirectiveOp.SET:
-                    self.upsert_context_item(conversation, directive.key, directive.value)
+                    await self.upsert_context_item(conversation, directive.key, directive.value)
                 case ContextDirectiveOp.ADD:
-                    self.add_context_item(
+                    await self.add_context_item(
                         conversation,
                         directive.key,
                         directive.value,
                         directive.type,
                     )
                 case ContextDirectiveOp.UPDATE:
-                    self.update_context_item(conversation, directive.key, directive.value)
+                    await self.update_context_item(conversation, directive.key, directive.value)
                 case ContextDirectiveOp.DELETE:
-                    self.delete_context_item(conversation, directive.key)
+                    await self.delete_context_item(conversation, directive.key)
 
     async def add_context_item(
         self,

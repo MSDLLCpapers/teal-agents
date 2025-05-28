@@ -7,8 +7,8 @@ from model import Conversation
 
 
 class MessageType(str, Enum):
-    USER: str = "user"
-    AGENT: str = "agent"
+    USER = "user"
+    AGENT = "agent"
 
 
 class GeneralResponse(BaseModel):

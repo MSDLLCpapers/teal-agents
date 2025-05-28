@@ -215,9 +215,7 @@ class A2AResponseClassifier:
         "* Adhere to the prioritization logic.\n"
     )
 
-    def __init__(
-        self, app_config: AppConfig, chat_completion_builder: ChatCompletionBuilder
-    ):
+    def __init__(self, app_config: AppConfig, chat_completion_builder: ChatCompletionBuilder):
         model_name = app_config.get(TA_A2A_OUTPUT_CLASSIFIER_MODEL.env_name)
         chat_completion = chat_completion_builder.get_chat_completion_for_model(
             service_id=self.NAME, model_name=model_name
@@ -244,9 +242,7 @@ class A2AResponseClassifier:
             str: The classification of the response.
         """
         chat_history = ChatHistory()
-        chat_history.add_user_message(
-            f"Please classify the following response:\n\n{response}"
-        )
+        chat_history.add_user_message(f"Please classify the following response:\n\n{response}")
         async for content in self.agent.invoke(messages=chat_history):
             data = json.loads(str(content.content))
             return A2AResponseClassification(**data)

@@ -10,7 +10,7 @@ from services import ServicesClient, new_client
 
 
 class ConnectionManager:
-    def __init__(self):
+    def __init__(self) -> None:
         self.active_connections: list[WebSocket] = []
 
     async def connect(self, service_name: str, websocket: WebSocket, ticket: str) -> str:
@@ -29,5 +29,5 @@ class ConnectionManager:
         self.active_connections.append(websocket)
         return user_id
 
-    def disconnect(self, websocket: WebSocket):
+    def disconnect(self, websocket: WebSocket) -> None:
         self.active_connections.remove(websocket)

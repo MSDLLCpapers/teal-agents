@@ -11,3 +11,5 @@ spec:
     - WikipediaAgent:0.1
     - ArxivSearchAgent:0.1
     - AssistantAgent:0.1
+  human_in_the_loop: true   # Require human approval for plans
+  hitl_timeout: 0             # Timeout (seconds) for approval (0 = disabled by default)

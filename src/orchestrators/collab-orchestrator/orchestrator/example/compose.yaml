@@ -74,3 +74,8 @@ services:
     volumes:
       - ./client/client.html:/usr/share/nginx/html/index.html
     command: ["nginx", "-g", "daemon off;"]
+  redis:
+    image: "redis:latest"
+    ports:
+      - "6379:6379"
+    command: redis-server --port 6379

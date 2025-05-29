@@ -28,6 +28,7 @@ from collab_orchestrator.planning_handler.plan_manager import (
 from collab_orchestrator.planning_handler.planning_agent import PlanningAgent
 from collab_orchestrator.planning_handler.step_executor import StepExecutor
 from collab_orchestrator.planning_handler.types import PlanningSpec
+from collab_orchestrator.planning_handler.pending_plans import PendingPlanStore  # HITL support
 
 
 class PlanningHandler(KindHandler):
@@ -45,6 +46,11 @@ class PlanningHandler(KindHandler):
         )
         self.plan_manager = None
         self.planning_agent = None
+        # Begin HITL support
+        self.hitl    = bool(getattr(config.spec, "human_in_the_loop", False))
+        self.timeout = int(getattr(config.spec, "hitl_timeout", 0) or 0)
+        self.store   = PendingPlanStore() if self.hitl else None
+        # End HITL support
 
     def _start_span(self, name: str, attributes: dict | None = None):
         if self.t.telemetry_enabled():
@@ -102,6 +108,40 @@ class PlanningHandler(KindHandler):
                 plan.source = source
                 plan.request_id = request_id
                 yield new_event_response(EventType.PLAN, plan)
+
+                # Begin HITL support: pause if HITL enabled
+                if self.hitl:
+                    await self.store.save(session_id, plan.model_dump())
+                    stored = await self.store.wait_for_decision(session_id, self.timeout)
+                    if not stored:
+                        yield new_event_response(
+                            EventType.ERROR,
+                            AbortResult(
+                                session_id=session_id,
+                                source=source,
+                                request_id=request_id,
+                                abort_reason="Plan approval timed out."
+                            ),
+                        )
+                        return
+                    if stored["status"] == "cancel":
+                        await self.store.delete(session_id)
+                        yield new_event_response(
+                            EventType.ERROR,
+                            AbortResult(
+                                session_id=session_id,
+                                source=source,
+                                request_id=request_id,
+                                abort_reason="Plan execution cancelled by user."
+                            ),
+                        )
+                        return
+                    if stored["status"] == "edit":
+                        # Convert edited plan dict back to Plan object
+                        from collab_orchestrator.planning_handler.plan import Plan
+                        plan = Plan.model_validate(stored["edited_plan"])
+                    await self.store.delete(session_id)
+                # End HITL support
 
             with self._start_span(name="execute-plan"):
                 step_executor = StepExecutor(self.task_agents)

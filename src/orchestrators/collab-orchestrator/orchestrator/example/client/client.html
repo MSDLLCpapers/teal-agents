@@ -219,6 +219,29 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        /* New styles for plan actions */
+        .plan-actions {
+            margin-top: 10px;
+        }
+        .plan-actions button {
+            margin-right: 10px;
+        }
+        /* Updated styles for plan editing */
+        .goal-text-input, .agent-text-input {
+            width: 100%;
+            padding: 8px;
+            font-family: inherit;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+        .goal-text-input {
+            min-height: 100px;
+            resize: vertical;
+        }
+        .agent-text-input {
+            height: 36px;
+        }
     </style>
 </head>
 <body>
@@ -247,6 +270,13 @@
     let planRequestId = null;
     // Track the first event type and request_id for main chat final-response
     let firstMainEvent = null; // { type: 'plan'|'manager-response', request_id: string }
+    let currentSessionId;
+    let currentPlanData;
+    let editing = false;
+    let planReceived = false;
+    let waitingForHumanApproval = false;
+    let planButtonsAdded = false;
+    let planTimerId = null;
 
     // Initialize marked for Markdown rendering
     marked.setOptions({
@@ -397,7 +427,9 @@
 
     function displayPlan(planData) {
         flushAllPartialBuffers();
-        // Save plan's request_id for final-response matching
+        currentPlanData = planData;
+        planReceived = true;
+        waitingForHumanApproval = true; // Enable HITL pause
         planRequestId = planData.request_id;
 
         const workingChat = document.getElementById('workingChat');
@@ -431,12 +463,14 @@
             step.step_tasks.forEach(task => {
                 const taskItem = document.createElement('div');
                 taskItem.className = 'task-item';
+                taskItem.setAttribute('data-task-id', task.task_id);
+                // Changed: Make goal and agent spans explicitly editable
                 taskItem.innerHTML = `
                     <div><strong>Task ID:</strong> ${task.task_id}</div>
-                    <div><strong>Goal:</strong> ${task.task_goal}</div>
-                    <div><strong>Agent:</strong> ${task.task_agent}</div>
-                    ${task.prerequisite_tasks.length > 0 ?
-                    `<div><strong>Prerequisites:</strong> ${task.prerequisite_tasks.join(', ')}</div>` : ''}
+                    <div><strong>Goal:</strong> <span class="goal-text">${task.task_goal}</span></div>
+                    <div><strong>Agent:</strong> <span class="agent-text">${task.task_agent}</span></div>
+                    ${task.prerequisite_tasks.length > 0 ? 
+                      `<div><strong>Prerequisites:</strong> <span class="prereq-text">${task.prerequisite_tasks.join(', ')}</span></div>` : ''}
                 `;
                 stepContent.appendChild(taskItem);
             });
@@ -470,6 +504,109 @@
         workingChat.appendChild(planHeader);
         workingChat.appendChild(planContent);
         workingChat.scrollTop = workingChat.scrollHeight;
+
+        // Add HITL buttons after displaying plan
+        if (planTimerId) {
+            clearTimeout(planTimerId);
+        }
+        planTimerId = setTimeout(() => {
+            if (waitingForHumanApproval && !planButtonsAdded) {
+                addPlanActionButtons();
+            }
+        }, 500);
+
+        hideLoadingIndicator();
+    }
+
+    function addPlanActionButtons() {
+        if (planButtonsAdded) return;
+
+        const workingChat = document.getElementById('workingChat');
+        const actionDiv = document.createElement('div');
+        actionDiv.className = 'plan-actions';
+
+        const approveBtn = document.createElement('button');
+        approveBtn.textContent = 'Approve Plan';
+        approveBtn.addEventListener('click', function() {
+            submitPlanDecision('approve');
+        });
+
+        const editBtn = document.createElement('button');
+        editBtn.textContent = 'Edit Plan';
+        editBtn.addEventListener('click', function() {
+            if (!editing) {
+                enablePlanEditing();
+                this.textContent = 'Submit Changes';
+                editing = true;
+            } else {
+                submitPlanDecision('edit');
+            }
+        });
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel Plan';
+        cancelBtn.addEventListener('click', function() {
+            submitPlanDecision('cancel');
+        });
+
+        actionDiv.appendChild(approveBtn);
+        actionDiv.appendChild(editBtn);
+        actionDiv.appendChild(cancelBtn);
+        workingChat.appendChild(actionDiv);
+        planButtonsAdded = true;
+    }
+
+    function submitPlanDecision(decision) {
+        if (!currentSessionId) {
+            console.error('No active session to submit decision for.');
+            return;
+        }
+
+        const url = `http://localhost:8000/CollaborationOrchestrator/0.1/sse/${currentSessionId}/${decision}`;
+        const options = { method: 'POST' };
+
+        if (decision === 'edit') {
+            const editedPlan = gatherEditedPlan();
+            options.headers = { 'Content-Type': 'application/json' };
+            options.body = JSON.stringify(editedPlan);
+        }
+
+        fetch(url, options)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to submit plan decision');
+                }
+                document.querySelectorAll('.plan-actions button').forEach(btn => {
+                    btn.disabled = true;
+                    btn.classList.add('opacity-50');
+                });
+                showLoadingIndicator();
+            })
+            .catch(error => {
+                console.error('Error submitting plan decision:', error);
+            });
+    }
+
+    function gatherEditedPlan() {
+        if (!currentPlanData) return null;
+        const newPlan = { steps: [] };
+        currentPlanData.steps.forEach(step => {
+            const newStep = { step_number: step.step_number, step_tasks: [] };
+            step.step_tasks.forEach(task => {
+                const taskElem = document.querySelector(`[data-task-id="${task.task_id}"]`);
+                if (!taskElem) return;
+                const goalElem = taskElem.querySelector('.goal-text');
+                const agentElem = taskElem.querySelector('.agent-text');
+                newStep.step_tasks.push({
+                    task_id: task.task_id,
+                    task_goal: goalElem && goalElem.value !== undefined ? goalElem.value : goalElem.textContent,
+                    task_agent: agentElem && agentElem.value !== undefined ? agentElem.value : agentElem.textContent,
+                    prerequisite_tasks: task.prerequisite_tasks ? [...task.prerequisite_tasks] : []
+                });
+            });
+            newPlan.steps.push(newStep);
+        });
+        return newPlan;
     }
 
     // New: create a static, non-expandable box for manager messages
@@ -489,16 +626,53 @@
         };
     }
 
+    function enablePlanEditing() {
+        document.querySelectorAll('.goal-text').forEach(span => {
+            const text = span.textContent;
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.className = 'goal-text-input goal-text';
+
+            const lines = text.split('\n').length;
+            const estimatedRows = Math.max(3, lines, Math.ceil(text.length / 40));
+            textarea.rows = estimatedRows;
+
+            textarea.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            });
+
+            span.parentNode.replaceChild(textarea, span);
+
+            // Ensure textarea resizes properly
+            setTimeout(() => {
+                textarea.style.height = 'auto';
+                textarea.style.height = (textarea.scrollHeight) + 'px';
+            }, 0);
+        });
+
+        document.querySelectorAll('.agent-text').forEach(span => {
+            const text = span.textContent;
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = text;
+            input.className = 'agent-text-input agent-text';
+            span.parentNode.replaceChild(input, span);
+        });
+
+        // Disable approve button during editing
+        const approveButton = document.querySelector('.plan-actions button:first-child');
+        if (approveButton) approveButton.disabled = true;
+    }
+
     function sendMessage() {
         const messageInput = document.getElementById('userMessage');
         const userMessage = messageInput.value.trim();
         if (!userMessage) return;
         messageInput.value = '';
 
-        // Add user message to mainChat with bold indication and extra line breaks
         appendToMainChat('<span class="user-message">User:</span> ' + userMessage + '<br/>');
 
-        // Disable input until response is complete
         disableUserInput();
         showLoadingIndicator();
 
@@ -510,6 +684,16 @@
         partials = {};
         planRequestId = null;
         firstMainEvent = null;
+        // --- Added: Reset HITL flags ---
+        planReceived = false;
+        waitingForHumanApproval = false;
+        planButtonsAdded = false;
+        if (planTimerId) {
+            clearTimeout(planTimerId);
+            planTimerId = null;
+        }
+        // --- End Added ---
+        
         const workingChat = document.getElementById('workingChat');
         workingChat.innerHTML = '';
 
@@ -530,17 +714,17 @@
                 ]
             })
         })
-            .then(response => response.json())
-            .then(data => {
-                const sessionId = data.session_id;
-                eventSource = new EventSource('http://localhost:8000/CollaborationOrchestrator/0.1/browser/' + sessionId);
-                setupEventHandlers(eventSource);
-            })
-            .catch(error => {
-                console.log(error);
-                enableUserInput();
-                hideLoadingIndicator();
-            });
+        .then(response => response.json())
+        .then(data => {
+            const sessionId = data.session_id;
+            eventSource = new EventSource('http://localhost:8000/CollaborationOrchestrator/0.1/browser/' + sessionId);
+            setupEventHandlers(eventSource);
+        })
+        .catch(error => {
+            console.log(error);
+            enableUserInput();
+            hideLoadingIndicator();
+        });
     }
 
     function setupEventHandlers(source) {
@@ -557,11 +741,21 @@
             const data = JSON.parse(event.data);
             setFirstMainEvent('plan', data.request_id);
             displayPlan(data);
+            currentSessionId = data.session_id; // Store session ID for HITL
         });
 
         source.addEventListener('manager-response', (event) => {
             const data = JSON.parse(event.data);
             setFirstMainEvent('manager-response', data.request_id);
+
+            // If we get a manager response right after plan, HITL is not waiting for approval
+            if (planReceived && waitingForHumanApproval) {
+                waitingForHumanApproval = false;
+                if (planTimerId) {
+                    clearTimeout(planTimerId);
+                    planTimerId = null;
+                }
+            }
 
             // Only handle specific next_action values
             if (data.next_action === 'assign_new_task') {
@@ -581,6 +775,15 @@
 
         source.addEventListener('agent-request', (event) => {
             const data = JSON.parse(event.data);
+            // --- Added: Reset HITL if waiting for human approval ---
+            if (planReceived && waitingForHumanApproval) {
+                waitingForHumanApproval = false;
+                if (planTimerId) {
+                    clearTimeout(planTimerId);
+                    planTimerId = null;
+                }
+            }
+            // --- End Added ---
             createAgentRequestSection(data.agent_name, data.request_id, data.task_goal);
         });
 
@@ -605,6 +808,11 @@
                 source.close();
                 enableUserInput();
                 hideLoadingIndicator();
+                // --- Added: Reset HITL flags after final response ---
+                planReceived = false;
+                waitingForHumanApproval = false;
+                planButtonsAdded = false;
+                // --- End Added ---
             }
         });
 
@@ -614,6 +822,11 @@
             source.close();
             enableUserInput();
             hideLoadingIndicator();
+            // --- Added: Reset HITL flags on error ---
+            planReceived = false;
+            waitingForHumanApproval = false;
+            planButtonsAdded = false;
+            // --- End Added ---
         };
     }
 </script>

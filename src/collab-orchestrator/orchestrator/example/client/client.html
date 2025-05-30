@@ -1,0 +1,167 @@
+<!-- ...existing code... -->
+<script>
+    // ...existing code...
+
+    function displayPlan(planData) {
+        flushAllPartialBuffers();
+        currentPlanData = planData;
+        planReceived = true;
+        waitingForHumanApproval = true; // Assume approval needed
+        const workingChat = document.getElementById('workingChat');
+
+        const planHeader = document.createElement('div');
+        planHeader.className = 'agent-header active';
+        planHeader.innerHTML = `<strong>Orchestrator</strong> developed the following plan`;
+
+        const planContent = document.createElement('div');
+        planContent.className = 'agent-content';
+        planContent.style.display = 'block';
+
+        const planContainer = document.createElement('div');
+        planContainer.className = 'plan-container';
+        planData.steps.forEach(step => {
+            const stepHeader = document.createElement('div');
+            stepHeader.className = 'step-header';
+            stepHeader.innerHTML = `Step ${step.step_number}`;
+
+            const stepContent = document.createElement('div');
+            stepContent.className = 'step-content';
+
+            step.step_tasks.forEach(task => {
+                const taskItem = document.createElement('div');
+                taskItem.className = 'task-item';
+                taskItem.setAttribute('data-task-id', task.task_id);
+                taskItem.innerHTML = `
+                    <div><strong>Task ID:</strong> ${task.task_id}</div>
+                    <div><strong>Goal:</strong> <span class="goal-text">${task.task_goal}</span></div>
+                    <div><strong>Agent:</strong> <span class="agent-text">${task.task_agent}</span></div>
+                    ${task.prerequisite_tasks.length > 0 ? `<div><strong>Prerequisites:</strong> <span class="prereq-text">${task.prerequisite_tasks.join(', ')}</span></div>` : ''}
+                `;
+                stepContent.appendChild(taskItem);
+            });
+
+            stepHeader.addEventListener('click', function() {
+                this.classList.toggle('active');
+                stepContent.style.display = (stepContent.style.display === 'block') ? 'none' : 'block';
+            });
+
+            planContainer.appendChild(stepHeader);
+            planContainer.appendChild(stepContent);
+        });
+        planContent.appendChild(planContainer);
+
+        planHeader.addEventListener('click', function() {
+            this.classList.toggle('active');
+            planContent.style.display = (planContent.style.display === 'block') ? 'none' : 'block';
+        });
+
+        workingChat.appendChild(planHeader);
+        workingChat.appendChild(planContent);
+
+        if (planTimerId) {
+            clearTimeout(planTimerId);
+        }
+        // Add HITL buttons after 500ms if still waiting for approval
+        planTimerId = setTimeout(() => {
+            if (waitingForHumanApproval && !planButtonsAdded) {
+                addPlanActionButtons();
+            }
+        }, 500);
+        hideLoadingIndicator();
+    }
+
+    function addPlanActionButtons() {
+        if (planButtonsAdded) return;
+        
+        const workingChat = document.getElementById('workingChat');
+        // Create a container with the new plan-actions class and spacing
+        const actionDiv = document.createElement('div');
+        actionDiv.className = 'plan-actions';
+        const approveBtn = document.createElement('button');
+        approveBtn.textContent = 'Approve Plan';
+        approveBtn.addEventListener('click', function() {
+            submitPlanDecision('approve');
+        });
+        const editBtn = document.createElement('button');
+        editBtn.textContent = 'Edit Plan';
+        editBtn.addEventListener('click', function() {
+            if (!editing) {
+                enablePlanEditing();
+                this.textContent = 'Submit Changes';
+                editing = true;
+            } else {
+                submitPlanDecision('edit');
+            }
+        });
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = 'Cancel Plan';
+        cancelBtn.addEventListener('click', function() {
+            submitPlanDecision('cancel');
+        });
+        actionDiv.appendChild(approveBtn);
+        actionDiv.appendChild(editBtn);
+        actionDiv.appendChild(cancelBtn);
+        workingChat.appendChild(actionDiv);
+        planButtonsAdded = true;
+    }
+
+    function enablePlanEditing() {
+        document.querySelectorAll('.goal-text').forEach(span => {
+            const text = span.textContent;
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            // Use new class for styling plan edits
+            textarea.className = 'goal-text-input goal-text';
+            const lines = text.split('\n').length;
+            const estimatedRows = Math.max(3, lines, Math.ceil(text.length / 40));
+            textarea.rows = estimatedRows;
+            textarea.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            });
+            span.parentNode.replaceChild(textarea, span);
+            setTimeout(() => {
+                textarea.style.height = 'auto';
+                textarea.style.height = (textarea.scrollHeight) + 'px';
+            }, 0);
+        });
+
+        document.querySelectorAll('.agent-text').forEach(span => {
+            const text = span.textContent;
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = text;
+            input.className = 'agent-text-input agent-text';
+            span.parentNode.replaceChild(input, span);
+        });
+
+        const approveButton = document.querySelector('.plan-actions button:first-child');
+        if (approveButton) approveButton.disabled = true;
+    }
+
+    function gatherEditedPlan() {
+        if (!currentPlanData) return null;
+        const newPlan = { steps: [] };
+        currentPlanData.steps.forEach(step => {
+            const newStep = { step_number: step.step_number, step_tasks: [] };
+            step.step_tasks.forEach(task => {
+                const taskElem = document.querySelector(`[data-task-id="${task.task_id}"]`);
+                if (!taskElem) return;
+                const goalElem = taskElem.querySelector('.goal-text');
+                const agentElem = taskElem.querySelector('.agent-text');
+                newStep.step_tasks.push({
+                    task_id: task.task_id,
+                    task_goal: goalElem && goalElem.value !== undefined ? goalElem.value : goalElem.textContent,
+                    task_agent: agentElem && agentElem.value !== undefined ? agentElem.value : agentElem.textContent,
+                    prerequisite_tasks: task.prerequisite_tasks ? [...task.prerequisite_tasks] : []
+                });
+            });
+            newPlan.steps.push(newStep);
+        });
+        return newPlan;
+    }
+
+    // ...existing code...
+</script>
+<!-- ...existing code... -->
+</html>

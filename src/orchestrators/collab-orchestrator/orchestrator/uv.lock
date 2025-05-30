@@ -187,6 +187,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-yaml" },
     { name = "python-dotenv" },
+    { name = "redis" },
     { name = "requests" },
     { name = "ska-utils" },
 ]
@@ -217,6 +218,8 @@ requires-dist = [
     { name = "pydantic" },
     { name = "pydantic-yaml" },
     { name = "python-dotenv" },
+    { name = "redis", specifier = ">=5.2.1" },
+    { name = "redis", extras = ["asyncio"], specifier = ">=4.6" },
     { name = "requests" },
     { name = "ska-utils", directory = "../../../../shared/ska_utils" },
 ]

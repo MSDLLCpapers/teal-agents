@@ -671,10 +671,8 @@
         if (!userMessage) return;
         messageInput.value = '';
 
-        // Add user message to mainChat with bold indication and extra line breaks
         appendToMainChat('<span class="user-message">User:</span> ' + userMessage + '<br/>');
 
-        // Disable input until response is complete
         disableUserInput();
         showLoadingIndicator();
 
@@ -686,6 +684,16 @@
         partials = {};
         planRequestId = null;
         firstMainEvent = null;
+        // --- Added: Reset HITL flags ---
+        planReceived = false;
+        waitingForHumanApproval = false;
+        planButtonsAdded = false;
+        if (planTimerId) {
+            clearTimeout(planTimerId);
+            planTimerId = null;
+        }
+        // --- End Added ---
+        
         const workingChat = document.getElementById('workingChat');
         workingChat.innerHTML = '';
 
@@ -706,17 +714,17 @@
                 ]
             })
         })
-            .then(response => response.json())
-            .then(data => {
-                const sessionId = data.session_id;
-                eventSource = new EventSource('http://localhost:8000/CollaborationOrchestrator/0.1/browser/' + sessionId);
-                setupEventHandlers(eventSource);
-            })
-            .catch(error => {
-                console.log(error);
-                enableUserInput();
-                hideLoadingIndicator();
-            });
+        .then(response => response.json())
+        .then(data => {
+            const sessionId = data.session_id;
+            eventSource = new EventSource('http://localhost:8000/CollaborationOrchestrator/0.1/browser/' + sessionId);
+            setupEventHandlers(eventSource);
+        })
+        .catch(error => {
+            console.log(error);
+            enableUserInput();
+            hideLoadingIndicator();
+        });
     }
 
     function setupEventHandlers(source) {
@@ -767,6 +775,15 @@
 
         source.addEventListener('agent-request', (event) => {
             const data = JSON.parse(event.data);
+            // --- Added: Reset HITL if waiting for human approval ---
+            if (planReceived && waitingForHumanApproval) {
+                waitingForHumanApproval = false;
+                if (planTimerId) {
+                    clearTimeout(planTimerId);
+                    planTimerId = null;
+                }
+            }
+            // --- End Added ---
             createAgentRequestSection(data.agent_name, data.request_id, data.task_goal);
         });
 
@@ -791,6 +808,11 @@
                 source.close();
                 enableUserInput();
                 hideLoadingIndicator();
+                // --- Added: Reset HITL flags after final response ---
+                planReceived = false;
+                waitingForHumanApproval = false;
+                planButtonsAdded = false;
+                // --- End Added ---
             }
         });
 
@@ -800,6 +822,11 @@
             source.close();
             enableUserInput();
             hideLoadingIndicator();
+            // --- Added: Reset HITL flags on error ---
+            planReceived = false;
+            waitingForHumanApproval = false;
+            planButtonsAdded = false;
+            // --- End Added ---
         };
     }
 </script>

@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterable
 
+import aiohttp
 import requests
 import websockets
 from opentelemetry.propagate import inject
@@ -60,7 +61,7 @@ class BaseAgent(ABC, BaseModel):
             async for message in ws:
                 yield message
 
-    def invoke_api(self, conv: Conversation, authorization: str | None = None) -> dict:
+    async def invoke_api(self, conv: Conversation, authorization: str | None = None) -> dict:
         """Invoke the agent via an HTTP API call."""
         base_input = _conversation_to_agent_input(conv)
         input_message = self.get_invoke_input(base_input)
@@ -70,12 +71,16 @@ class BaseAgent(ABC, BaseModel):
             "Authorization": authorization,
             "Content-Type": "application/json",
         }
-        response = requests.post(self.endpoint_api, data=input_message, headers=headers)
 
-        if response.status_code != 200:
-            raise Exception(f"Failed to invoke agent API: {response.status_code} - {response.text}")
-
-        return response.json()
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                self.endpoint_api, data=input_message, headers=headers
+            ) as response:
+                if response.status != 200:
+                    raise Exception(
+                        f"Failed to invoke agent API: {response.status} - {await response.text()}"
+                    )
+                return await response.json()
 
 
 class AgentCatalog(BaseModel):

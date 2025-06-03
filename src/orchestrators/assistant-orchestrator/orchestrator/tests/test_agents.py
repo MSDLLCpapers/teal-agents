@@ -1,19 +1,71 @@
 import pytest
-from agents import BaseAgent
+import json
+from agents import BaseAgent, AgentCatalog, FallbackAgent, AgentInput, ChatHistoryItem, FallbackInput
 from pydantic import BaseModel
 from ..model import Conversation
 
 
 
-class AgentInput(BaseModel):
+class _AgentInput(BaseModel):
     data: str = "test_input_data"
 
 
 class MockAgent(BaseAgent):
-    def get_invoke_input(self, agent_input: AgentInput) -> str:
+    def get_invoke_input(self, agent_input: _AgentInput) -> str:
         return f"Processed input: {agent_input.data}"
 
-    
+
+@pytest.fixture
+def empty_agent_catalog():
+    return AgentCatalog(agents={})
+
+@pytest.fixture
+def single_agent_catalog():
+    return AgentCatalog(agents={
+        "TestAgent": MockAgent(
+            name='test agent',
+            description='agent used for unit test',
+            endpoint='ws://test_stream_endpoint',
+            endpoint_api='http://test_api_endpoint',
+            api_key='test_key'
+        )
+    })
+
+@pytest.fixture
+def multiple_agent_catalog():
+    return AgentCatalog(agents={
+        "TestMathAgent": MockAgent(
+            name='Math Agent',
+            description='Math Agent used for unit test',
+            endpoint='ws://test_stream_endpoint',
+            endpoint_api='http://test_api_endpoint',
+            api_key='test_key'
+        ),
+        "TestWeatherAgent": MockAgent(
+            name='Weather Agent',
+            description='Weather Agent used for unit test',
+            endpoint='ws://test_stream_endpoint',
+            endpoint_api='http://test_api_endpoint',
+            api_key='test_key'
+        ),
+        "TestNewsAgent": MockAgent(
+            name='News Agent',
+            description='News Agent used for unit test',
+            endpoint='ws://test_stream_endpoint',
+            endpoint_api='http://test_api_endpoint',
+            api_key='test_key'
+        )
+    })
+
+@pytest.fixture
+def fallback_agent_base_params():
+    return {
+        "name": "Fallback",
+        "description": "A fallback agent",
+        "endpoint": "ws://fallback",
+        "endpoint_api": "http://fallback_api",
+        "api_key": "fallback_key"
+    }
 
 @pytest.fixture        
 def agent_instance():
@@ -36,13 +88,13 @@ def conversation_for_testing():
     )
 
 def test_agent_get_invoke_input(agent_instance):
-    agent_input = AgentInput(data="Test Hello World")
+    agent_input = _AgentInput(data="Test Hello World")
     response = agent_instance.get_invoke_input(agent_input)
 
     assert response == "Processed input: Test Hello World"
 
 def test_invoke_api_success(mocker, agent_instance, conversation_for_testing):
-    _conversation_to_agent_input = mocker.patch("agents._conversation_to_agent_input", return_value=AgentInput(data="mocked input"))
+    _conversation_to_agent_input = mocker.patch("agents._conversation_to_agent_input", return_value=_AgentInput(data="mocked input"))
 
     # Mock requests.post
     mock_response = mocker.Mock()
@@ -70,7 +122,7 @@ def test_invoke_api_success(mocker, agent_instance, conversation_for_testing):
 
 
 def test_invoke_api_non_200_status(mocker, agent_instance, conversation_for_testing):
-    _conversation_to_agent_input = mocker.patch("agents._conversation_to_agent_input", return_value=AgentInput(data="mocked input"))
+    _conversation_to_agent_input = mocker.patch("agents._conversation_to_agent_input", return_value=_AgentInput(data="mocked input"))
     
     mock_response = mocker.Mock()
     mock_response.status_code = 404
@@ -81,3 +133,31 @@ def test_invoke_api_non_200_status(mocker, agent_instance, conversation_for_test
         agent_instance.invoke_api(conversation_for_testing)
     
     
+def test_multiple_agents_catalog(fallback_agent_base_params, multiple_agent_catalog):
+    agent_input = AgentInput(
+        chat_history=[
+            ChatHistoryItem(
+                role="user",
+                content="hi this is a test"
+            )
+        ],
+        user_context={}
+    )
+
+    fallback_agent = FallbackAgent(
+        agent_catalog = multiple_agent_catalog,
+        **fallback_agent_base_params
+    )
+
+    response = fallback_agent.get_invoke_input(agent_input)
+    
+    result_data = json.loads(response)
+    
+    expected_result = FallbackInput(
+        chat_history=agent_input.chat_history,
+        user_context=agent_input.user_context,
+        agents=multiple_agent_catalog.agents
+    )
+    expected_result = expected_result.model_dump(mode='json')
+    print('***Expected result: ',expected_result)
+    assert result_data == expected_result

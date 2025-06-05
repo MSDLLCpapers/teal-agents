@@ -4,6 +4,8 @@ import pytest
 from pydantic import BaseModel
 
 from agents import (
+    Agent,
+    AgentBuilder,
     AgentCatalog,
     AgentInput,
     BaseAgent,
@@ -11,12 +13,10 @@ from agents import (
     FallbackAgent,
     FallbackInput,
     PromptAgent,
-    AgentBuilder,
-    Agent,
     RecipientChooserAgent,
 )
+from model import Conversation
 
-from ..model import Conversation
 
 class _AgentInput(BaseModel):
     data: str = "test_input_data"
@@ -184,7 +184,10 @@ def test_invoke_api_non_200_status(mocker, agent_instance, conversation_for_test
     mock_response.text = "Not Found"
     mocker.patch("requests.post", return_value=mock_response)
 
-    with pytest.raises(Exception):
+    with pytest.raises(
+        Exception,
+        match=f"Failed to invoke agent API: {mock_response.status_code} - {mock_response.text}",
+    ):
         agent_instance.invoke_api(conversation_for_testing)
 
 
@@ -258,8 +261,11 @@ def test_agent_to_path(agent_name, expected_path):
 
 
 def test_agent_to_path_no_version():
-    with pytest.raises(Exception):
-        AgentBuilder._agent_to_path("AgentNoVersion")
+    agent_name = "AgentNoVersion"
+    with pytest.raises(
+        Exception, match=f"Expected 'AgentName':version. Ex: ExampleAgent:0.1. Got {agent_name}"
+    ):
+        AgentBuilder._agent_to_path(agent_name)
 
 
 def test_get_agent_description_success(secure_builder, mock_successful_openapi_response_get):
@@ -272,8 +278,9 @@ def test_get_agent_description_success(secure_builder, mock_successful_openapi_r
 
 
 def test_get_agent_description_failure(insecure_builder, mock_failed_openapi_request_get):
-    with pytest.raises(Exception):
-        insecure_builder._get_agent_description("testagent:0.1")
+    agent_name = "testagent:0.1"
+    with pytest.raises(Exception, match=f"Failed to get agent description for {agent_name}"):
+        insecure_builder._get_agent_description(agent_name)
 
     mock_failed_openapi_request_get.assert_called_once_with(
         "http://test.insecure.host/testagent/0.1/openapi.json"

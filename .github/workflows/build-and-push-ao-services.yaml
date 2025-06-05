@@ -65,12 +65,12 @@ jobs:
         working-directory: ./src/orchestrators/assistant-orchestrator/services
         run: |
           echo ${{  github.ref }}
-          git checkout ${{  github.ref }}
+          git checkout test/auto-version
           uv run hatch version dev
           git config --global user.name "Teal Agents Bot"
           git config --global user.email " "
           git commit -am "bump dev version [skip ci]"
-          git push --set-upstream origin ${{  github.ref }}
+          git push --set-upstream origin test/auto-version
       - name: Extract version with hatch
         id: extract_version
         working-directory: ./src/orchestrators/assistant-orchestrator/services

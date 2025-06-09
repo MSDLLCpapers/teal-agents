@@ -58,7 +58,7 @@ class AppConfig(metaclass=Singleton):
                 for key, value in env_dict.items():
                     os.environ[key] = value
             except json.JSONDecodeError as e:
-                logging.warn(f"Error parsing TA_ENV_STORE environment variable - {e}")
+                logging.warning(f"Error parsing TA_ENV_STORE environment variable - {e}")
 
     def _reload_from_environment(self):
         self._parse_ta_env_store()
@@ -73,7 +73,7 @@ class AppConfig(metaclass=Singleton):
                 )
             self.__validate_required_keys()
         except json.JSONDecodeError as e:
-            logging.warn(f"Error Reload From Enviroment Due To Empty AppConfig List - {e}")
+            logging.warning(f"Error Reload From Enviroment Due To Empty AppConfig List - {e}")
 
 
     def get(self, key):

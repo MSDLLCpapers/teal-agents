@@ -63,12 +63,18 @@ class AppConfig(metaclass=Singleton):
     def _reload_from_environment(self):
         self._parse_ta_env_store()
         self.props = {}
-        for config in AppConfig.configs:
-            self.props[config.env_name] = os.getenv(
-                config.env_name,
-                default=(config.default_value if config.default_value is not None else None),
-            )
-        self.__validate_required_keys()
+        if AppConfig.configs is None:
+            AppConfig.configs = []
+        try:
+            for config in AppConfig.configs:
+                self.props[config.env_name] = os.getenv(
+                    config.env_name,
+                    default=(config.default_value if config.default_value is not None else None),
+                )
+            self.__validate_required_keys()
+        except json.JSONDecodeError as e:
+            logging.warn(f"Error Reload From Enviroment Due To Empty AppConfig List - {e}")
+
 
     def get(self, key):
         return self.props[key]

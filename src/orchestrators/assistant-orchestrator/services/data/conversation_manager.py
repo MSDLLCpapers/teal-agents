@@ -1,6 +1,8 @@
+import heapq
 import time
 import uuid
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
+from typing import Union
 
 from ska_utils import get_telemetry
 
@@ -76,29 +78,29 @@ class ConversationManager:
     ) -> ConversationResponse:
         st = get_telemetry()
         previous_session: str | None
+        session_id = str(uuid.uuid4())
+
+        @contextmanager
+        def create_span(span_name: str):
+            """Creates an OpenTelemetry span if telemetry is enabled."""
+            if st.telemetry_enabled():
+                with st.tracer.start_as_current_span(span_name):
+                    yield
+            else:
+                yield
+
         if is_resumed:
-            with (
-                st.tracer.start_as_current_span("retrieve-last-session-id")
-                if st.telemetry_enabled()
-                else nullcontext()
-            ):
+            # Retrieve previous session ID
+            with create_span("retrieve-last-session-id"):
                 previous_session = await self._get_last_chat_history_id(orchestrator_name, user_id)
-            with (
-                st.tracer.start_as_current_span("retrieve-session-history")
-                if st.telemetry_enabled()
-                else nullcontext()
-            ):
+
+            with create_span("retrieve-session-history"):
                 messages = await self._load_messages(orchestrator_name, user_id, previous_session)
         else:
             previous_session = None
             messages = []
 
-        session_id = str(uuid.uuid4())
-        with (
-            st.tracer.start_as_current_span("add-chat-history-session")
-            if st.telemetry_enabled()
-            else nullcontext()
-        ):
+        with create_span("add-chat-history-session"):
             await self.chat_history_manager.add_chat_history_session(
                 orchestrator_name,
                 ChatHistory(
@@ -108,11 +110,7 @@ class ConversationManager:
                     history=[],
                 ),
             )
-        with (
-            st.tracer.start_as_current_span("update-last-session-id")
-            if st.telemetry_enabled()
-            else nullcontext()
-        ):
+        with create_span("update-last-session-id"):
             await self.chat_history_manager.set_last_session_id_for_user(
                 orchestrator_name, user_id, session_id
             )
@@ -120,14 +118,22 @@ class ConversationManager:
 
     async def _load_messages(
         self, orchestrator_name: str, user_id: str, previous_session: str | None
-    ) -> list[UserMessage | AgentMessage]:
+    ) -> list[Union["UserMessage", "AgentMessage"]]:
         messages: list[UserMessage | AgentMessage] = []
         if previous_session:
-            all_items: list[ChatHistoryItem] = []
-            histories = await self._load_chat_history(orchestrator_name, user_id, previous_session)
-            for history in histories:
-                all_items += history.history
-            all_items.sort(key=lambda x: x.timestamp)
+            histories: list[list[ChatHistoryItem]] = await self._load_chat_history(
+                orchestrator_name, user_id, previous_session
+            )
+
+            # Sort each history if it's not already sorted
+            sorted_histories = [
+                sorted(history.history, key=lambda x: x.timestamp) for history in histories
+            ]
+
+            # Efficiently merge the sorted histories using heapq.merge
+            all_items: list[ChatHistoryItem] = list(
+                heapq.merge(*sorted_histories, key=lambda x: x.timestamp)
+            )
             for item in all_items:
                 messages.append(_chat_history_item_to_message(item))
         return messages

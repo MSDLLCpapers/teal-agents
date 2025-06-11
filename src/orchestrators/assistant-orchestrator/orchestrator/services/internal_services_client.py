@@ -21,7 +21,7 @@ class InternalConversation(Conversation):
 
 
 class InternalServicesClient(ServicesClient):
-    def __init__(self):
+    def __init__(self) -> None:
         self.last_conversation: dict[str, str] = {}
         self.conversations: dict[str, InternalConversation] = {}
         self.contexts: dict[str, dict[str, str | None]] = {}

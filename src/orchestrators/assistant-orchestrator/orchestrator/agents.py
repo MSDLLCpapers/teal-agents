@@ -149,6 +149,8 @@ class AgentBuilder:
 
     @staticmethod
     def _agent_to_path(agent_name: str):
+        if ":" not in agent_name:
+            raise Exception(f"Expected 'AgentName':version. Ex: ExampleAgent:0.1. Got {agent_name}")
         toks = agent_name.split(":")
         return f"{toks[0]}/{toks[1]}"
 

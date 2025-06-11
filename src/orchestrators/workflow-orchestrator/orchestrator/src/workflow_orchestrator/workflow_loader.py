@@ -69,8 +69,9 @@ class WorkflowLoader:
                             args = get_args(first_param_type)
 
                             if origin is not None:  # Check if the type is generic
-                                if origin is not Generic and issubclass(
-                                    origin, param_type
+                                if (
+                                    origin is not Generic
+                                    and issubclass(origin, param_type)
                                 ):  # Check if the origin is not Generic and a subclass of the target type
                                     matching_functions.append(obj)
                                 elif (

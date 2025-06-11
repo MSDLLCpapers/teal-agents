@@ -1728,11 +1728,14 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "coverage" },
+    { name = "freezegun" },
     { name = "hatch" },
     { name = "hatchling" },
     { name = "mypy" },
     { name = "pytest" },
+    { name = "pytest-asyncio" },
     { name = "pytest-cov" },
+    { name = "pytest-mock" },
     { name = "ruff" },
 ]
 

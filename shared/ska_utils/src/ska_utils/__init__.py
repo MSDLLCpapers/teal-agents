@@ -6,6 +6,7 @@ from .keepalive_executor import (
 )
 from .module_loader import ModuleLoader as ModuleLoader
 from .redis_streams_event_handler import (
+    MaxWaitExceededError as MaxWaitExceededError,
     RedisStreamsEventHandler as RedisStreamsEventHandler,
 )
 from .redis_streams_event_publisher import (

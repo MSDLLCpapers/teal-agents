@@ -117,7 +117,7 @@ class OrderProcessingWorkflow(Workflow):
         item_name = default_item_name
         order_quantity = 10
         total_cost = int(order_quantity) * baseInventory[item_name].per_item_cost
-        order = OrderPayload(
+        OrderPayload(
             item_name=item_name, quantity=int(order_quantity), total_cost=total_cost
         )
 
@@ -285,7 +285,7 @@ def verify_inventory_activity(
         return InventoryResult(False, None)
     res_json = json.loads(str(result.data.decode("utf-8")))
     logger.info(
-        f'There are {res_json["quantity"]} {res_json["name"]} available for purchase'
+        f"There are {res_json['quantity']} {res_json['name']} available for purchase"
     )
     inventory_item = InventoryItem(
         item_name=input.item_name,

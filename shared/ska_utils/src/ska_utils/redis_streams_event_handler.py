@@ -72,6 +72,7 @@ class RedisStreamsEventHandler(ABC, Generic[TEventType]):
         if not self._shutdown:
             raise RuntimeError("EventManager is already initialized.")
 
+        self._shutdown = False
         self._t = threading.Thread(
             target=self._listen_and_process,
             name="EventManagerThread",
@@ -84,13 +85,15 @@ class RedisStreamsEventHandler(ABC, Generic[TEventType]):
             raise RuntimeError("EventManager is already shut down.")
 
         self._shutdown = True
-        self._t.join(timeout=30.0)
-        if self._t.is_alive():
-            self._logger.warning("Timed out waiting for event handler shutdown.")
+        if self._t is not None:
+            self._t.join(timeout=30.0)
+            if self._t.is_alive():
+                self._logger.warning("Timed out waiting for event handler shutdown.")
+            self._t = None
 
     @abstractmethod
     async def process_event(self, event: TEventType) -> None:
-        pass
+        pass  # pragma: no cover
 
     def _create_consumer_group(self):
         try:
@@ -160,6 +163,6 @@ class RedisStreamsEventHandler(ABC, Generic[TEventType]):
                 self._shutdown = True
                 break
             if not event:
-                continue
+                continue  # pragma: no cover
             await self.process_event(event)
         self._logger.info("Event handler shutdown completed")

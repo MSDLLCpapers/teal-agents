@@ -37,6 +37,9 @@ dev = [
     "pytest-cov",
     "hatchling",
     "hatch",
+    "freezegun",
+    "pytest-mock",
+    "pytest-asyncio",
 ]
 
 [tool.ruff]
@@ -68,7 +71,8 @@ follow_imports = "skip"
 python_version = 3.11
 
 [tool.coverage.run]
-source = ["tests","src/ska_utils"]
+source = ["src/ska_utils"]
+omit = ["*/tests/*", "test_*", "__init__.py", "__about__.py"]
 
 [tool.coverage.report]
 show_missing = true

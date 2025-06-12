@@ -38,13 +38,19 @@ class AgentBuilder:
             agent_config.model
         )
 
-        settings = kernel.get_prompt_execution_settings_from_service_id(agent_config.name)
-        settings.function_choice_behavior = FunctionChoiceBehavior.Auto()
+        settings = kernel.get_prompt_execution_settings_from_service_id(
+            agent_config.name
+        )
+        settings.function_choice_behavior = FunctionChoiceBehavior.Auto(
+            auto_invoke=False
+        )
         if so_supported and output_type:
             type_loader = get_type_loader()
             settings.response_format = type_loader.get_type(output_type)
 
-        model_type: ModelType = self.kernel_builder.get_model_type_for_name(agent_config.model)
+        model_type: ModelType = self.kernel_builder.get_model_type_for_name(
+            agent_config.model
+        )
 
         model_attributes: dict[str, Any] = {
             "model_type": model_type,

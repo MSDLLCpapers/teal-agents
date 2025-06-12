@@ -5,7 +5,7 @@ description = "Teal Agents - Core Agent Framework"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "semantic-kernel==1.29.0",
+    "semantic-kernel==1.33.0",
     "pyyaml",
     "pydantic",
     "pydantic-yaml",
@@ -24,6 +24,9 @@ dependencies = [
 [project.urls]
 Homepage = "https://github.com/MSDLLCpapers/teal-agents"
 Repository = "https://github.com/MSDLLCpapers/teal-agents"
+
+[tool.uv]
+prerelease = "allow"
 
 [tool.uv.sources]
 ska-utils = { path = "../../shared/ska_utils" }

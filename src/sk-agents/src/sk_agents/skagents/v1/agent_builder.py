@@ -32,6 +32,7 @@ class AgentBuilder:
             agent_config.remote_plugins,
             self.authorization,
             extra_data_collector,
+            agent_config.mcp_servers,
         )
 
         so_supported: bool = self.kernel_builder.model_supports_structured_output(

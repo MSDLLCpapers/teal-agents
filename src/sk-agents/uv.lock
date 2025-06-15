@@ -976,6 +976,44 @@ wheels = [
 ]
 
 [[package]]
+name = "mcp"
+version = "1.9.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "httpx" },
+    { name = "httpx-sse" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "python-multipart" },
+    { name = "sse-starlette" },
+    { name = "starlette" },
+    { name = "uvicorn", marker = "sys_platform != 'emscripten'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/06/f2/dc2450e566eeccf92d89a00c3e813234ad58e2ba1e31d11467a09ac4f3b9/mcp-1.9.4.tar.gz", hash = "sha256:cfb0bcd1a9535b42edaef89947b9e18a8feb49362e1cc059d6e7fc636f2cb09f", size = 333294, upload-time = "2025-06-12T08:20:30.158Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/97/fc/80e655c955137393c443842ffcc4feccab5b12fa7cb8de9ced90f90e6998/mcp-1.9.4-py3-none-any.whl", hash = "sha256:7fcf36b62936adb8e63f89346bccca1268eeca9bf6dfb562ee10b1dfbda9dac0", size = 130232, upload-time = "2025-06-12T08:20:28.551Z" },
+]
+
+[package.optional-dependencies]
+cli = [
+    { name = "python-dotenv" },
+    { name = "typer" },
+]
+
+[[package]]
+name = "mcp-server-sqlite"
+version = "2025.4.25"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "mcp", extra = ["cli"] },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e4/59/8b9ceea660cf973429c3fc3b8f1ea91c77790b934b098c2b78b152c598a7/mcp_server_sqlite-2025.4.25.tar.gz", hash = "sha256:5c396211adb90595d06a505ac836657fc76ee4439e132acdf65caf21b4a8de42", size = 25783, upload-time = "2025-04-25T08:27:29.192Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fc/f3/dbffd53873eafd8773e289fdd0cb96dc4f793071973df07e79a4e9bae425/mcp_server_sqlite-2025.4.25-py3-none-any.whl", hash = "sha256:5ba5706aa29d249a3cde8226577e021c07792d3198e9db40fd005578d2a0801d", size = 9618, upload-time = "2025-04-25T08:27:27.459Z" },
+]
+
+[[package]]
 name = "mdurl"
 version = "0.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1984,6 +2022,8 @@ dependencies = [
     { name = "boto3" },
     { name = "fastapi", extra = ["standard"] },
     { name = "lock" },
+    { name = "mcp" },
+    { name = "mcp-server-sqlite" },
     { name = "opentelemetry-exporter-otlp-proto-grpc" },
     { name = "pydantic" },
     { name = "pydantic-yaml" },
@@ -2015,6 +2055,8 @@ requires-dist = [
     { name = "boto3" },
     { name = "fastapi", extras = ["standard"] },
     { name = "lock" },
+    { name = "mcp", specifier = ">=1.0.0" },
+    { name = "mcp-server-sqlite", specifier = ">=2025.4.25" },
     { name = "opentelemetry-exporter-otlp-proto-grpc" },
     { name = "pydantic" },
     { name = "pydantic-yaml" },

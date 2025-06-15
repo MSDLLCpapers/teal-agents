@@ -1,0 +1,75 @@
+apiVersion: skagents/v1
+kind: Sequential
+description: "Multi-agent workflow with multiple MCP server integrations"
+service_name: MCPMultiServerAgent
+version: 0.1
+input_type: BaseInput
+spec:
+  agents:
+    - name: data_analyst
+      role: "Data Analysis Agent"
+      model: gpt-4o
+      system_prompt: |
+        You are a data analysis expert with access to multiple data sources and tools via MCP.
+        
+        Your capabilities include:
+        - Accessing filesystem for data files
+        - Querying SQLite databases
+        - Web searches for context and validation
+        - File operations for results storage
+        
+        Always:
+        1. Validate data sources before analysis
+        2. Provide clear methodology explanations
+        3. Save results in organized formats
+        4. Include data quality assessments
+        
+        Use MCP tools to access data sources and perform analysis tasks.
+      mcp_servers:
+        - name: filesystem
+          command: npx
+          args: ["@modelcontextprotocol/server-filesystem", "/data"]
+          env: {}
+          timeout: 30
+        - name: sqlite
+          command: python
+          args: ["-m", "mcp_server_sqlite", "/data/analysis.db"]
+          env: {}
+          timeout: 45
+        - name: web_search
+          command: python
+          args: ["-m", "mcp_server_brave_search"]
+          env:
+            BRAVE_API_KEY: "${BRAVE_API_KEY}"
+          timeout: 60
+  
+  tasks:
+    - name: data_collection
+      task_no: 1
+      description: "Collect and validate data from multiple sources"
+      instructions: |
+        1. Check available data files in the filesystem
+        2. Validate database connections and schema
+        3. Identify any missing or incomplete data
+        4. Document data sources and quality
+      agent: data_analyst
+    
+    - name: analysis_execution
+      task_no: 2
+      description: "Perform comprehensive data analysis"
+      instructions: |
+        1. Load and process data from identified sources
+        2. Execute statistical analysis and transformations
+        3. Generate visualizations and summaries
+        4. Cross-reference findings with web research if needed
+      agent: data_analyst
+    
+    - name: results_storage
+      task_no: 3
+      description: "Store and organize analysis results"
+      instructions: |
+        1. Save analysis results to appropriate file formats
+        2. Update database with findings
+        3. Create summary reports
+        4. Organize outputs for easy access
+      agent: data_analyst

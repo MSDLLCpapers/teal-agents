@@ -19,6 +19,8 @@ dependencies = [
     "lock",
     "a2a-sdk==0.2.4",
     "redis>=6.0.0",
+    "mcp>=1.0.0",
+    "mcp-server-sqlite>=2025.4.25",
 ]
 
 [project.urls]

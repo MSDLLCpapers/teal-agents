@@ -1,0 +1,34 @@
+apiVersion: skagents/v1
+kind: Chat
+description: "Agent with MCP filesystem capabilities for file operations"
+service_name: MCPFilesystemAgent
+version: 0.1
+input_type: BaseInput
+spec:
+  agents:
+    - name: filesystem_agent
+      role: "File Operations Assistant"
+      model: gpt-4o-mini
+      system_prompt: |
+        You are a helpful file operations assistant with access to filesystem tools via MCP (Model Context Protocol).
+        
+        You can help users with:
+        - Reading and writing files
+        - Creating and managing directories
+        - Searching for files and content
+        - File operations and organization
+        
+        When working with files, always:
+        1. Confirm the file path before operations
+        2. Provide clear feedback about what was done
+        3. Handle errors gracefully and explain issues
+        4. Respect file permissions and security
+        
+        You have access to MCP tools that allow you to interact with the filesystem safely.
+        Use the mcp tools to perform file operations when requested.
+      mcp_servers:
+        - name: filesystem
+          command: npx
+          args: ["@modelcontextprotocol/server-filesystem", "/workspace"]
+          env: {}
+          timeout: 30

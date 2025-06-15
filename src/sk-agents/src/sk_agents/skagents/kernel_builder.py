@@ -6,6 +6,7 @@ from sk_agents.plugin_loader import get_plugin_loader
 from sk_agents.ska_types import ModelType
 from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.skagents.remote_plugin_loader import RemotePluginLoader
+from sk_agents.mcp_integration import MCPPlugin, MCPPluginFactory
 
 
 class KernelBuilder:
@@ -29,10 +30,12 @@ class KernelBuilder:
         remote_plugins: list[str],
         authorization: str | None = None,
         extra_data_collector: ExtraDataCollector | None = None,
+        mcp_servers: list[dict] | None = None,
     ) -> Kernel:
         kernel = self._create_base_kernel(model_name, service_id)
         kernel = self._parse_plugins(plugins, kernel, authorization, extra_data_collector)
-        return self._load_remote_plugins(remote_plugins, kernel)
+        kernel = self._load_remote_plugins(remote_plugins, kernel)
+        return self._load_mcp_plugins(mcp_servers, kernel)
 
     def get_model_type_for_name(self, model_name: str) -> ModelType:
         return self.chat_completion_builder.get_model_type_for_name(model_name)
@@ -71,4 +74,20 @@ class KernelBuilder:
         plugins = plugin_loader.get_plugins(plugin_names)
         for k, v in plugins.items():
             kernel.add_plugin(v(authorization, extra_data_collector), k)
+        return kernel
+
+    def _load_mcp_plugins(self, mcp_servers: list[dict] | None, kernel: Kernel) -> Kernel:
+        """Load MCP servers as Semantic Kernel plugins."""
+        if not mcp_servers or len(mcp_servers) < 1:
+            return kernel
+        
+        try:
+            mcp_plugin = MCPPluginFactory.create_from_config(mcp_servers)
+            kernel.add_plugin(mcp_plugin, "mcp")
+        except Exception as e:
+            # Log the error but don't fail the kernel build
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.error(f"Failed to load MCP plugins: {e}")
+        
         return kernel

@@ -1,0 +1,50 @@
+apiVersion: skagents/v1
+kind: Chat
+description: "Pharmaceutical research agent with MCP database and filesystem access"
+service_name: MCPPharmaceuticalAgent
+version: 0.1
+input_type: BaseInput
+spec:
+  agents:
+    - name: pharma_researcher
+      role: "Pharmaceutical Research Specialist"
+      model: gpt-4o
+      system_prompt: |
+        You are a pharmaceutical research specialist with access to molecular databases and research tools.
+        
+        Your expertise includes:
+        - Molecular structure analysis and SMILES notation
+        - Drug discovery and development processes
+        - ADMET property prediction and evaluation
+        - Literature search and patent analysis
+        - Regulatory compliance and safety assessment
+        
+        You have access to:
+        - Filesystem for storing research data and results
+        - SQLite database with compound information
+        - Computational chemistry tools for molecular analysis
+        
+        Guidelines:
+        1. Always validate molecular structures before analysis
+        2. Provide scientific rationale for recommendations
+        3. Consider safety and regulatory implications
+        4. Document all analyses with proper citations
+        5. Maintain data integrity and security
+        
+        Use MCP tools to access databases, analyze compounds, and store research findings.
+      mcp_servers:
+        - name: filesystem
+          command: npx
+          args: ["@modelcontextprotocol/server-filesystem", "/pharma_workspace"]
+          env: {}
+          timeout: 30
+        - name: compounds_db
+          command: python
+          args: ["-m", "mcp_server_sqlite", "/pharma_workspace/compounds.db"]
+          env: {}
+          timeout: 45
+        - name: pubchem_api
+          command: python
+          args: ["-m", "mcp_server_web", "--base-url", "https://pubchem.ncbi.nlm.nih.gov/rest/pug"]
+          env: {}
+          timeout: 60

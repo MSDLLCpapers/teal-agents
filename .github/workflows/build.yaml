@@ -17,8 +17,6 @@ on:
 jobs:
   version-utils:
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.modified, '.github/workflows/build.yaml') ||
-        contains(github.event.head_commit.modified, 'shared/ska_utils/')
     permissions:
       contents: write
     steps:
@@ -48,10 +46,6 @@ jobs:
 
   build-agents:
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.modified, '.github/workflows/build.yaml') ||
-        contains(github.event.head_commit.modified, 'shared/ska_utils/') ||
-        contains(github.event.head_commit.modified, 'src/sk-agents/') ||
-        contains(github.event.head_commit.modified, 'teal-agents.Dockerfile')
     permissions:
       contents: write
     steps:
@@ -103,10 +97,6 @@ jobs:
 
   build-ao:
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.modified, '.github/workflows/build.yaml') ||
-        contains(github.event.head_commit.modified, 'shared/ska_utils/') ||
-        contains(github.event.head_commit.modified, 'src/orchestrators/assistant-orchestrator/orchestrator/') ||
-        contains(github.event.head_commit.modified, 'ao.Dockerfile')
     permissions:
       contents: write
     steps:
@@ -158,10 +148,6 @@ jobs:
 
   build-ao-services:
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.modified, '.github/workflows/build.yaml') ||
-        contains(github.event.head_commit.modified, 'shared/ska_utils/') ||
-        contains(github.event.head_commit.modified, 'src/orchestrators/assistant-orchestrator/services/') ||
-        contains(github.event.head_commit.modified, 'ao-services.Dockerfile')
     permissions:
       contents: write
     steps:

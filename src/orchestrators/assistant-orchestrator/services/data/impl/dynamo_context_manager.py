@@ -21,7 +21,9 @@ class DynamoContextManager(ContextManager, metaclass=Singleton):
     def _get_context_hash_key(orchestrator_name: str, user_id: str) -> str:
         return f"{orchestrator_name}#{user_id}"
 
-    async def add_context(self, orchestrator_name: str, user_id: str, item_key: str, item_value: str):
+    async def add_context(
+        self, orchestrator_name: str, user_id: str, item_key: str, item_value: str
+    ):
         context_item = UserContext(
             orchestrator_user_id=DynamoContextManager._get_context_hash_key(
                 orchestrator_name, user_id
@@ -35,7 +37,9 @@ class DynamoContextManager(ContextManager, metaclass=Singleton):
             logger.exception(f"Error adding context item to DB - Error: {e}")
             raise
 
-    async def update_context(self, orchestrator_name: str, user_id: str, item_key: str, item_value: str):
+    async def update_context(
+        self, orchestrator_name: str, user_id: str, item_key: str, item_value: str
+    ):
         context_item = UserContext(
             orchestrator_user_id=DynamoContextManager._get_context_hash_key(
                 orchestrator_name, user_id
@@ -51,11 +55,12 @@ class DynamoContextManager(ContextManager, metaclass=Singleton):
 
     async def delete_context(self, orchestrator_name: str, user_id: str, item_key: str):
         item_to_delete = await asyncio.to_thread(
-            UserContext.get, DynamoContextManager._get_context_hash_key(orchestrator_name, user_id),
-            item_key
+            UserContext.get,
+            DynamoContextManager._get_context_hash_key(orchestrator_name, user_id),
+            item_key,
         )
         try:
-            await asyncio.to_thread(item_to_delete.delete)        
+            await asyncio.to_thread(item_to_delete.delete)
         except Exception as e:
             logger.exception(f"Error deleting context from DB - Error: {e}")
             raise
@@ -68,6 +73,7 @@ class DynamoContextManager(ContextManager, metaclass=Singleton):
             ):
                 context_items[item.context_key] = item.context_value
             return context_items
+
         try:
             context_items = await asyncio.to_thread(_get_context)
             return context_items

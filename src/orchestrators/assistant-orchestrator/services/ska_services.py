@@ -219,7 +219,9 @@ async def update_context_item(
     request: UpdateContextItemRequest,
 ) -> GeneralResponse:
     try:
-        await context_manager.update_context(orchestrator_name, user_id, item_key, request.item_value)
+        await context_manager.update_context(
+            orchestrator_name, user_id, item_key, request.item_value
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

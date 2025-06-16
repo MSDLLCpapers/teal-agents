@@ -45,7 +45,7 @@ jobs:
           uv run hatch version dev
           git config --global user.name "Teal Agents Bot"
           git config --global user.email " "
-          git commit -am "bump ska-utils dev version [skip ci]"
+          git commit -am "bump ska-utils dev version"
           git push --set-upstream origin ${{ github.ref_name }}
 
   version-agents:

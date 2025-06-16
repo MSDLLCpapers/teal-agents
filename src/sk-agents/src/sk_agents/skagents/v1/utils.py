@@ -76,3 +76,4 @@ def get_token_usage_for_anthropic_response(
             content.inner_content.usage.output_tokens + content.inner_content.usage.input_tokens
         ),
     )
+

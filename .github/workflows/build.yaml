@@ -194,8 +194,6 @@ jobs:
           git config --global user.email " "
           git commit -am "bump ao services dev version [skip ci]"
           git push --set-upstream origin ${{ github.ref_name }}
-        with:
-          token: ${{ secrets.DHDANIE_GHA_PAT }}
       - name: Extract version with hatch
         id: extract_version
         working-directory: ./src/orchestrators/assistant-orchestrator/services

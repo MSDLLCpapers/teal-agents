@@ -26,3 +26,4 @@ def test_strtobool_invalid_values():
     for value in invalid_values:
         with pytest.raises(ValueError, match=f"Invalid truth value: {value}"):
             strtobool(value)
+

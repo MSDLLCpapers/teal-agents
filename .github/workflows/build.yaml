@@ -2,6 +2,7 @@ on:
   push:
     branches:
       - main
+      - 'release/**'
     paths:
       - .github/workflows/build-and-push-ska-utils.yml
       - .github/workflows/build-and-push-teal-agents.yml

@@ -11,7 +11,7 @@ on:
       - teal-agents.Dockerfile
       - ao.Dockerfile
       - ao-services.Dockerfile
-      - 'shared/ska_utils/**/*'
+      - 'shared/ska_utils/**'
       - 'src/sk-agents/**'
       - 'src/orchestrators/assistant-orchestrator/orchestrator/**'
       - 'src/orchestrators/assistant-orchestrator/services/**'
@@ -28,7 +28,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.DHDANIE_GHA_PAT }}
+          ssh-key: ${{ secrets.TEAL_AGENTS_BOT }}
       - name: Setup uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -48,7 +48,7 @@ jobs:
           git commit -am "bump ska-utils dev version"
           git push --set-upstream origin ${{ github.ref_name }}
 
-  version-agents:
+  build-agents:
     runs-on: ubuntu-latest
     needs: version-utils
     if: ${{ always() && !failure() && !cancelled() }} &&
@@ -63,7 +63,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.DHDANIE_GHA_PAT }}
+          ssh-key: ${{ secrets.TEAL_AGENTS_BOT }}
       - name: Setup uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -80,89 +80,8 @@ jobs:
           uv run hatch version dev
           git config --global user.name "Teal Agents Bot"
           git config --global user.email " "
-          git commit -am "bump sk-agents dev version"
+          git commit -am "bump sk-agents dev version [skip ci]"
           git push --set-upstream origin ${{ github.ref_name }}
-
-  version-ao:
-    runs-on: ubuntu-latest
-    needs: [version-utils, version-agents]
-    if: ${{ always() && !failure() && !cancelled() }} &&
-        (contains(github.event.head_commit.modified, '.github/workflows/build-and-push-ska-utils.yml') ||
-        contains(github.event.head_commit.modified, '.github/workflows/build-and-push-ao.yml') ||
-        contains(github.event.head_commit.modified, 'shared/ska_utils/') ||
-        contains(github.event.head_commit.modified, 'src/orchestrators/assistant-orchestrator/orchestrator/') ||
-        contains(github.event.head_commit.modified, 'ao.Dockerfile'))
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.DHDANIE_GHA_PAT }}
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-      - name: Install dependencies
-        working-directory: ./src/orchestrators/assistant-orchestrator/orchestrator/
-        run: make sync
-      - name: Bump version with hatch
-        id: bump_version
-        working-directory: ./src/orchestrators/assistant-orchestrator/orchestrator/
-        run: |
-          git pull
-          git checkout ${{ github.ref_name }}
-          uv run hatch version dev
-          git config --global user.name "Teal Agents Bot"
-          git config --global user.email " "
-          git commit -am "bump ao dev version [skip ci]"
-          git push --set-upstream origin ${{ github.ref_name }}
-
-  version-ao-services:
-    runs-on: ubuntu-latest
-    needs: [version-utils, version-agents, version-ao]
-    if: ${{ always() && !failure() && !cancelled() }} &&
-        (contains(github.event.head_commit.modified, '.github/workflows/build-and-push-ska-utils.yml') ||
-        contains(github.event.head_commit.modified, '.github/workflows/build-and-push-ao-services.yml') ||
-        contains(github.event.head_commit.modified, 'shared/ska_utils/') ||
-        contains(github.event.head_commit.modified, 'src/orchestrators/assistant-orchestrator/services/') ||
-        contains(github.event.head_commit.modified, 'ao-services.Dockerfile'))
-    permissions:
-      contents: write
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.DHDANIE_GHA_PAT }}
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
-      - name: Install dependencies
-        working-directory: ./src/orchestrators/assistant-orchestrator/services/
-        run: make sync
-      - name: Bump version with hatch
-        id: bump_version
-        working-directory: ./src/orchestrators/assistant-orchestrator/services/
-        run: |
-          git pull
-          git checkout ${{ github.ref_name }}
-          uv run hatch version dev
-          git config --global user.name "Teal Agents Bot"
-          git config --global user.email " "
-          git commit -am "bump ao services dev version [skip ci]"
-          git push --set-upstream origin ${{ github.ref_name }}
-
-  build-agents:
-    runs-on: ubuntu-latest
-    needs: version-agents
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          enable-cache: true
       - name: Extract version with hatch
         id: extract_version
         working-directory: ./src/sk-agents
@@ -188,14 +107,38 @@ jobs:
 
   build-ao:
     runs-on: ubuntu-latest
-    needs: version-ao
+    needs: [version-utils, version-agents]
+    if: ${{ always() && !failure() && !cancelled() }} &&
+        (contains(github.event.head_commit.modified, '.github/workflows/build-and-push-ska-utils.yml') ||
+        contains(github.event.head_commit.modified, '.github/workflows/build-and-push-ao.yml') ||
+        contains(github.event.head_commit.modified, 'shared/ska_utils/') ||
+        contains(github.event.head_commit.modified, 'src/orchestrators/assistant-orchestrator/orchestrator/') ||
+        contains(github.event.head_commit.modified, 'ao.Dockerfile'))
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ssh-key: ${{ secrets.TEAL_AGENTS_BOT }}
       - name: Setup uv
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
+      - name: Install dependencies
+        working-directory: ./src/orchestrators/assistant-orchestrator/orchestrator/
+        run: make sync
+      - name: Bump version with hatch
+        id: bump_version
+        working-directory: ./src/orchestrators/assistant-orchestrator/orchestrator/
+        run: |
+          git pull
+          git checkout ${{ github.ref_name }}
+          uv run hatch version dev
+          git config --global user.name "Teal Agents Bot"
+          git config --global user.email " "
+          git commit -am "bump ao dev version [skip ci]"
+          git push --set-upstream origin ${{ github.ref_name }}
       - name: Extract version with hatch
         id: extract_version
         working-directory: ./src/orchestrators/assistant-orchestrator/orchestrator
@@ -221,14 +164,40 @@ jobs:
 
   build-ao-services:
     runs-on: ubuntu-latest
-    needs: version-ao-services
+    needs: [version-utils, version-agents, version-ao]
+    if: ${{ always() && !failure() && !cancelled() }} &&
+        (contains(github.event.head_commit.modified, '.github/workflows/build-and-push-ska-utils.yml') ||
+        contains(github.event.head_commit.modified, '.github/workflows/build-and-push-ao-services.yml') ||
+        contains(github.event.head_commit.modified, 'shared/ska_utils/') ||
+        contains(github.event.head_commit.modified, 'src/orchestrators/assistant-orchestrator/services/') ||
+        contains(github.event.head_commit.modified, 'ao-services.Dockerfile'))
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ssh-key: ${{ secrets.TEAL_AGENTS_BOT }}
       - name: Setup uv
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
+      - name: Install dependencies
+        working-directory: ./src/orchestrators/assistant-orchestrator/services/
+        run: make sync
+      - name: Bump version with hatch
+        id: bump_version
+        working-directory: ./src/orchestrators/assistant-orchestrator/services/
+        run: |
+          git pull
+          git checkout ${{ github.ref_name }}
+          uv run hatch version dev
+          git config --global user.name "Teal Agents Bot"
+          git config --global user.email " "
+          git commit -am "bump ao services dev version [skip ci]"
+          git push --set-upstream origin ${{ github.ref_name }}
+        with:
+          token: ${{ secrets.DHDANIE_GHA_PAT }}
       - name: Extract version with hatch
         id: extract_version
         working-directory: ./src/orchestrators/assistant-orchestrator/services

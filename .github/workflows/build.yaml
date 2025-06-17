@@ -64,6 +64,11 @@ jobs:
         ${{ needs.changes.outputs.services == 'true' }}
     permissions:
       contents: write
+    outputs:
+      utils: ${{ steps.version_ska_utils.outputs.utils }}
+      agents: ${{ steps.version_ao_services.outputs.agents }}
+      ao: ${{ steps.version_ao.outputs.ao }}
+      services: ${{ steps.version_ao_services.outputs.services }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

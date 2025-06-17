@@ -2,6 +2,7 @@ on:
   push:
     branches:
       - main
+      - 'release/**'
     paths:
       - .github/workflows/build.yaml
       - teal-agents.Dockerfile
@@ -77,6 +78,16 @@ jobs:
         uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
+      - name: test variables
+        run: |
+          echo "utils: ${{ needs.version.outputs.utils }}"
+          echo "${{ needs.changes.outputs.utils == 'true' }}"
+          echo "agents: ${{ needs.version.outputs.agents }}"
+          echo "${{ needs.changes.outputs.agents == 'true' }}"
+          echo "ao: ${{ needs.version.outputs.ao }}"
+          echo "${{ needs.changes.outputs.ao == 'true' }}"
+          echo "services: ${{ needs.version.outputs.services }}"
+          echo "${{ needs.changes.outputs.services == 'true' }}"
       - name: Update ska-utils version
         if: ${{ needs.changes.outputs.utils == 'true' }}
         id: version_ska_utils

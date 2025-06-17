@@ -2,7 +2,7 @@ on:
   push:
     branches:
       - main
-      - ' release/**'
+      - 'release/**'
     paths:
       - .github/workflows/build.yaml
       - teal-agents.Dockerfile

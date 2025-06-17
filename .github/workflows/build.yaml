@@ -2,6 +2,7 @@ on:
   push:
     branches:
       - main
+      - ' release/**'
     paths:
       - .github/workflows/build.yaml
       - teal-agents.Dockerfile
@@ -24,9 +25,12 @@ jobs:
       services: ${{ steps.filter.outputs.services }}
     steps:
     - uses: actions/checkout@v4
+      with:
+        persist-credentials: true
     - uses: dorny/paths-filter@v3
       id: filter
       with:
+        initial-fetch-depth: 1
         filters: |
           utils:
             - .github/workflows/build.yaml

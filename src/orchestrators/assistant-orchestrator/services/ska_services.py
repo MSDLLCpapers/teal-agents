@@ -197,7 +197,7 @@ async def create_context_item(
     orchestrator_name: str, user_id: str, request: AddContextItemRequest
 ) -> GeneralResponse:
     try:
-        context_manager.add_context(
+        await context_manager.add_context(
             orchestrator_name, user_id, request.item_key, request.item_value
         )
     except Exception as e:
@@ -219,7 +219,9 @@ async def update_context_item(
     request: UpdateContextItemRequest,
 ) -> GeneralResponse:
     try:
-        context_manager.update_context(orchestrator_name, user_id, item_key, request.item_value)
+        await context_manager.update_context(
+            orchestrator_name, user_id, item_key, request.item_value
+        )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -236,7 +238,7 @@ async def delete_context_item(
     orchestrator_name: str, user_id: str, item_key: str
 ) -> GeneralResponse:
     try:
-        context_manager.delete_context(orchestrator_name, user_id, item_key)
+        await context_manager.delete_context(orchestrator_name, user_id, item_key)
     except DoesNotExist as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"{type(e).__name__} - {e.msg}"
@@ -252,7 +254,7 @@ async def delete_context_item(
 @app.get("/services/v1/{orchestrator_name}/users/{user_id}/context", tags=["Users"])
 async def get_context_items(orchestrator_name: str, user_id: str) -> dict[str, str]:
     try:
-        return context_manager.get_context(orchestrator_name, user_id)
+        return await context_manager.get_context(orchestrator_name, user_id)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

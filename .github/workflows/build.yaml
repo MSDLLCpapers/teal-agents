@@ -65,10 +65,10 @@ jobs:
     permissions:
       contents: write
     outputs:
-      utils: ${{ steps.version_ska_utils.outputs.utils }}
-      agents: ${{ steps.version_ao_services.outputs.agents }}
-      ao: ${{ steps.version_ao.outputs.ao }}
-      services: ${{ steps.version_ao_services.outputs.services }}
+      utils: ${{ steps.version_ska_utils.outputs.VERSION }}
+      agents: ${{ steps.version_ao_services.outputs.VERSION }}
+      ao: ${{ steps.version_ao.outputs.VERSION }}
+      services: ${{ steps.version_ao_services.outputs.VERSION }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -133,8 +133,8 @@ jobs:
           persist-credentials: true
       - name: Build Docker image
         run: |
-          docker build -t ghcr.io/teal-agents/teal-agents:${{ needs.version.version_sk_agents.outputs.VERSION }} -f teal-agents.Dockerfile .
-          docker tag ghcr.io/teal-agents/teal-agents:${{ needs.version.version_sk_agents.outputs.VERSION }} ghcr.io/teal-agents/teal-agents:latest
+          docker build -t ghcr.io/teal-agents/teal-agents:${{ needs.version.version_sk_agents.outputs.agents }} -f teal-agents.Dockerfile .
+          docker tag ghcr.io/teal-agents/teal-agents:${{ needs.version.version_sk_agents.outputs.agents }} ghcr.io/teal-agents/teal-agents:latest
       - name: Log in to Docker registry
         uses: docker/login-action@v3
         with:
@@ -143,7 +143,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Push Docker image
         run: |
-          docker push ghcr.io/teal-agents/teal-agents:${{ needs.version.version_sk_agents.outputs.VERSION }}
+          docker push ghcr.io/teal-agents/teal-agents:${{ needs.version.version_sk_agents.outputs.agents }}
           docker push ghcr.io/teal-agents/teal-agents:latest
 
   build-ao:
@@ -159,8 +159,8 @@ jobs:
           persist-credentials: true
       - name: Build Docker image
         run: |
-          docker build -t ghcr.io/teal-agents/ao:${{ needs.version.version_ao.outputs.VERSION }} -f ao.Dockerfile .
-          docker tag ghcr.io/teal-agents/ao:${{ needs.version.version_ao.outputs.VERSION }} ghcr.io/teal-agents/ao:latest
+          docker build -t ghcr.io/teal-agents/ao:${{ needs.version.version_ao.outputs.ao }} -f ao.Dockerfile .
+          docker tag ghcr.io/teal-agents/ao:${{ needs.version.version_ao.outputs.ao }} ghcr.io/teal-agents/ao:latest
       - name: Log in to Docker registry
         uses: docker/login-action@v3
         with:
@@ -169,7 +169,7 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Push Docker image
         run: |
-          docker push ghcr.io/teal-agents/ao:${{ needs.version.version_ao.outputs.VERSION }}
+          docker push ghcr.io/teal-agents/ao:${{ needs.version.version_ao.outputs.ao }}
           docker push ghcr.io/teal-agents/ao:latest
 
   build-ao-services:
@@ -187,8 +187,8 @@ jobs:
           enable-cache: true
       - name: Build Docker image
         run: |
-          docker build -t ghcr.io/teal-agents/ao-services:${{ needs.version.version_ao_services.outputs.VERSION }} -f ao-services.Dockerfile .
-          docker tag ghcr.io/teal-agents/ao-services:${{ needs.version.version_ao_services.outputs.VERSION }} ghcr.io/teal-agents/ao-services:latest
+          docker build -t ghcr.io/teal-agents/ao-services:${{ needs.version.version_ao_services.outputs.services }} -f ao-services.Dockerfile .
+          docker tag ghcr.io/teal-agents/ao-services:${{ needs.version.version_ao_services.outputs.services }} ghcr.io/teal-agents/ao-services:latest
       - name: Log in to Docker registry
         uses: docker/login-action@v3
         with:
@@ -197,5 +197,5 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
       - name: Push Docker image
         run: |
-          docker push ghcr.io/teal-agents/ao-services:${{ needs.version.version_ao_services.outputs.VERSION }}
+          docker push ghcr.io/teal-agents/ao-services:${{ needs.version.version_ao_services.outputs.services }}
           docker push ghcr.io/teal-agents/ao-services:latest

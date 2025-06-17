@@ -1,0 +1,195 @@
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/build.yaml
+      - teal-agents.Dockerfile
+      - ao.Dockerfile
+      - ao-services.Dockerfile
+      - 'shared/ska_utils/**'
+      - 'src/sk-agents/**'
+      - 'src/orchestrators/assistant-orchestrator/orchestrator/**'
+      - 'src/orchestrators/assistant-orchestrator/services/**'
+      - '!**.md'
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      utils: ${{ steps.filter.outputs.utils }}
+      agents: ${{ steps.filter.outputs.agents }}
+      ao: ${{ steps.filter.outputs.ao }}
+      services: ${{ steps.filter.outputs.services }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: true
+    - uses: dorny/paths-filter@v3
+      id: filter
+      with:
+        initial-fetch-depth: 1
+        filters: |
+          utils:
+            - .github/workflows/build.yaml
+            - 'shared/ska_utils/**'
+            - '!**.md'
+          agents:
+            - .github/workflows/build.yaml
+            - teal-agents.Dockerfile
+            - 'shared/ska_utils/**'
+            - 'src/sk-agents/**'
+            - '!**.md'
+          ao:
+            - .github/workflows/build.yaml
+            - ao.Dockerfile
+            - 'shared/ska_utils/**'
+            - 'src/orchestrators/assistant-orchestrator/orchestrator/**'
+            - '!**.md'
+          services:
+            - .github/workflows/build.yaml
+            - ao-services.Dockerfile
+            - 'shared/ska_utils/**'
+            - 'src/orchestrators/assistant-orchestrator/services/**'
+            - '!**.md'
+
+  version:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: ${{ needs.changes.outputs.utils == 'true' }} ||
+        ${{ needs.changes.outputs.agents == 'true' }} ||
+        ${{ needs.changes.outputs.ao == 'true' }} ||
+        ${{ needs.changes.outputs.services == 'true' }}
+    permissions:
+      contents: write
+    outputs:
+      utils: ${{ steps.version_ska_utils.outputs.VERSION }}
+      agents: ${{ steps.version_ao_services.outputs.VERSION }}
+      ao: ${{ steps.version_ao.outputs.VERSION }}
+      services: ${{ steps.version_ao_services.outputs.VERSION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ssh-key: ${{ secrets.TEAL_AGENTS_BOT }}
+          persist-credentials: true
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Update ska-utils version
+        if: ${{ needs.changes.outputs.utils == 'true' }}
+        id: version_ska_utils
+        working-directory: ./shared/ska_utils
+        run: |
+          make sync
+          uv run hatch version dev
+          VERSION=$( uv run hatch version )
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+      - name: Update sk-agents version
+        if: ${{ needs.changes.outputs.agents == 'true' }}
+        id: version_sk_agents
+        working-directory: ./src/sk-agents
+        run: |
+          make sync
+          uv run hatch version dev
+          VERSION=$( uv run hatch version )
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+      - name: Update ao version
+        if: ${{ needs.changes.outputs.ao == 'true' }}
+        id: version_ao
+        working-directory: ./src/orchestrators/assistant-orchestrator/orchestrator
+        run: |
+          make sync
+          uv run hatch version dev
+          VERSION=$( uv run hatch version )
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+      - name: Update ao-services version
+        if: ${{ needs.changes.outputs.services == 'true' }}
+        id: version_ao_services
+        working-directory: ./src/orchestrators/assistant-orchestrator/services
+        run: |
+          make sync
+          uv run hatch version dev
+          VERSION=$( uv run hatch version )
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+      - name: Push version bumps
+        run: |
+          git config --global user.name "Teal Agents Bot"
+          git config --global user.email " "
+          git commit -am "bump version [skip ci]"
+          git push --set-upstream origin ${{ github.ref_name }}
+
+  build-agents:
+    runs-on: ubuntu-latest
+    needs: version
+    if: ${{ needs.changes.outputs.agents == 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/teal-agents/teal-agents:${{ needs.version.outputs.agents }} -f teal-agents.Dockerfile .
+          docker tag ghcr.io/teal-agents/teal-agents:${{ needs.version.outputs.agents }} ghcr.io/teal-agents/teal-agents:latest
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/teal-agents/teal-agents:${{ needs.version.outputs.agents }}
+          docker push ghcr.io/teal-agents/teal-agents:latest
+
+  build-ao:
+    runs-on: ubuntu-latest
+    needs: version
+    if: ${{ needs.changes.outputs.ao == 'true' }}
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/teal-agents/ao:${{ needs.version.outputs.ao }} -f ao.Dockerfile .
+          docker tag ghcr.io/teal-agents/ao:${{ needs.version.outputs.ao }} ghcr.io/teal-agents/ao:latest
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/teal-agents/ao:${{ needs.version.outputs.ao }}
+          docker push ghcr.io/teal-agents/ao:latest
+
+  build-ao-services:
+    runs-on: ubuntu-latest
+    needs: version
+    if: ${{ needs.changes.outputs.services == 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/teal-agents/ao-services:${{ needs.version.outputs.services }} -f ao-services.Dockerfile .
+          docker tag ghcr.io/teal-agents/ao-services:${{ needs.version.outputs.services }} ghcr.io/teal-agents/ao-services:latest
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/teal-agents/ao-services:${{ needs.version.outputs.services }}
+          docker push ghcr.io/teal-agents/ao-services:latest

@@ -1,0 +1,82 @@
+name: check
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v4
+      - name: setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: lint sk-agents
+        working-directory: ./src/sk-agents
+        run: |
+          make sync
+          make lint
+      - name: lint ska-utils
+        working-directory: ./shared/ska_utils
+        run: |
+          make sync
+          make lint
+      - name: lint ao
+        working-directory: ./src/orchestrators/assistant-orchestrator/orchestrator
+        run: |
+          make sync
+          make lint
+      - name: lint ao-services
+        working-directory: ./src/orchestrators/assistant-orchestrator/services
+        run: |
+          make sync
+          make lint
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Run typecheck
+        working-directory: ./shared/ska_utils
+        run: |
+          make sync
+          make mypy
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v4
+      - name: setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: test sk-agents
+        working-directory: ./src/sk-agents
+        run: |
+          make sync
+          make coverage
+      - name: test ska-utils
+        working-directory: ./shared/ska_utils
+        run: |
+          make sync
+          make coverage
+      - name: test ao
+        working-directory: ./src/orchestrators/assistant-orchestrator/orchestrator
+        run: |
+          make sync
+          make coverage
+      - name: test ao-services
+        working-directory: ./src/orchestrators/assistant-orchestrator/services
+        run: |
+          make sync
+          make coverage

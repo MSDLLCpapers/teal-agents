@@ -17,3 +17,5 @@ class StateManager(ABC):
     @abstractmethod
     async def is_canceled(self, task_id) -> bool:
         pass
+
+

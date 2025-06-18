@@ -98,8 +98,3 @@ class ServicesClient(ABC):
     @abstractmethod
     async def get_context_items(self, user_id: str) -> dict[str, str | None]:
         pass
-
-
-
-
-

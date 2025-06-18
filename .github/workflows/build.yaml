@@ -30,7 +30,6 @@ jobs:
       id: filter
       with:
         base: ${{ github.ref }}
-        initial-fetch-depth: 1
         filters: |
           utils:
             - .github/workflows/build.yaml

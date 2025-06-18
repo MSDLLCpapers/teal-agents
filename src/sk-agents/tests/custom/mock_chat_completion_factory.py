@@ -8,6 +8,9 @@ class MockChatCompletionFactory(ChatCompletionFactory):
     _ANTHROPIC_MODELS: list[str] = [
         "claude-model",
     ]
+    _GOOGLE_MODELS: list[str] = [
+        "gemini-model",
+    ]
 
     TA_BASE_URL = UtilConfig(
         env_name="TA_BASE_URL",
@@ -41,6 +44,8 @@ class MockChatCompletionFactory(ChatCompletionFactory):
         if model_name in MockChatCompletionFactory._OPENAI_MODELS:
             return True
         elif model_name in MockChatCompletionFactory._ANTHROPIC_MODELS:
+            return False
+        elif model_name in MockChatCompletionFactory._GOOGLE_MODELS:
             return False
         else:
             raise ValueError(f"Unknown model name {model_name}")

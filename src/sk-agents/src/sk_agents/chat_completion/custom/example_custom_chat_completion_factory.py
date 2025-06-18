@@ -5,6 +5,9 @@ from semantic_kernel.connectors.ai.anthropic.services.anthropic_chat_completion 
 from semantic_kernel.connectors.ai.chat_completion_client_base import (
     ChatCompletionClientBase,
 )
+from semantic_kernel.connectors.ai.google.vertex_ai.services.vertex_ai_chat_completion import (
+    VertexAIChatCompletion,
+)
 from semantic_kernel.connectors.ai.open_ai.services.azure_chat_completion import (
     AzureChatCompletion,
 )
@@ -28,10 +31,17 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
         "claude-3-haiku-20240307",
     ]
 
+    _GOOGLE_MODELS: list[str] = [
+        "gemini-2-5-pro-preview-03-25",
+        "gemini-2-5-flash-preview-04-17",
+        "gemini-2-0-flash",
+        "gemini-2-0-flash-lite",
+    ]
+
     TA_BASE_URL = UtilConfig(
         env_name="TA_BASE_URL",
         is_required=False,
-        default_value="https://<Your Azure OpenAI Service Endpoint>",
+        default_value="https://<Your AI Service Endpoint>",
     )
     TA_API_VERSION = UtilConfig(
         env_name="TA_API_VERSION", is_required=False, default_value="2024-10-21"
@@ -73,13 +83,24 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
                     default_headers={"X-Custom-Header": self.api_key},
                 ),
             )
-        raise ValueError("Model type not supported")
+        elif model_name in ExampleCustomChatCompletionFactory._GOOGLE_MODELS:
+            return VertexAIChatCompletion(
+                service_id=service_id,
+                deployment_name=model_name,
+                api_key=self.api_key,
+                base_url=f"{self.url_base}/google/{model_name}-v1",
+                api_version=self.api_version,
+            )
+        else:
+            raise ValueError("Model type not supported")
 
     def get_model_type_for_name(self, model_name: str) -> ModelType:
         if model_name in ExampleCustomChatCompletionFactory._OPENAI_MODELS:
             return ModelType.OPENAI
         elif model_name in ExampleCustomChatCompletionFactory._ANTHROPIC_MODELS:
             return ModelType.ANTHROPIC
+        elif model_name in ExampleCustomChatCompletionFactory._GOOGLE_MODELS:
+            return ModelType.GOOGLE
         else:
             raise ValueError(f"Unknown model name {model_name}")
 
@@ -87,6 +108,8 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
         if model_name in ExampleCustomChatCompletionFactory._OPENAI_MODELS:
             return True
         elif model_name in ExampleCustomChatCompletionFactory._ANTHROPIC_MODELS:
+            return False
+        elif model_name in ExampleCustomChatCompletionFactory._GOOGLE_MODELS:
             return False
         else:
             raise ValueError(f"Unknown model name {model_name}")

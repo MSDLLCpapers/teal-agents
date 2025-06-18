@@ -61,3 +61,4 @@ class A2AAgentExecutor(AgentExecutor):
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue):
         await self.state_manager.set_canceled(context.task_id)
+

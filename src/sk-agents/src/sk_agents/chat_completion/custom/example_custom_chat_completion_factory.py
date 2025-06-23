@@ -5,8 +5,8 @@ from semantic_kernel.connectors.ai.anthropic.services.anthropic_chat_completion 
 from semantic_kernel.connectors.ai.chat_completion_client_base import (
     ChatCompletionClientBase,
 )
-from semantic_kernel.connectors.ai.google.vertex_ai.services.vertex_ai_chat_completion import (
-    VertexAIChatCompletion,
+from semantic_kernel.connectors.ai.google.google_ai.services.google_ai_chat_completion import (
+    GoogleAIChatCompletion,
 )
 from semantic_kernel.connectors.ai.open_ai.services.azure_chat_completion import (
     AzureChatCompletion,
@@ -84,12 +84,10 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
                 ),
             )
         elif model_name in ExampleCustomChatCompletionFactory._GOOGLE_MODELS:
-            return VertexAIChatCompletion(
+            return GoogleAIChatCompletion(
                 service_id=service_id,
-                deployment_name=model_name,
+                deployment_name=ExampleCustomChatCompletionFactory._GOOGLE_MODELS[model_name],
                 api_key=self.api_key,
-                base_url=f"{self.url_base}/google/{model_name}-v1",
-                api_version=self.api_version,
             )
         else:
             raise ValueError("Model type not supported")
@@ -110,6 +108,6 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
         elif model_name in ExampleCustomChatCompletionFactory._ANTHROPIC_MODELS:
             return False
         elif model_name in ExampleCustomChatCompletionFactory._GOOGLE_MODELS:
-            return False
+            return True
         else:
             raise ValueError(f"Unknown model name {model_name}")

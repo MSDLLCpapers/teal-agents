@@ -7,12 +7,18 @@ from configs import (
     TA_AGW_HOST,
     TA_AGW_KEY,
     TA_AGW_SECURE,
+    TA_REDIS_HOST,
+    TA_REDIS_PORT,
+    TA_REDIS_SESSION_DB,
+    TA_REDIS_SESSION_TTL,
     TA_SERVICE_CONFIG,
+    TA_SESSION_TYPE,
 )
 from connection_manager import ConnectionManager
 from conversation_manager import ConversationManager
 from jose_types import Config
 from recipient_chooser import RecipientChooser
+from session import AbstractSessionManager, InMemorySessionManager, RedisSessionManager
 from user_context import CustomUserContextHelper, UserContextCache
 
 AppConfig.add_configs(CONFIGS)
@@ -21,6 +27,7 @@ app_config = AppConfig()
 
 _conv_manager: ConversationManager | None = None
 _conn_manager: ConnectionManager | None = None
+_session_manager: AbstractSessionManager | None = None
 _rec_chooser: RecipientChooser | None = None
 _config: Config | None = None
 _agent_catalog: AgentCatalog | None = None
@@ -33,6 +40,7 @@ def initialize() -> None:
     global \
         _conv_manager, \
         _conn_manager, \
+        _session_manager, \
         _rec_chooser, \
         _config, \
         _agent_catalog, \
@@ -69,6 +77,15 @@ def initialize() -> None:
 
     _conn_manager = ConnectionManager()
     _conv_manager = ConversationManager(_config.service_name)
+    if app_config.get(TA_SESSION_TYPE.env_name) == "external":
+        _session_manager = RedisSessionManager(
+            app_config.get(TA_REDIS_HOST.env_name),
+            app_config.get(TA_REDIS_PORT.env_name),
+            app_config.get(TA_REDIS_SESSION_DB.env_name),
+            app_config.get(TA_REDIS_SESSION_TTL.env_name),
+        )
+    else:
+        _session_manager = InMemorySessionManager()
     _rec_chooser = RecipientChooser(recipient_chooser_agent)
     _user_context = _user_context_helper.get_user_context()
 
@@ -87,6 +104,14 @@ def get_conn_manager() -> ConnectionManager:
         if _conn_manager is None:
             raise TypeError("_conn_manager is None")
     return _conn_manager
+
+
+def get_session_manager() -> AbstractSessionManager:
+    if _session_manager is None:
+        initialize()
+        if _session_manager is None:
+            raise TypeError("_session_manager is None")
+    return _session_manager
 
 
 def get_rec_chooser() -> RecipientChooser:

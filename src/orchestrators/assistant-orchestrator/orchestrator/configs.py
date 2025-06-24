@@ -18,7 +18,12 @@ TA_USER_INFORMATION_SOURCE_KEY = Config(
 TA_REDIS_HOST = Config(env_name="TA_REDIS_HOST", is_required=False, default_value=None)
 TA_REDIS_PORT = Config(env_name="TA_REDIS_PORT", is_required=False, default_value=None)
 TA_REDIS_DB = Config(env_name="TA_REDIS_DB", is_required=False, default_value=None)
+TA_REDIS_SESSION_DB = Config(env_name="TA_REDIS_SESSION_DB", is_required=False, default_value=None)
 TA_REDIS_TTL = Config(env_name="TA_REDIS_TTL", is_required=False, default_value=None)
+TA_REDIS_SESSION_TTL = Config(
+    env_name="TA_REDIS_SESSION_TTL", is_required=False, default_value=None
+)
+TA_SESSION_TYPE = Config(env_name="TA_SESSION_TYPE", is_required=True, default_value="internal")
 TA_CUSTOM_USER_CONTEXT_ENABLED = Config(
     env_name="TA_CUSTOM_USER_CONTEXT_ENABLED", is_required=True, default_value=None
 )
@@ -42,7 +47,10 @@ CONFIGS = [
     TA_REDIS_HOST,
     TA_REDIS_PORT,
     TA_REDIS_DB,
+    TA_REDIS_SESSION_DB,
     TA_REDIS_TTL,
+    TA_REDIS_SESSION_TTL,
+    TA_SESSION_TYPE,
     TA_CUSTOM_USER_CONTEXT_ENABLED,
     TA_CUSTOM_USER_CONTEXT_MODULE,
     TA_CUSTOM_USER_CONTEXT_CLASS_NAME,

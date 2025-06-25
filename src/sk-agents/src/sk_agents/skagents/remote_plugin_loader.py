@@ -1,3 +1,5 @@
+import logging
+
 import httpx
 from pydantic import BaseModel
 from pydantic_yaml import parse_yaml_file_as
@@ -29,13 +31,18 @@ class RemotePlugins(BaseModel):
 class RemotePluginCatalog:
     def __init__(self, app_config: AppConfig) -> None:
         plugin_path = app_config.get(TA_REMOTE_PLUGIN_PATH.env_name)
+        self.logger = logging.getLogger(__name__)
         if plugin_path is None:
             self.catalog = None
         else:
             self.catalog: RemotePlugins = parse_yaml_file_as(RemotePlugins, plugin_path)
 
     def get_remote_plugin(self, plugin_name: str) -> RemotePlugin | None:
-        return self.catalog.get(plugin_name)
+        try:
+            return self.catalog.get(plugin_name)
+        except Exception as e:
+            self.logger.exception(f"could not get remote pluging {plugin_name}. - {e}")
+            raise
 
 
 class RemotePluginLoader:

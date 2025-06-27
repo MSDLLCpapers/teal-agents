@@ -73,7 +73,8 @@ jobs:
           git config --global user.email " "
           git add -A
           git commit -m "Release version updates: teal-agents ${{ steps.version_teal_agents.outputs.VERSION }}, ao ${{ steps.version_ao.outputs.VERSION }}, ao-services ${{ steps.version_ao_services.outputs.VERSION }}"
-          git push origin main
+          # git push origin main
+          git push origin test-release-workflow
 
       # Step 3: Create annotated tag with release version
       # Using the highest version as the main release version
@@ -125,7 +126,8 @@ jobs:
         run: |
           git add -A
           git commit -m "Bump to next dev versions [skip ci]"
-          git push origin main
+          # git push origin main
+          git push origin test-release-workflow
 
   # Build teal-agents image
   build-teal-agents:

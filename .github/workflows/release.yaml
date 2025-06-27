@@ -1,9 +1,6 @@
 name: release
 
 on:
-  push:
-    branches:
-      - '**'
   workflow_dispatch:
     inputs:
       trigger_tag_build:
@@ -17,6 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    outputs:
+      teal-agents: ${{ steps.version_teal_agents.outputs.VERSION }}
+      ao: ${{ steps.version_ao.outputs.VERSION }}
+      ao-services: ${{ steps.version_ao_services.outputs.VERSION }}
+      tag: ${{ steps.main_version.outputs.VERSION }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -68,8 +70,7 @@ jobs:
           git config --global user.email " "
           git add -A
           git commit -m "Release version updates: teal-agents ${{ steps.version_teal_agents.outputs.VERSION }}, ao ${{ steps.version_ao.outputs.VERSION }}, ao-services ${{ steps.version_ao_services.outputs.VERSION }}"
-          # git push origin main
-          git push origin test-release-workflow
+          git push origin main
 
       # Step 3: Create annotated tag with release version
       # Using the highest version as the main release version
@@ -93,8 +94,6 @@ jobs:
           git tag -a "v$RELEASE_VERSION" -m "Release version v$RELEASE_VERSION"
           git push origin "v$RELEASE_VERSION"
           echo "Created and pushed tag: v$RELEASE_VERSION"
-
-      # Step 4 is handled by the tag-triggered workflow below
 
       # Step 5: Update to next dev patch versions
       - name: Update teal-agents to next dev version
@@ -123,20 +122,263 @@ jobs:
         run: |
           git add -A
           git commit -m "Bump to next dev versions [skip ci]"
-          # git push origin main
-          git push origin test-release-workflow
+          git push origin main
 
+  # Build teal-agents image
+  build-teal-agents:
+    runs-on: ubuntu-latest
+    needs: release
+    if: ${{ inputs.trigger_tag_build }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.teal-agents }} -f teal-agents.Dockerfile .
+          docker tag ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.teal-agents }} ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.tag }}
+
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.teal-agents }}
+          docker push ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.tag }}
+
+  # Build ao image
+  build-ao:
+    runs-on: ubuntu-latest
+    needs: release
+    if: ${{ inputs.trigger_tag_build }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/teal-agents/ao:${{ needs.release.outputs.ao }} -f ao.Dockerfile .
+          docker tag ghcr.io/teal-agents/ao:${{ needs.release.outputs.ao }} ghcr.io/teal-agents/ao:${{ needs.release.outputs.tag }}
+
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/teal-agents/ao:${{ needs.release.outputs.ao }}
+          docker push ghcr.io/teal-agents/ao:${{ needs.release.outputs.tag }}
+
+  # Build ao-services image
+  build-ao-services:
+    runs-on: ubuntu-latest
+    needs: release
+    if: ${{ inputs.trigger_tag_build }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.ao-services }} -f ao-services.Dockerfile .
+          docker tag ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.ao-services }} ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.tag }}
+
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.ao-services }}
+          docker push ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.tag }}
+
+  # Create GitHub release
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [release, build-teal-agents, build-ao, build-ao-services]
+    if: ${{ inputs.trigger_tag_build }}
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          # Get the previous tag for comparison
+          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -2 | tail -1)
+          CURRENT_TAG="v${{ needs.release.outputs.tag }}"
+          
+          echo "Previous tag: $PREVIOUS_TAG"
+          echo "Current tag: $CURRENT_TAG"
+          
+          # Generate commit log since last release
+          if [ -n "$PREVIOUS_TAG" ]; then
+            COMMIT_LOG=$(git log --pretty=format:"- %s (%h)" $PREVIOUS_TAG..$CURRENT_TAG --no-merges | head -20)
+          else
+            COMMIT_LOG=$(git log --pretty=format:"- %s (%h)" --no-merges | head -20)
+          fi
+          
+          # Get contributors since last release
+          if [ -n "$PREVIOUS_TAG" ]; then
+            CONTRIBUTORS=$(git log --pretty=format:"%an" $PREVIOUS_TAG..$CURRENT_TAG | sort | uniq | grep -v "Teal Agents Bot" | head -10)
+          else
+            CONTRIBUTORS=$(git log --pretty=format:"%an" | sort | uniq | grep -v "Teal Agents Bot" | head -10)
+          fi
+          
+          # Create release notes
+          cat > release_notes.md << EOF
+          ## Release v${{ needs.release.outputs.tag }}
+          
+          This release includes updates to all three core components of the Teal Agents platform.
+          
+          ### 🚀 Component Versions
+          - **teal-agents**: \`${{ needs.release.outputs.teal-agents }}\`
+          - **ao (Assistant Orchestrator)**: \`${{ needs.release.outputs.ao }}\`
+          - **ao-services**: \`${{ needs.release.outputs.ao-services }}\`
+          
+          ### 📦 Docker Images
+          
+          #### Teal Agents Core
+          \`\`\`bash
+          docker pull ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.teal-agents }}
+          docker pull ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.tag }}
+          \`\`\`
+          
+          #### Assistant Orchestrator
+          \`\`\`bash
+          docker pull ghcr.io/teal-agents/ao:${{ needs.release.outputs.ao }}
+          docker pull ghcr.io/teal-agents/ao:${{ needs.release.outputs.tag }}
+          \`\`\`
+          
+          #### AO Services
+          \`\`\`bash
+          docker pull ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.ao-services }}
+          docker pull ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.tag }}
+          \`\`\`
+          
+          ### 📝 Changes Since Last Release
+          
+          EOF
+          
+          if [ -n "$COMMIT_LOG" ] && [ "$COMMIT_LOG" != "" ]; then
+            echo "$COMMIT_LOG" >> release_notes.md
+          else
+            echo "- Initial release or no changes tracked" >> release_notes.md
+          fi
+          
+          cat >> release_notes.md << EOF
+          
+          ### 👥 Contributors
+          
+          EOF
+          
+          if [ -n "$CONTRIBUTORS" ] && [ "$CONTRIBUTORS" != "" ]; then
+            echo "$CONTRIBUTORS" | while read contributor; do
+              echo "- $contributor" >> release_notes.md
+            done
+          else
+            echo "- Teal Agents Team" >> release_notes.md
+          fi
+          
+          cat >> release_notes.md << EOF
+          
+          ### 🔧 Installation & Usage
+          
+          #### Using Docker Compose
+          \`\`\`yaml
+          version: '3.8'
+          services:
+            teal-agents:
+              image: ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.tag }}
+              # ... your configuration
+            
+            assistant-orchestrator:
+              image: ghcr.io/teal-agents/ao:${{ needs.release.outputs.tag }}
+              # ... your configuration
+            
+            ao-services:
+              image: ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.tag }}
+              # ... your configuration
+          \`\`\`
+          
+          #### Using Individual Images
+          \`\`\`bash
+          # Run Teal Agents Core
+          docker run -d --name teal-agents ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.tag }}
+          
+          # Run Assistant Orchestrator  
+          docker run -d --name ao ghcr.io/teal-agents/ao:${{ needs.release.outputs.tag }}
+          
+          # Run AO Services
+          docker run -d --name ao-services ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.tag }}
+          \`\`\`
+          
+          ### 📚 Documentation
+          
+          - [Repository README](https://github.com/teal-agents/teal-agents/blob/main/README.md)
+          - [SK Agents Documentation](https://github.com/teal-agents/teal-agents/blob/main/src/sk-agents/README.md)
+          - [Assistant Orchestrator Documentation](https://github.com/teal-agents/teal-agents/blob/main/src/orchestrators/assistant-orchestrator/README.md)
+          
+          ### 🐛 Issues & Support
+          
+          If you encounter any issues with this release, please:
+          1. Check the [existing issues](https://github.com/teal-agents/teal-agents/issues)
+          2. Create a [new issue](https://github.com/teal-agents/teal-agents/issues/new) if needed
+          3. Include the component version and relevant logs
+          
+          ---
+          
+          **Full Changelog**: [\`$PREVIOUS_TAG...$CURRENT_TAG\`](https://github.com/teal-agents/teal-agents/compare/$PREVIOUS_TAG...$CURRENT_TAG)
+          EOF
+          
+          # Output the release notes for the next step
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_OUTPUT
+          cat release_notes.md >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.release.outputs.tag }}
+          name: Release v${{ needs.release.outputs.tag }}
+          body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
+          draft: false
+          prerelease: false
+
+  # Summary step
+  summary:
+    runs-on: ubuntu-latest
+    needs: [release, build-teal-agents, build-ao, build-ao-services, create-release]
+    if: always()
+    steps:
       - name: Summary
         run: |
-          echo "Release workflow completed successfully!"
-          echo "- Created release tag: v${{ steps.main_version.outputs.VERSION }}"
-          echo "- Teal-agents: ${{ steps.version_teal_agents.outputs.VERSION }}"
-          echo "- AO: ${{ steps.version_ao.outputs.VERSION }}"
-          echo "- AO-services: ${{ steps.version_ao_services.outputs.VERSION }}"
+          echo "Release workflow completed!"
+          echo "- Created release tag: v${{ needs.release.outputs.tag }}"
+          echo "- Teal-agents: ${{ needs.release.outputs.teal-agents }}"
+          echo "- AO: ${{ needs.release.outputs.ao }}"
+          echo "- AO-services: ${{ needs.release.outputs.ao-services }}"
           if [ "${{ inputs.trigger_tag_build }}" == "true" ]; then
-            echo "- Tag build workflow will be triggered automatically"
+            echo "- Docker images built and pushed"
+            echo "- GitHub release created"
+          else
+            echo "- Docker builds skipped (trigger_tag_build=false)"
           fi
-
----
-
-# Separate workflow that triggers on tag creation (Step 4)

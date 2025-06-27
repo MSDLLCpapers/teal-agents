@@ -1,0 +1,139 @@
+name: release
+
+on:
+  workflow_dispatch:
+    inputs:
+      trigger_tag_build:
+        description: 'Trigger tag build workflow after creating the tag'
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ssh-key: ${{ secrets.TEAL_AGENTS_BOT }}
+          persist-credentials: true
+          fetch-depth: 0
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      # Step 1: Get release versions for all components
+      - name: Get teal-agents release version
+        id: version_teal_agents
+        working-directory: ./src/sk-agents
+        run: |
+          make sync
+          uv run hatch version release
+          VERSION=$(uv run hatch version)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Teal-agents release version: $VERSION"
+
+      - name: Get ao release version
+        id: version_ao
+        working-directory: ./src/orchestrators/assistant-orchestrator/orchestrator
+        run: |
+          make sync
+          uv run hatch version release
+          VERSION=$(uv run hatch version)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "AO release version: $VERSION"
+
+      - name: Get ao-services release version
+        id: version_ao_services
+        working-directory: ./src/orchestrators/assistant-orchestrator/services
+        run: |
+          make sync
+          uv run hatch version release
+          VERSION=$(uv run hatch version)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "AO-services release version: $VERSION"
+
+      # Step 2: Commit and push version updates
+      - name: Commit release version updates
+        run: |
+          git config --global user.name "Teal Agents Bot"
+          git config --global user.email " "
+          git add -A
+          git commit -m "Release version updates: teal-agents ${{ steps.version_teal_agents.outputs.VERSION }}, ao ${{ steps.version_ao.outputs.VERSION }}, ao-services ${{ steps.version_ao_services.outputs.VERSION }}"
+          # git push origin main
+          git push origin test-release-workflow
+
+      # Step 3: Create annotated tag with release version
+      # Using the highest version as the main release version
+      - name: Determine main release version
+        id: main_version
+        run: |
+          TEAL_VERSION="${{ steps.version_teal_agents.outputs.VERSION }}"
+          AO_VERSION="${{ steps.version_ao.outputs.VERSION }}"
+          SERVICES_VERSION="${{ steps.version_ao_services.outputs.VERSION }}"
+          
+          # Use semantic versioning comparison to find the highest version
+          # For simplicity, we'll use the teal-agents version as the main version
+          # You can modify this logic if needed
+          MAIN_VERSION="$TEAL_VERSION"
+          echo "VERSION=$MAIN_VERSION" >> $GITHUB_OUTPUT
+          echo "Main release version: $MAIN_VERSION"
+
+      - name: Create release tag
+        run: |
+          RELEASE_VERSION="${{ steps.main_version.outputs.VERSION }}"
+          git tag -a "v$RELEASE_VERSION" -m "Release version v$RELEASE_VERSION"
+          git push origin "v$RELEASE_VERSION"
+          echo "Created and pushed tag: v$RELEASE_VERSION"
+
+      # Step 4 is handled by the tag-triggered workflow below
+
+      # Step 5: Update to next dev patch versions
+      - name: Update teal-agents to next dev version
+        working-directory: ./src/sk-agents
+        run: |
+          uv run hatch version patch,dev
+          NEW_VERSION=$(uv run hatch version)
+          echo "Teal-agents new dev version: $NEW_VERSION"
+
+      - name: Update ao to next dev version
+        working-directory: ./src/orchestrators/assistant-orchestrator/orchestrator
+        run: |
+          uv run hatch version patch,dev
+          NEW_VERSION=$(uv run hatch version)
+          echo "AO new dev version: $NEW_VERSION"
+
+      - name: Update ao-services to next dev version
+        working-directory: ./src/orchestrators/assistant-orchestrator/services
+        run: |
+          uv run hatch version patch,dev
+          NEW_VERSION=$(uv run hatch version)
+          echo "AO-services new dev version: $NEW_VERSION"
+
+      # Step 6: Commit and push dev version updates
+      - name: Commit dev version updates
+        run: |
+          git add -A
+          git commit -m "Bump to next dev versions [skip ci]"
+          # git push origin main
+          git push origin test-release-workflow
+
+      - name: Summary
+        run: |
+          echo "Release workflow completed successfully!"
+          echo "- Created release tag: v${{ steps.main_version.outputs.VERSION }}"
+          echo "- Teal-agents: ${{ steps.version_teal_agents.outputs.VERSION }}"
+          echo "- AO: ${{ steps.version_ao.outputs.VERSION }}"
+          echo "- AO-services: ${{ steps.version_ao_services.outputs.VERSION }}"
+          if [ "${{ inputs.trigger_tag_build }}" == "true" ]; then
+            echo "- Tag build workflow will be triggered automatically"
+          fi
+
+---
+
+# Separate workflow that triggers on tag creation (Step 4)

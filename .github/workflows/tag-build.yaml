@@ -1,0 +1,174 @@
+name: tag-build
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  # Get versions from the tagged commit
+  get-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      teal-agents: ${{ steps.version_teal_agents.outputs.VERSION }}
+      ao: ${{ steps.version_ao.outputs.VERSION }}
+      ao-services: ${{ steps.version_ao_services.outputs.VERSION }}
+      tag: ${{ steps.tag.outputs.VERSION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Extract tag version
+        id: tag
+        run: |
+          TAG_VERSION=${GITHUB_REF#refs/tags/v}
+          echo "VERSION=$TAG_VERSION" >> $GITHUB_OUTPUT
+          echo "Tag version: $TAG_VERSION"
+
+      - name: Get teal-agents version
+        id: version_teal_agents
+        working-directory: ./src/sk-agents
+        run: |
+          make sync
+          VERSION=$(uv run hatch version)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Teal-agents version: $VERSION"
+
+      - name: Get ao version
+        id: version_ao
+        working-directory: ./src/orchestrators/assistant-orchestrator/orchestrator
+        run: |
+          make sync
+          VERSION=$(uv run hatch version)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "AO version: $VERSION"
+
+      - name: Get ao-services version
+        id: version_ao_services
+        working-directory: ./src/orchestrators/assistant-orchestrator/services
+        run: |
+          make sync
+          VERSION=$(uv run hatch version)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "AO-services version: $VERSION"
+
+  # Build teal-agents image
+  build-teal-agents:
+    runs-on: ubuntu-latest
+    needs: get-versions
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/teal-agents/teal-agents:${{ needs.get-versions.outputs.teal-agents }} -f teal-agents.Dockerfile .
+          docker tag ghcr.io/teal-agents/teal-agents:${{ needs.get-versions.outputs.teal-agents }} ghcr.io/teal-agents/teal-agents:${{ needs.get-versions.outputs.tag }}
+
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/teal-agents/teal-agents:${{ needs.get-versions.outputs.teal-agents }}
+          docker push ghcr.io/teal-agents/teal-agents:${{ needs.get-versions.outputs.tag }}
+
+  # Build ao image
+  build-ao:
+    runs-on: ubuntu-latest
+    needs: get-versions
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/teal-agents/ao:${{ needs.get-versions.outputs.ao }} -f ao.Dockerfile .
+          docker tag ghcr.io/teal-agents/ao:${{ needs.get-versions.outputs.ao }} ghcr.io/teal-agents/ao:${{ needs.get-versions.outputs.tag }}
+
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/teal-agents/ao:${{ needs.get-versions.outputs.ao }}
+          docker push ghcr.io/teal-agents/ao:${{ needs.get-versions.outputs.tag }}
+
+  # Build ao-services image
+  build-ao-services:
+    runs-on: ubuntu-latest
+    needs: get-versions
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/teal-agents/ao-services:${{ needs.get-versions.outputs.ao-services }} -f ao-services.Dockerfile .
+          docker tag ghcr.io/teal-agents/ao-services:${{ needs.get-versions.outputs.ao-services }} ghcr.io/teal-agents/ao-services:${{ needs.get-versions.outputs.tag }}
+
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/teal-agents/ao-services:${{ needs.get-versions.outputs.ao-services }}
+          docker push ghcr.io/teal-agents/ao-services:${{ needs.get-versions.outputs.tag }}
+
+  # Create GitHub release
+  create-release:
+    runs-on: ubuntu-latest
+    needs: [get-versions, build-teal-agents, build-ao, build-ao-services]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ needs.get-versions.outputs.tag }}
+          name: Release v${{ needs.get-versions.outputs.tag }}
+          body: |
+            ## Release v${{ needs.get-versions.outputs.tag }}
+            
+            ### Component Versions
+            - **teal-agents**: `${{ needs.get-versions.outputs.teal-agents }}`
+            - **ao**: `${{ needs.get-versions.outputs.ao }}`
+            - **ao-services**: `${{ needs.get-versions.outputs.ao-services }}`
+            
+            ### Docker Images
+            - `ghcr.io/teal-agents/teal-agents:${{ needs.get-versions.outputs.teal-agents }}`
+            - `ghcr.io/teal-agents/teal-agents:${{ needs.get-versions.outputs.tag }}`
+            - `ghcr.io/teal-agents/ao:${{ needs.get-versions.outputs.ao }}`
+            - `ghcr.io/teal-agents/ao:${{ needs.get-versions.outputs.tag }}`
+            - `ghcr.io/teal-agents/ao-services:${{ needs.get-versions.outputs.ao-services }}`
+            - `ghcr.io/teal-agents/ao-services:${{ needs.get-versions.outputs.tag }}`
+          draft: false
+          prerelease: false

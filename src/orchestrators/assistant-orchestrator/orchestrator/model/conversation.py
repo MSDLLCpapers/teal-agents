@@ -3,7 +3,7 @@ from enum import Enum
 from pydantic import BaseModel
 
 
-class ContextType(Enum):
+class ContextType(str, Enum):
     TRANSIENT = "transient"
     PERSISTENT = "persistent"
 
@@ -63,3 +63,23 @@ class Conversation(BaseModel):
             return self.update_context_item(key, value)
         except ValueError:
             return self.add_context_item(key, value, ContextType.TRANSIENT)
+
+
+class SseMessage(BaseModel):
+    task: str
+    message: str
+
+
+class SseFinalMessage(BaseModel):
+    conversation: Conversation
+
+
+class SseError(BaseModel):
+    error: str
+
+
+class SseEventType(Enum):
+    AGENT_SELECTOR_RESPONSE = "agent-selector-response"
+    INTERMEDIATE_TASK_RESPONSE = "intermediate-task-response"
+    ORCH_FINAL_RESPONSE = "orchestrator-final-response"
+    UNKNOWN = "unknown"

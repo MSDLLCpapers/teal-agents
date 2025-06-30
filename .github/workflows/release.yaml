@@ -67,8 +67,7 @@ jobs:
           git config --global user.email " "
           git add -A
           git commit -m "Release version updates: teal-agents ${{ steps.version_teal_agents.outputs.VERSION }}, ao ${{ steps.version_ao.outputs.VERSION }}, ao-services ${{ steps.version_ao_services.outputs.VERSION }}"
-          # git push origin main
-          git push origin test-release-workflow
+          git push origin main
 
       # Step 3: Create annotated tag with release version
       # Using the highest version as the main release version
@@ -120,8 +119,7 @@ jobs:
         run: |
           git add -A
           git commit -m "Bump to next dev versions [skip ci]"
-          # git push origin main
-          git push origin test-release-workflow
+          git push origin main
 
   # Build teal-agents image
   build-teal-agents:
@@ -253,19 +251,16 @@ jobs:
           
           #### Teal Agents Core
           \`\`\`bash
-          docker pull ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.teal-agents }}
           docker pull ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.tag }}
           \`\`\`
           
           #### Assistant Orchestrator
           \`\`\`bash
-          docker pull ghcr.io/teal-agents/ao:${{ needs.release.outputs.ao }}
           docker pull ghcr.io/teal-agents/ao:${{ needs.release.outputs.tag }}
           \`\`\`
           
           #### AO Services
           \`\`\`bash
-          docker pull ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.ao-services }}
           docker pull ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.tag }}
           \`\`\`
           
@@ -295,51 +290,11 @@ jobs:
           
           cat >> release_notes.md << EOF
           
-          ### 🔧 Installation & Usage
-          
-          #### Using Docker Compose
-          \`\`\`yaml
-          version: '3.8'
-          services:
-            teal-agents:
-              image: ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.tag }}
-              # ... your configuration
-            
-            assistant-orchestrator:
-              image: ghcr.io/teal-agents/ao:${{ needs.release.outputs.tag }}
-              # ... your configuration
-            
-            ao-services:
-              image: ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.tag }}
-              # ... your configuration
-          \`\`\`
-          
-          #### Using Individual Images
-          \`\`\`bash
-          # Run Teal Agents Core
-          docker run -d --name teal-agents ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.tag }}
-          
-          # Run Assistant Orchestrator  
-          docker run -d --name ao ghcr.io/teal-agents/ao:${{ needs.release.outputs.tag }}
-          
-          # Run AO Services
-          docker run -d --name ao-services ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.tag }}
-          \`\`\`
-          
           ### 📚 Documentation
           
           - [Repository README](https://github.com/teal-agents/teal-agents/blob/main/README.md)
           - [SK Agents Documentation](https://github.com/teal-agents/teal-agents/blob/main/src/sk-agents/README.md)
           - [Assistant Orchestrator Documentation](https://github.com/teal-agents/teal-agents/blob/main/src/orchestrators/assistant-orchestrator/README.md)
-          
-          ### 🐛 Issues & Support
-          
-          If you encounter any issues with this release, please:
-          1. Check the [existing issues](https://github.com/teal-agents/teal-agents/issues)
-          2. Create a [new issue](https://github.com/teal-agents/teal-agents/issues/new) if needed
-          3. Include the component version and relevant logs
-          
-          ---
           
           **Full Changelog**: [\`$PREVIOUS_TAG...$CURRENT_TAG\`](https://github.com/teal-agents/teal-agents/compare/$PREVIOUS_TAG...$CURRENT_TAG)
           EOF

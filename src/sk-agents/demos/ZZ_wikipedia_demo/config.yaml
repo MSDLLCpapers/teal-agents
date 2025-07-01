@@ -1,5 +1,5 @@
 # nonk8s
-apiVersion: skagents/v2alpha1
+apiVersion: tealagents/v1alpha1
 kind: Agent
 name: WikipediaAgent
 version: 0.1

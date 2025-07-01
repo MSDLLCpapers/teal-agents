@@ -25,15 +25,8 @@ config: BaseConfig = parse_yaml_file_as(BaseConfig, config_file)
 
 (root_handler, api_version) = config.apiVersion.split("/")
 
-name: str | None = None
+name = config.name if api_version == "v2alpha1" else config.service_name
 version = str(config.version)
-
-is_v2 = False
-if api_version == "v2alpha1":
-    is_v2 = True
-    name = config.name
-else:
-    name = config.service_name
 
 if not name:
     raise ValueError("Service name is not defined in the configuration file.")
@@ -50,7 +43,7 @@ app = FastAPI(
 # noinspection PyTypeChecker
 app.add_middleware(TelemetryMiddleware, st=get_telemetry())
 
-if is_v2:
+if api_version == "v2alpha1":
     AppV2.run(name, version, app_config, config, app)
 else:
     AppV1.run(name, version, app_config, config, app)

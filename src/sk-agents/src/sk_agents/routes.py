@@ -1,20 +1,10 @@
 from contextlib import nullcontext
 
-from a2a.server.apps.starlette_app import A2AStarletteApplication
-from a2a.server.request_handlers import DefaultRequestHandler
-from a2a.server.tasks.task_store import TaskStore
-from a2a.types import AgentCapabilities, AgentCard, AgentProvider, AgentSkill
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from opentelemetry.propagate import extract
 from ska_utils import AppConfig, get_telemetry
 
-from sk_agents.a2a import A2AAgentExecutor
-from sk_agents.configs import (
-    TA_AGENT_BASE_URL,
-    TA_PROVIDER_ORG,
-    TA_PROVIDER_URL,
-)
 from sk_agents.ska_types import (
     BaseConfig,
     BaseHandler,
@@ -22,113 +12,10 @@ from sk_agents.ska_types import (
     PartialResponse,
 )
 from sk_agents.skagents import handle as skagents_handle
-from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
-from sk_agents.state import StateManager
 from sk_agents.utils import docstring_parameter, get_sse_event_for_response
 
 
 class Routes:
-    @staticmethod
-    def get_url(name: str, version: str, app_config: AppConfig) -> str:
-        base_url = app_config.get(TA_AGENT_BASE_URL.env_name)
-        if not base_url:
-            raise ValueError("Base URL is not provided in the app config.")
-        return f"{base_url}/{name}/{version}/a2a"
-
-    @staticmethod
-    def get_provider(app_config: AppConfig) -> AgentProvider:
-        return AgentProvider(
-            organization=app_config.get(TA_PROVIDER_ORG.env_name),
-            url=app_config.get(TA_PROVIDER_URL.env_name),
-        )
-
-    @staticmethod
-    def get_agent_card(config: BaseConfig, app_config: AppConfig) -> AgentCard:
-        if config.metadata is None:
-            raise ValueError("Agent card metadata is not provided in the config.")
-
-        metadata = config.metadata
-        skills = [
-            AgentSkill(
-                id=skill.id,
-                name=skill.name,
-                description=skill.description,
-                tags=skill.tags,
-                examples=skill.examples,
-                inputModes=skill.input_modes,
-                outputModes=skill.output_modes,
-            )
-            for skill in metadata.skills
-        ]
-        return AgentCard(
-            name=config.name,
-            version=str(config.version),
-            description=metadata.description,
-            url=Routes.get_url(config.name, config.version, app_config),
-            provider=Routes.get_provider(app_config),
-            documentationUrl=config.metadata.documentation_url,
-            capabilities=AgentCapabilities(
-                streaming=True, pushNotifications=False, stateTransitionHistory=True
-            ),
-            defaultInputModes=["text"],
-            defaultOutputModes=["text"],
-            skills=skills,
-        )
-
-    @staticmethod
-    def get_request_handler(
-        config: BaseConfig,
-        app_config: AppConfig,
-        chat_completion_builder: ChatCompletionBuilder,
-        state_manager: StateManager,
-        task_store: TaskStore,
-    ) -> DefaultRequestHandler:
-        return DefaultRequestHandler(
-            agent_executor=A2AAgentExecutor(
-                config, app_config, chat_completion_builder, state_manager
-            ),
-            task_store=task_store,
-        )
-
-    @staticmethod
-    def get_a2a_routes(
-        name: str,
-        version: str,
-        description: str,
-        config: BaseConfig,
-        app_config: AppConfig,
-        chat_completion_builder: ChatCompletionBuilder,
-        task_store: TaskStore,
-        state_manager: StateManager,
-    ) -> APIRouter:
-        a2a_app = A2AStarletteApplication(
-            agent_card=Routes.get_agent_card(config, app_config),
-            http_handler=Routes.get_request_handler(
-                config, app_config, chat_completion_builder, state_manager, task_store
-            ),
-        )
-        a2a_router = APIRouter()
-
-        @a2a_router.post("")
-        @docstring_parameter(description)
-        async def handle_a2a(request: Request):
-            """
-            {0}
-
-            Agent-to-Agent Invocation
-            """
-            return await a2a_app._handle_requests(request)
-
-        @a2a_router.get("/.well-known/agent.json")
-        @docstring_parameter(f"{name}:{version} - {description}")
-        async def handle_get_agent_card(request: Request):
-            """
-            Retrieve agent card for {0}
-            """
-            return await a2a_app._handle_get_agent_card(request)
-
-        return a2a_router
-
     @staticmethod
     def get_rest_routes(
         name: str,
@@ -162,7 +49,9 @@ class Routes:
             ):
                 match root_handler_name:
                     case "skagents":
-                        handler: BaseHandler = skagents_handle(config, app_config, authorization)
+                        handler: BaseHandler = skagents_handle(
+                            config, app_config, authorization
+                        )
                     case _:
                         raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
 
@@ -172,7 +61,9 @@ class Routes:
 
         @router.post("/sse")
         @docstring_parameter(description)
-        async def invoke_sse(inputs: input_class, request: Request) -> StreamingResponse:
+        async def invoke_sse(
+            inputs: input_class, request: Request
+        ) -> StreamingResponse:
             """
             {0}
             Initiate SSE call
@@ -197,7 +88,9 @@ class Routes:
                                 config, app_config, authorization
                             )
                             # noinspection PyTypeChecker
-                            async for content in handler.invoke_stream(inputs=inv_inputs):
+                            async for content in handler.invoke_stream(
+                                inputs=inv_inputs
+                            ):
                                 yield get_sse_event_for_response(content)
                         case _:
                             raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
@@ -242,7 +135,9 @@ class Routes:
                                 config, app_config, authorization
                             )
                             # noinspection PyTypeChecker
-                            async for content in handler.invoke_stream(inputs=inv_inputs):
+                            async for content in handler.invoke_stream(
+                                inputs=inv_inputs
+                            ):
                                 if isinstance(content, PartialResponse):
                                     await websocket.send_text(content.output_partial)
                             await websocket.close()

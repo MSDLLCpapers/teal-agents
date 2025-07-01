@@ -70,7 +70,7 @@ def test_parse_ta_env_store_invalid_json():
 
 
 def test_parse_ta_env_global_store_valid_json():
-    with patch.dict(os.environ, {"TA_ENV_STORE": '{"KEY1": "value1", "KEY2": "value2"}'}):
+    with patch.dict(os.environ, {"TA_ENV_GLOBAL_STORE": '{"KEY1": "value1", "KEY2": "value2"}'}):
         app_config = AppConfig()
         app_config._parse_ta_env_global_store()
         assert os.getenv("KEY1") == "value1"
@@ -78,7 +78,7 @@ def test_parse_ta_env_global_store_valid_json():
 
 
 def test_parse_ta_env_global_store_invalid_json():
-    with patch.dict(os.environ, {"TA_ENV_STORE": '{"KEY1": "value1", "KEY2": value2}'}):
+    with patch.dict(os.environ, {"TA_ENV_GLOBAL_STORE": '{"KEY1": "value1", "KEY2": value2}'}):
         app_config = AppConfig()
         with pytest.raises(json.JSONDecodeError):
             app_config._parse_ta_env_global_store()

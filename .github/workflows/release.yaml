@@ -67,12 +67,22 @@ jobs:
           git tag -a "${{ steps.version_tag.outputs.TAG }}" -m "Release ${{ steps.version_tag.outputs.TAG }}"
           git commit -am "bump version [skip ci]"
           git push --set-upstream origin ${{ github.ref_name }} --follow-tags
-          git pull
+      - name: Build ska-utils python pkg
+        working-directory: ./shared/ska_utils
+        run: |
+          make sync
+          uv build
+      - name: Build sk-agents python pkg
+        working-directory: ./src/sk-agents
+        run: |
+          make sync
+          uv build
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.version_tag.outputs.TAG }}
           name: Release ${{ steps.version_tag.outputs.TAG }}
+          artifacts: 'shared/ska_utils/dist/*.whl,src/sk-agents/dist/*.whl'
           generateReleaseNotes: true
 
   build-teal-agents:
@@ -143,3 +153,54 @@ jobs:
         run: |
           docker push ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.services }}
           docker push ghcr.io/teal-agents/ao-services:latest
+
+  next-dev-version:
+    runs-on: ubuntu-latest
+    needs: [release, build-teal-agents, build-ao, build-ao-services]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ssh-key: ${{ secrets.TEAL_AGENTS_BOT }}
+          persist-credentials: true
+          fetch-depth: 0
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Pull release versions
+        run: |
+          git checkout ${{ github.ref_name }}
+          git pull origin ${{ github.ref_name }}
+      - name: Update ska-utils version
+        working-directory: ./shared/ska_utils
+        run: |
+          make sync
+          uv run hatch version patch,dev
+          VERSION=$( uv run hatch version )
+      - name: Update sk-agents version
+        working-directory: ./src/sk-agents
+        run: |
+          make sync
+          uv run hatch version patch,dev
+          VERSION=$( uv run hatch version )
+      - name: Update ao version
+        working-directory: ./src/orchestrators/assistant-orchestrator/orchestrator
+        run: |
+          make sync
+          uv run hatch version patch,dev
+          VERSION=$( uv run hatch version )
+      - name: Update ao-services version
+        working-directory: ./src/orchestrators/assistant-orchestrator/services
+        run: |
+          make sync
+          uv run hatch version patch,dev
+          VERSION=$( uv run hatch version )
+      - name: Push version bumps
+        run: |
+          git config --global user.name "Teal Agents Bot"
+          git config --global user.email " "
+          git commit -am "bump dev version [skip ci]"
+          git push --set-upstream origin ${{ github.ref_name }}

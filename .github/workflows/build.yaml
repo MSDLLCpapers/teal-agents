@@ -23,6 +23,7 @@ jobs:
       agents: ${{ steps.filter.outputs.agents }}
       ao: ${{ steps.filter.outputs.ao }}
       services: ${{ steps.filter.outputs.services }}
+      co: ${{ steps.filter.outputs.co }}
     steps:
     - uses: actions/checkout@v4
       with:

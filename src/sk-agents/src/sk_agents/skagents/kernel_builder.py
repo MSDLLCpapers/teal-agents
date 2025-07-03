@@ -1,3 +1,5 @@
+import logging
+
 from semantic_kernel.kernel import Kernel
 from ska_utils import AppConfig
 
@@ -20,6 +22,7 @@ class KernelBuilder:
         self.remote_plugin_loader = remote_plugin_loader
         self.app_config: AppConfig = app_config
         self.authorization = authorization
+        self.logger = logging.getLogger(__name__)
 
     def build_kernel(
         self,
@@ -30,32 +33,48 @@ class KernelBuilder:
         authorization: str | None = None,
         extra_data_collector: ExtraDataCollector | None = None,
     ) -> Kernel:
-        kernel = self._create_base_kernel(model_name, service_id)
-        kernel = self._parse_plugins(plugins, kernel, authorization, extra_data_collector)
-        return self._load_remote_plugins(remote_plugins, kernel)
+        try:
+            kernel = self._create_base_kernel(model_name, service_id)
+            kernel = self._parse_plugins(plugins, kernel, authorization, extra_data_collector)
+            return self._load_remote_plugins(remote_plugins, kernel)
+        except Exception as e:
+            self.logger.exception(f"Could build kernel with service ID {service_id}. - {e}")
+            raise
 
     def get_model_type_for_name(self, model_name: str) -> ModelType:
-        return self.chat_completion_builder.get_model_type_for_name(model_name)
+        try:
+            return self.chat_completion_builder.get_model_type_for_name(model_name)
+        except Exception as e:
+            self.logger.exception(f"Could not get model type for {model_name}. - {e}")
+            raise
 
     def model_supports_structured_output(self, model_name: str) -> bool:
         return self.chat_completion_builder.model_supports_structured_output(model_name)
 
     def _create_base_kernel(self, model_name: str, service_id: str) -> Kernel:
-        chat_completion = self.chat_completion_builder.get_chat_completion_for_model(
-            service_id=service_id,
-            model_name=model_name,
-        )
+        try:
+            chat_completion = self.chat_completion_builder.get_chat_completion_for_model(
+                service_id=service_id,
+                model_name=model_name,
+            )
 
-        kernel = Kernel()
-        kernel.add_service(chat_completion)
+            kernel = Kernel()
+            kernel.add_service(chat_completion)
 
-        return kernel
+            return kernel
+        except Exception as e:
+            self.logger.exception(f"Could not create base kernel with service id {service_id}.-{e}")
+            raise
 
     def _load_remote_plugins(self, remote_plugins: list[str], kernel: Kernel) -> Kernel:
         if remote_plugins is None or len(remote_plugins) < 1:
             return kernel
-        self.remote_plugin_loader.load_remote_plugins(kernel, remote_plugins)
-        return kernel
+        try:
+            self.remote_plugin_loader.load_remote_plugins(kernel, remote_plugins)
+            return kernel
+        except Exception as e:
+            self.logger.exception(f"Could not load remote plugings. -{e}")
+            raise
 
     @staticmethod
     def _parse_plugins(

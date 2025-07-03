@@ -1,7 +1,7 @@
 on:
   push:
     branches:
-      - feature/build-co-image-workflows
+      - main
     paths:
       - .github/workflows/build.yaml
       - teal-agents.Dockerfile

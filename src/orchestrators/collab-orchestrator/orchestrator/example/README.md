@@ -8,7 +8,7 @@ The Collab Orchestrator is a service designed to coordinate and manage various A
 
 Before you begin, ensure you have the following installed on your system:
 
-  * **[Docker Desktop](https://www.docker.com/products/docker-desktop/)**: Includes Docker Engine and Docker Compose.
+  * **[Rancher Desktop](https://rancherdesktop.io/)**: Includes Docker Engine and Docker Compose.
   * **Make**: (Commonly pre-installed on Linux and macOS. For Windows, consider using Git Bash or MinGW which includes `make`).
   * **OpenAI API Key**: This is required for the orchestrator's GPT integration.
 
@@ -25,7 +25,7 @@ Follow these steps to get the Collab Orchestrator and its dependencies running:
     ```
 
 2.  **Access the Docker Compose Directory**
-    Change your current working directory to where the main `docker-compose.yml` for the orchestrator examples is located:
+    Change your current working directory to where the main `compose.yaml` for the orchestrator examples is located:
 
     ```bash
     cd src/orchestrators/collab-orchestrator/orchestrator/example
@@ -46,7 +46,7 @@ Follow these steps to get the Collab Orchestrator and its dependencies running:
     Follow the prompts in your terminal to enter your GPT API key.
 
 4.  **Start Services**
-    Initiate all services defined in the `docker-compose.yml` file.
+    Initiate all services defined in the `compose.yaml` file.
 
     ```bash
     make all-up

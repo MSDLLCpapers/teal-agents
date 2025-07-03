@@ -35,6 +35,11 @@ jobs:
         run: |
           make sync
           make lint
+      - name: lint co
+        working-directory: ./src/orchestrators/collab-orchestrator/orchestrator
+        run: |
+          make sync
+          make lint
 
   typecheck:
     runs-on: ubuntu-latest
@@ -77,6 +82,11 @@ jobs:
           make coverage
       - name: test ao-services
         working-directory: ./src/orchestrators/assistant-orchestrator/services
+        run: |
+          make sync
+          make coverage
+      - name: test co
+        working-directory: ./src/orchestrators/collab-orchestrator/orchestrator
         run: |
           make sync
           make coverage

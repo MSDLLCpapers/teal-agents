@@ -52,6 +52,8 @@ def get_token_usage_for_response(model_type: ModelType, content: ChatMessageCont
             return get_token_usage_for_openai_response(content)
         elif model_type == ModelType.ANTHROPIC:
             return get_token_usage_for_anthropic_response(content)
+        elif model_type == ModelType.GOOGLE:
+            return get_token_usage_for_google_response(content)
     return TokenUsage(completion_tokens=0, prompt_tokens=0, total_tokens=0)
 
 
@@ -67,6 +69,18 @@ def get_token_usage_for_openai_response(content: ChatMessageContent) -> TokenUsa
 
 
 def get_token_usage_for_anthropic_response(
+    content: ChatMessageContent,
+) -> TokenUsage:
+    return TokenUsage(
+        completion_tokens=content.inner_content.usage.output_tokens,
+        prompt_tokens=content.inner_content.usage.input_tokens,
+        total_tokens=(
+            content.inner_content.usage.output_tokens + content.inner_content.usage.input_tokens
+        ),
+    )
+
+
+def get_token_usage_for_google_response(
     content: ChatMessageContent,
 ) -> TokenUsage:
     return TokenUsage(

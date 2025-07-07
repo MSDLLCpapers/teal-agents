@@ -1,5 +1,5 @@
-# Use a slim Python 3.11 base image
-FROM python:3.11-slim
+# Use a slim Python 3.13 base image
+FROM python:3.13-slim
 
 # Install necessary system packages
 RUN apt-get update \

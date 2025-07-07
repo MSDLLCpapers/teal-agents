@@ -38,6 +38,6 @@ but rather, provide different orchestrators which can be used for different
 scenarios, appropriately.
 
 ## Orchestrator Types
-At present, we have only thought through and developed a single style of
-orchestrator, the Assistant Orchestrator. For more information on this
-orchestrator, see its [README.md](assistant-orchestrator/README.md).
+[Assistant Orchestrator](assistant-orchestrator/README.md)
+
+[Collab Orchestrator](collab-orchestrator/orchestrator/README.md)

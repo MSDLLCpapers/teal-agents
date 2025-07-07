@@ -6,7 +6,6 @@ description: >
 service_name: CollaborationOrchestrator
 version: 0.1
 spec:
-  stream_tokens: false
   max_rounds: 10
   manager_agent: TeamManagerAgent:0.1
   agents:

@@ -29,6 +29,28 @@ class StepExecutor:
     def _task_to_pre_requisite(task: ExecutableTask) -> PreRequisite:
         return PreRequisite(goal=task.task_goal, result=task.result)
 
+    async def _execute_task(self, session_id: str, task: ExecutableTask) -> InvokeResponse:
+        with (
+            self.t.tracer.start_as_current_span(
+                name="execute-task",
+                attributes={"task": task.task_id, "goal": task.task_goal},
+            )
+            if self.t.telemetry_enabled()
+            else nullcontext()
+        ):
+            task_agent = self.task_agents[task.task_agent]
+            if not task_agent:
+                raise ValueError(f"Task agent {task.task_agent} not found.")
+            pre_requisites: list[PreRequisite] = [
+                StepExecutor._task_to_pre_requisite(self.task_accumulator[pre_requisite])
+                for pre_requisite in task.prerequisite_tasks
+            ]
+            response = await task_agent.perform_task(session_id, task.task_goal, pre_requisites)
+            task.result = response.output_raw
+            task.status = TaskStatus.DONE
+            self.task_accumulator[task.task_id] = task
+            return response
+
     async def _execute_task_sse(
         self, session_id: str, source: str, request_id: str, task: ExecutableTask
     ) -> AsyncIterable[str]:
@@ -68,6 +90,43 @@ class StepExecutor:
                             request_id=request_id,
                             status_code=500,
                             detail=f"Unknown response type - {str(content)}",
+                        ),
+                    )
+
+    async def execute_step(
+        self, session_id: str, source: str, request_id: str, step: Step
+    ) -> AsyncIterable[str]:
+        with (
+            self.t.tracer.start_as_current_span(
+                name="execute-step", attributes={"step": str(step.step_number)}
+            )
+            if self.t.telemetry_enabled()
+            else nullcontext()
+        ):
+            for task in step.step_tasks:
+                yield new_event_response(
+                    EventType.AGENT_REQUEST,
+                    AgentRequestEvent(
+                        session_id=session_id,
+                        source=source,
+                        request_id=request_id,
+                        task_id=task.task_id,
+                        agent_name=task.task_agent,
+                        task_goal=task.task_goal,
+                    ),
+                )
+                try:
+                    response = await self._execute_task(session_id, task)
+                    yield new_event_response(EventType.FINAL_RESPONSE, response)
+                except Exception as e:
+                    yield new_event_response(
+                        EventType.ERROR,
+                        ErrorResponse(
+                            session_id=session_id,
+                            source=source,
+                            request_id=request_id,
+                            status_code=500,
+                            detail=str(e),
                         ),
                     )
 

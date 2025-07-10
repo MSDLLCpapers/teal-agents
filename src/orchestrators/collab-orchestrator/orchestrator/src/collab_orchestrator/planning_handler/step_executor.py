@@ -38,7 +38,7 @@ class StepExecutor:
             if self.t.telemetry_enabled()
             else nullcontext()
         ):
-            task_agent = self.task_agents[task.task_agent]
+            task_agent = self.task_agents.get(task.task_agent)
             if not task_agent:
                 raise ValueError(f"Task agent {task.task_agent} not found.")
             pre_requisites: list[PreRequisite] = [
@@ -62,7 +62,7 @@ class StepExecutor:
             if self.t.telemetry_enabled()
             else nullcontext()
         ):
-            task_agent = self.task_agents[task.task_agent]
+            task_agent = self.task_agents.get(task.task_agent)
             if not task_agent:
                 raise ValueError(f"Task agent {task.task_agent} not found.")
             pre_requisites: list[PreRequisite] = [

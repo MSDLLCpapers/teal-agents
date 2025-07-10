@@ -96,7 +96,7 @@ overrides = [
 
 [tool.coverage.run]
 source = ["src/collab_orchestrator"]
-omit = ["*/tests/*", "test_*", "__init__.py"]
+omit = ["*/tests/*", "test_*", "__init__.py", "__about__.py"]
 
 [tool.coverage.report]
 show_missing = true

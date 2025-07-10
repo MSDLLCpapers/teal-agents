@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from ska_utils import ModuleLoader
@@ -17,11 +18,17 @@ class PluginLoader:
     def set_plugin_module(self, plugin_module: str | None):
         self.plugin_module = plugin_module
         if self.plugin_module:
-            self.custom_module = ModuleLoader.load_module(plugin_module)
+            try:
+                self.custom_module = ModuleLoader.load_module(plugin_module)
+            except (FileNotFoundError, ImportError, AttributeError, SyntaxError) as e:
+                logging.exception(f"Failed to load module '{plugin_module}': {e}")
+                raise ImportError(f"Cannot load plugin module '{plugin_module}': {e}") from e
         else:
             self.custom_module = None
 
     def get_plugins(self, plugin_names: list[str]) -> dict[str, Any]:
+        if not self.custom_module:
+            raise RuntimeError("Custom module not loaded; cannot retrieve plugins.")
         plugins = {}
         for plugin_name in plugin_names:
             if hasattr(self.custom_module, plugin_name):

@@ -35,20 +35,14 @@ class SKAgent:
     def so_supported(self) -> bool:
         return self.model_attributes["so_supported"]
 
-    async def _invoke_function(
-        self, fc_content: FunctionCallContent
-    ) -> FunctionResultContent:
+    async def _invoke_function(self, fc_content: FunctionCallContent) -> FunctionResultContent:
         function = self.agent.kernel.get_function(
             fc_content.plugin_name,
             fc_content.function_name,
         )
-        function_result = await function(
-            self.agent.kernel, fc_content.to_kernel_arguments()
-        )
-        function_result_content = (
-            FunctionResultContent.from_function_call_content_and_result(
-                fc_content, function_result
-            )
+        function_result = await function(self.agent.kernel, fc_content.to_kernel_arguments())
+        function_result_content = FunctionResultContent.from_function_call_content_and_result(
+            fc_content, function_result
         )
         return function_result_content
 
@@ -62,9 +56,7 @@ class SKAgent:
         )
         assert isinstance(chat_completion_service, ChatCompletionClientBase)
         all_responses = []
-        async for (
-            response_list
-        ) in chat_completion_service.get_streaming_chat_message_contents(
+        async for response_list in chat_completion_service.get_streaming_chat_message_contents(
             chat_history=history,
             settings=settings,
             kernel=kernel,
@@ -74,21 +66,14 @@ class SKAgent:
                 all_responses.append(response)
                 if response.content:
                     yield response
-        full_completion: StreamingChatMessageContent = reduce(
-            lambda x, y: x + y, all_responses
-        )
+        full_completion: StreamingChatMessageContent = reduce(lambda x, y: x + y, all_responses)
         function_calls = [
-            item
-            for item in full_completion.items
-            if isinstance(item, FunctionCallContent)
+            item for item in full_completion.items if isinstance(item, FunctionCallContent)
         ]
         history.add_message(message=full_completion)
         if function_calls:
             results = await asyncio.gather(
-                *[
-                    self._invoke_function(function_call)
-                    for function_call in function_calls
-                ]
+                *[self._invoke_function(function_call) for function_call in function_calls]
             )
             for result in results:
                 history.add_message(result.to_chat_message_content())
@@ -124,10 +109,7 @@ class SKAgent:
                 yield response
         if function_calls:
             results = await asyncio.gather(
-                *[
-                    self._invoke_function(function_call)
-                    for function_call in function_calls
-                ]
+                *[self._invoke_function(function_call) for function_call in function_calls]
             )
             for result in results:
                 history.add_message(result.to_chat_message_content())

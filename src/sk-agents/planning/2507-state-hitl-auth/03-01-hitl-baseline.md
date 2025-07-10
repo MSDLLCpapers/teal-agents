@@ -1,6 +1,6 @@
 # Application State After Phases 1 & 2: Foundation for Human-in-the-Loop Implementation
 
-This document provides a comprehensive overview of the application state after completing Phases 1 and 2, as described in `02-02-state-refactor-implementation-plan.md` and `03-02-manual-tool-call-implementation-plan.md`. This overview is intended to support Phase 3 planning, which will introduce Human-in-the-Loop (HITL) functionality for selected tool calls.
+This document provides a comprehensive overview of the application state after completing Phases 1 and 2, as described in `01-02-state-refactor-implementation-plan.md` and `02-02-manual-tool-call-implementation-plan.md`. This overview is intended to support Phase 3 planning, which will introduce Human-in-the-Loop (HITL) functionality for selected tool calls.
 
 ## New Infrastructure Components
 

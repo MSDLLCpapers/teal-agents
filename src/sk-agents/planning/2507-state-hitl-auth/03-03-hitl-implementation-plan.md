@@ -1,6 +1,6 @@
 # Phase 3 Implementation Plan: Human-in-the-Loop (HITL)
 
-This document outlines the development tasks required to implement the Human-in-the-Loop (HITL) functionality as described in `04-02-hitl.md`, building upon the foundational architecture established in Phases 1 and 2.
+This document outlines the development tasks required to implement the Human-in-the-Loop (HITL) functionality as described in `03-02-hitl.md`, building upon the foundational architecture established in Phases 1 and 2.
 
 ## Task 1: Extend State Models for HITL
 

@@ -16,41 +16,57 @@ from sk_agents.ska_types import (
 )
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-AppConfig.add_configs(configs)
-app_config = AppConfig()
+try:
+    AppConfig.add_configs(configs)
+    app_config = AppConfig()
 
-config_file = app_config.get(TA_SERVICE_CONFIG.env_name)
-config: BaseConfig = parse_yaml_file_as(BaseConfig, config_file)
+    config_file = app_config.get(TA_SERVICE_CONFIG.env_name)
+    if not config_file:
+        raise FileNotFoundError(f"Configuration file not found for {TA_SERVICE_CONFIG.env_name}")
+    try:
+        config: BaseConfig = parse_yaml_file_as(BaseConfig, config_file)
+    except Exception as e:
+        logger.exception(f"Failed to parse YAML configuration. -{e}")
+        raise
 
-(root_handler, api_version) = config.apiVersion.split("/")
+    try:
+        (root_handler, api_version) = config.apiVersion.split("/")
+    except ValueError:
+        logger.exception("Invalid API version format")
+        raise
 
-name: str | None = None
-version = str(config.version)
+    name: str | None = None
+    version = str(config.version)
 
-is_v2 = False
-if api_version == "v2alpha1":
-    is_v2 = True
-    name = config.name
-else:
-    name = config.service_name
+    is_v2 = False
+    if api_version == "v2alpha1":
+        is_v2 = True
+        name = config.name
+    else:
+        name = config.service_name
 
-if not name:
-    raise ValueError("Service name is not defined in the configuration file.")
-if not version:
-    raise ValueError("Service version is not defined in the configuration file.")
+    if not name:
+        raise ValueError("Service name is not defined in the configuration file.")
+    if not version:
+        raise ValueError("Service version is not defined in the configuration file.")
 
-initialize_telemetry(f"{name}-{version}", app_config)
+    initialize_telemetry(f"{name}-{version}", app_config)
 
-app = FastAPI(
-    openapi_url=f"/{name}/{version}/openapi.json",
-    docs_url=f"/{name}/{version}/docs",
-    redoc_url=f"/{name}/{version}/redoc",
-)
-# noinspection PyTypeChecker
-app.add_middleware(TelemetryMiddleware, st=get_telemetry())
+    app = FastAPI(
+        openapi_url=f"/{name}/{version}/openapi.json",
+        docs_url=f"/{name}/{version}/docs",
+        redoc_url=f"/{name}/{version}/redoc",
+    )
+    # noinspection PyTypeChecker
+    app.add_middleware(TelemetryMiddleware, st=get_telemetry())
 
-if is_v2:
-    AppV2.run(name, version, app_config, config, app)
-else:
-    AppV1.run(name, version, app_config, config, app)
+    if is_v2:
+        AppV2.run(name, version, app_config, config, app)
+    else:
+        AppV1.run(name, version, app_config, config, app)
+
+except Exception as e:
+    logger.exception(f"Application failed to start due to an error. -{e}")
+    raise

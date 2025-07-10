@@ -53,6 +53,7 @@ class BaseConfig(BaseModel):
 class ModelType(Enum):
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
+    GOOGLE = "google"
 
 
 class ContentType(Enum):

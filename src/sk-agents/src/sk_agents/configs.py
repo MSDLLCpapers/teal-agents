@@ -53,6 +53,17 @@ TA_REDIS_TTL = Config(env_name="TA_REDIS_TTL", is_required=False, default_value=
 TA_REDIS_SSL = Config(env_name="TA_REDIS_SSL", is_required=False, default_value="true")
 TA_REDIS_PWD = Config(env_name="TA_REDIS_PWD", is_required=False, default_value=None)
 
+TA_PERSISTENCE_MODULE = Config(
+    env_name="TA_PERSISTENCE_MODULE",
+    is_required=True,
+    default_value="persistence/in_memory_persistence_manager.py",
+)
+TA_PERSISTENCE_CLASS = Config(
+    env_name="TA_PERSISTENCE_CLASS",
+    is_required=True,
+    default_value="InMemoryPersistenceManager",
+)
+
 configs: list[Config] = [
     TA_API_KEY,
     TA_SERVICE_CONFIG,
@@ -74,4 +85,6 @@ configs: list[Config] = [
     TA_REDIS_TTL,
     TA_REDIS_SSL,
     TA_REDIS_PWD,
+    TA_PERSISTENCE_MODULE,
+    TA_PERSISTENCE_CLASS,
 ]

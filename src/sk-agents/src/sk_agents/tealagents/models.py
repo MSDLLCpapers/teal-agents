@@ -2,7 +2,8 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
-from ska_types import ExtraData, MultiModalItem, TokenUsage
+
+from src.sk_agents.ska_types import ExtraData, MultiModalItem, TokenUsage
 
 
 class UserMessage(BaseModel):

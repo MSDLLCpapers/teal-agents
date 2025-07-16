@@ -126,7 +126,7 @@ def test_get_sse_event_known_responses(dummy_response_objects):
 
         # Check some key fields exist in the JSON string:
         data_json = response.model_dump_json()
-        for key in response.model_fields:
+        for key in response.__class__.model_fields:
             assert str(getattr(response, key, "")) in data_json or key in data_json
 
 

@@ -14,8 +14,11 @@ from sk_agents.ska_types import (
     PartialResponse,
     TokenUsage,
 )
-from sk_agents.tealagents.v1alpha1 import AgentBuilder
 from sk_agents.tealagents.v1alpha1.agent.config import Config
+
+#had a circular import issue in the tests/test_in_memory_persistence_manager.py
+#need to be careful when working on ticket CDW-917
+from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
 from sk_agents.tealagents.v1alpha1.utils import (
     get_token_usage_for_response,
     parse_chat_history,

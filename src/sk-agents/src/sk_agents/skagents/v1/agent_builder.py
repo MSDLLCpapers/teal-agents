@@ -40,6 +40,9 @@ class AgentBuilder:
 
         settings = kernel.get_prompt_execution_settings_from_service_id(agent_config.name)
         settings.function_choice_behavior = FunctionChoiceBehavior.Auto()
+        if agent_config.temperature:
+            settings.extension_data = {"temperature": float(agent_config.temperature)}
+            settings.unpack_extension_data()
         if so_supported and output_type:
             type_loader = get_type_loader()
             settings.response_format = type_loader.get_type(output_type)

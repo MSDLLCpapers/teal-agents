@@ -42,7 +42,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.version]
-path = "src/collab_orchestrator/__init__.py"
+path = "src/collab_orchestrator/__about__.py"
 fallback-version = "0.0.0"
 
 [tool.hatch.metadata]
@@ -96,7 +96,7 @@ overrides = [
 
 [tool.coverage.run]
 source = ["src/collab_orchestrator"]
-omit = ["*/tests/*", "test_*", "__init__.py"]
+omit = ["*/tests/*", "test_*", "__init__.py", "__about__.py"]
 
 [tool.coverage.report]
 show_missing = true
@@ -108,3 +108,7 @@ exclude_also = [
     "raise NotImplementedError",
     "logger.debug",
 ]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "session"
+asyncio_mode = "auto"

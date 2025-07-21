@@ -46,6 +46,7 @@ class PlanningHandler(KindHandler):
         )
         self.plan_manager = None
         self.planning_agent = None
+        self.stream_tokens = False
         # Begin HITL support
         self.hitl = bool(getattr(config.spec, "human_in_the_loop", False))
         self.timeout = int(getattr(config.spec, "hitl_timeout", 0) or 0)
@@ -63,6 +64,7 @@ class PlanningHandler(KindHandler):
         planning_agent_base = await self.base_agent_builder.build_agent(spec.planning_agent)
         self.planning_agent = PlanningAgent(agent=planning_agent_base, gateway=self.agent_gateway)
         self.plan_manager = PlanManager(self.planning_agent)
+        self.stream_tokens = spec.stream_tokens
 
     async def invoke(self, chat_history: BaseMultiModalInput, request: str) -> AsyncIterable:
         session_id: str
@@ -148,10 +150,16 @@ class PlanningHandler(KindHandler):
                 step_executor = StepExecutor(self.task_agents)
                 for step in plan.steps:
                     try:
-                        async for result in step_executor.execute_step_sse(
-                            session_id, source, request_id, step
-                        ):
-                            yield result
+                        if self.stream_tokens:
+                            async for result in step_executor.execute_step_sse(
+                                session_id, source, request_id, step
+                            ):
+                                yield result
+                        else:
+                            async for result in step_executor.execute_step(
+                                session_id, source, request_id, step
+                            ):
+                                yield result
                     except Exception as e:
                         yield new_event_response(
                             EventType.ERROR,

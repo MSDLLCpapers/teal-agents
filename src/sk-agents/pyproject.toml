@@ -116,3 +116,7 @@ exclude_also = [
 
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore::pydantic.warnings.PydanticDeprecatedSince211",
+    "ignore:The `__get_pydantic_core_schema__` method of the `BaseModel` class is deprecated:DeprecationWarning"
+]

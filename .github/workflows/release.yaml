@@ -1,0 +1,245 @@
+name: release
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.version_tag.outputs.TAG }}
+      agents: ${{ steps.version_teal_agents.outputs.VERSION }}
+      ao: ${{ steps.version_ao.outputs.VERSION }}
+      services: ${{ steps.version_ao_services.outputs.VERSION }}
+      co: ${{ steps.version_co.outputs.VERSION }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ssh-key: ${{ secrets.TEAL_AGENTS_BOT }}
+          persist-credentials: true
+          fetch-depth: 0
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Get overall version tag
+        id: version_tag
+        working-directory: ./shared/ska_utils
+        run: |
+          make sync
+          uv run hatch version release
+          VERSION=$( uv run hatch version )
+          echo "TAG=v$VERSION" >> $GITHUB_OUTPUT
+      - name: Get teal-agents release version
+        id: version_teal_agents
+        working-directory: ./src/sk-agents
+        run: |
+          make sync
+          uv run hatch version release
+          VERSION=$( uv run hatch version)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Teal-agents release version: $VERSION"
+      - name: Get ao release version
+        id: version_ao
+        working-directory: ./src/orchestrators/assistant-orchestrator/orchestrator
+        run: |
+          make sync
+          uv run hatch version release
+          VERSION=$( uv run hatch version )
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "AO release version: $VERSION"
+      - name: Get ao-services release version
+        id: version_ao_services
+        working-directory: ./src/orchestrators/assistant-orchestrator/services
+        run: |
+          make sync
+          uv run hatch version release
+          VERSION=$( uv run hatch version )
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "AO-services release version: $VERSION"
+      - name: Get co release version
+        id: version_co
+        working-directory: ./src/orchestrators/collab-orchestrator/orchestrator
+        run: |
+          make sync
+          uv run hatch version release
+          VERSION=$( uv run hatch version )
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "CO release version: $VERSION"
+      - name: Push release updates
+        run: |
+          git checkout ${{ github.ref_name }}
+          git config --global user.name "Teal Agents Bot"
+          git config --global user.email " "
+          git tag -a "${{ steps.version_tag.outputs.TAG }}" -m "Release ${{ steps.version_tag.outputs.TAG }}"
+          git commit -am "bump version [skip ci]"
+          git push --set-upstream origin ${{ github.ref_name }} --follow-tags
+      - name: Build ska-utils python pkg
+        working-directory: ./shared/ska_utils
+        run: |
+          make sync
+          uv build
+      - name: Build sk-agents python pkg
+        working-directory: ./src/sk-agents
+        run: |
+          make sync
+          uv build
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.version_tag.outputs.TAG }}
+          name: Release ${{ steps.version_tag.outputs.TAG }}
+          artifacts: 'shared/ska_utils/dist/*.whl,src/sk-agents/dist/*.whl'
+          generateReleaseNotes: true
+
+  build-teal-agents:
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.agents }} -f teal-agents.Dockerfile .
+          docker tag ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.agents }} ghcr.io/teal-agents/teal-agents:latest
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/teal-agents/teal-agents:${{ needs.release.outputs.agents }}
+          docker push ghcr.io/teal-agents/teal-agents:latest
+
+  build-ao:
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/teal-agents/ao:${{ needs.release.outputs.ao }} -f ao.Dockerfile .
+          docker tag ghcr.io/teal-agents/ao:${{ needs.release.outputs.ao }} ghcr.io/teal-agents/ao:latest
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/teal-agents/ao:${{ needs.release.outputs.ao }}
+          docker push ghcr.io/teal-agents/ao:latest
+
+  build-ao-services:
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.services }} -f ao-services.Dockerfile .
+          docker tag ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.services }} ghcr.io/teal-agents/ao-services:latest
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/teal-agents/ao-services:${{ needs.release.outputs.services }}
+          docker push ghcr.io/teal-agents/ao-services:latest
+
+  build-co:
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/teal-agents/co:${{ needs.release.outputs.co }} -f co.Dockerfile .
+          docker tag ghcr.io/teal-agents/co:${{ needs.release.outputs.co }} ghcr.io/teal-agents/co:latest
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/teal-agents/co:${{ needs.release.outputs.co }}
+          docker push ghcr.io/teal-agents/co:latest
+
+  next-dev-version:
+    runs-on: ubuntu-latest
+    needs: [release, build-teal-agents, build-ao, build-ao-services, build-co]
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ssh-key: ${{ secrets.TEAL_AGENTS_BOT }}
+          persist-credentials: true
+          fetch-depth: 0
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Pull release versions
+        run: |
+          git checkout ${{ github.ref_name }}
+          git pull origin ${{ github.ref_name }}
+      - name: Update ska-utils version
+        working-directory: ./shared/ska_utils
+        run: |
+          make sync
+          uv run hatch version patch,dev
+          VERSION=$( uv run hatch version )
+      - name: Update sk-agents version
+        working-directory: ./src/sk-agents
+        run: |
+          make sync
+          uv run hatch version patch,dev
+          VERSION=$( uv run hatch version )
+      - name: Update ao version
+        working-directory: ./src/orchestrators/assistant-orchestrator/orchestrator
+        run: |
+          make sync
+          uv run hatch version patch,dev
+          VERSION=$( uv run hatch version )
+      - name: Update ao-services version
+        working-directory: ./src/orchestrators/assistant-orchestrator/services
+        run: |
+          make sync
+          uv run hatch version patch,dev
+          VERSION=$( uv run hatch version )
+      - name: Update co version
+        working-directory: ./src/orchestrators/collab-orchestrator/orchestrator
+        run: |
+          make sync
+          uv run hatch version patch,dev
+          VERSION=$( uv run hatch version )
+      - name: Push version bumps
+        run: |
+          git config --global user.name "Teal Agents Bot"
+          git config --global user.email " "
+          git commit -am "bump dev version [skip ci]"
+          git push --set-upstream origin ${{ github.ref_name }}

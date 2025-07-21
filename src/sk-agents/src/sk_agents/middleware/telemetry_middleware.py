@@ -7,7 +7,7 @@ from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoin
 
 
 class TelemetryMiddleware(BaseHTTPMiddleware):
-    _telemetry_excluded_paths: list[str] = ["/openapi.json"]
+    _telemetry_excluded_path_suffixes: list[str] = ["/openapi.json"]
 
     def __init__(self, app: FastAPI, st: Telemetry):
         super().__init__(app)
@@ -20,7 +20,10 @@ class TelemetryMiddleware(BaseHTTPMiddleware):
                 f"{request.method} {request.url.path}", context=context
             )
             if self.st.telemetry_enabled()
-            and request.url.path not in self._telemetry_excluded_paths
+            and not any(
+                request.url.path.endswith(suffix)
+                for suffix in self._telemetry_excluded_path_suffixes
+            )
             else nullcontext()
         ):
             response = await call_next(request)

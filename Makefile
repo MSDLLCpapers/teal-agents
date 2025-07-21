@@ -7,8 +7,9 @@ teal-agents :
 	@docker build ${DOCKER_FLAGS} -t teal-agents:latest -f teal-agents.Dockerfile --progress=plain .
 
 orchestrator :
-	@echo "Building Orchestrator..."
+	@echo "Building Orchestrators..."
 	@docker build ${DOCKER_FLAGS} -t ao:latest -f ao.Dockerfile --progress=plain .
+	@docker build ${DOCKER_FLAGS} -t co:latest -f co.Dockerfile --progress=plain .
 
 services :
 	@echo "Building Services..."

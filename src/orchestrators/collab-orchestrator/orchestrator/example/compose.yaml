@@ -32,6 +32,31 @@ services:
       interval: 10s
       timeout: 10s
       retries: 10
+  co:
+    image: co:latest
+    build:
+      context: ..
+      no_cache: true
+    ports:
+      - "8100:8000"
+    env_file: "../co.env"
+    volumes:
+      - ../conf:/app/src/orchestrators/collab-orchestrator/orchestrator/conf
+    profiles:
+      - "with-co"
+    depends_on:
+      kong:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      arxiv-search-agent:
+        condition: service_healthy
+      assistant-agent:
+        condition: service_healthy
+      wikipedia-agent:
+        condition: service_healthy
+      planning-agent:
+        condition: service_healthy
   manager-agent:
     image: teal-agents:latest
     ports:
@@ -46,6 +71,11 @@ services:
     env_file: "search-agent.env"
     volumes:
       - ./arxiv-search-agent:/app/src/sk-agents/agents
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/ArxivSearchAgent/0.1/openapi.json"]
+      interval: 10s
+      timeout: 2s
+      retries: 10
   assistant-agent:
     image: teal-agents:latest
     ports:
@@ -53,6 +83,11 @@ services:
     env_file: "task-agent.env"
     volumes:
       - ./assistant-agent:/app/src/sk-agents/agents
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/AssistantAgent/0.1/openapi.json"]
+      interval: 10s
+      timeout: 2s
+      retries: 10
   wikipedia-agent:
     image: teal-agents:latest
     ports:
@@ -60,6 +95,11 @@ services:
     env_file: "search-agent.env"
     volumes:
       - ./wikipedia-agent:/app/src/sk-agents/agents
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/WikipediaAgent/0.1/openapi.json"]
+      interval: 10s
+      timeout: 2s
+      retries: 10
   planning-agent:
     image: teal-agents:latest
     ports:
@@ -67,6 +107,11 @@ services:
     env_file: "planning-agent.env"
     volumes:
       - ./planning-agent:/app/src/sk-agents/agents
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/PlanningAgent/0.1/openapi.json"]
+      interval: 10s
+      timeout: 2s
+      retries: 10
   client:
     image: nginx:alpine
     ports:
@@ -79,3 +124,8 @@ services:
     ports:
       - "6379:6379"
     command: redis-server --port 6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5

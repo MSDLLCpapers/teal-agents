@@ -1,3 +1,4 @@
+import logging
 from contextlib import nullcontext
 
 from a2a.server.apps.starlette_app import A2AStarletteApplication
@@ -26,12 +27,15 @@ from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.state import StateManager
 from sk_agents.utils import docstring_parameter, get_sse_event_for_response
 
+logger = logging.getLogger(__name__)
+
 
 class Routes:
     @staticmethod
     def get_url(name: str, version: str, app_config: AppConfig) -> str:
         base_url = app_config.get(TA_AGENT_BASE_URL.env_name)
         if not base_url:
+            logger.exception("Base URL is not provided in the app config.")
             raise ValueError("Base URL is not provided in the app config.")
         return f"{base_url}/{name}/{version}/a2a"
 
@@ -45,6 +49,7 @@ class Routes:
     @staticmethod
     def get_agent_card(config: BaseConfig, app_config: AppConfig) -> AgentCard:
         if config.metadata is None:
+            logger.exception("Agent card metadata is not provided in the config.")
             raise ValueError("Agent card metadata is not provided in the config.")
 
         metadata = config.metadata
@@ -200,6 +205,7 @@ class Routes:
                             async for content in handler.invoke_stream(inputs=inv_inputs):
                                 yield get_sse_event_for_response(content)
                         case _:
+                            logger.exception(f"Unknown apiVersion: {config.apiVersion}")
                             raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
 
             return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -247,8 +253,10 @@ class Routes:
                                     await websocket.send_text(content.output_partial)
                             await websocket.close()
                         case _:
+                            logger.exception(f"Unknown apiVersion: {config.apiVersion}")
                             raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
             except WebSocketDisconnect:
+                logger.exception("websocket disconnected")
                 print("websocket disconnected")
 
         return router

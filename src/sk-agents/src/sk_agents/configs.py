@@ -46,12 +46,35 @@ TA_STATE_MANAGEMENT = Config(
     is_required=True,
     default_value="in-memory",
 )
+
+TA_AUTHORIZER_MODULE = Config(
+    env_name="TA_AUTHORIZER_MODULE",
+    is_required=False,
+    default_value=None,
+)
+TA_AUTHORIZER_CLASS = Config(
+    env_name="TA_AUTHORIZER_CLASS",
+    is_required=False,
+    default_value=None,
+)
+
 TA_REDIS_HOST = Config(env_name="TA_REDIS_HOST", is_required=False, default_value=None)
 TA_REDIS_PORT = Config(env_name="TA_REDIS_PORT", is_required=False, default_value=None)
 TA_REDIS_DB = Config(env_name="TA_REDIS_DB", is_required=False, default_value=None)
 TA_REDIS_TTL = Config(env_name="TA_REDIS_TTL", is_required=False, default_value=None)
 TA_REDIS_SSL = Config(env_name="TA_REDIS_SSL", is_required=False, default_value="true")
 TA_REDIS_PWD = Config(env_name="TA_REDIS_PWD", is_required=False, default_value=None)
+
+TA_PERSISTENCE_MODULE = Config(
+    env_name="TA_PERSISTENCE_MODULE",
+    is_required=True,
+    default_value="persistence/in_memory_persistence_manager.py",
+)
+TA_PERSISTENCE_CLASS = Config(
+    env_name="TA_PERSISTENCE_CLASS",
+    is_required=True,
+    default_value="InMemoryPersistenceManager",
+)
 
 configs: list[Config] = [
     TA_API_KEY,
@@ -74,4 +97,8 @@ configs: list[Config] = [
     TA_REDIS_TTL,
     TA_REDIS_SSL,
     TA_REDIS_PWD,
+    TA_PERSISTENCE_MODULE,
+    TA_PERSISTENCE_CLASS,
+    TA_AUTHORIZER_CLASS,
+    TA_AUTHORIZER_MODULE,
 ]

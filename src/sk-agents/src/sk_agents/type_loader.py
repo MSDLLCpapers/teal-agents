@@ -1,3 +1,5 @@
+import logging
+
 from semantic_kernel.kernel_pydantic import KernelBaseModel
 from ska_utils import ModuleLoader
 
@@ -7,6 +9,8 @@ from sk_agents.ska_types import (
     BaseInputWithUserContext,
     BaseMultiModalInput,
 )
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
 class TypeLoader:
@@ -21,12 +25,23 @@ class TypeLoader:
 
     @staticmethod
     def _parse_module_name(types_module: str) -> str:
-        return types_module.split("/")[-1].split(".")[0]
+        try:
+            return types_module.split("/")[-1].split(".")[0]
+        except Exception:
+            # Handle cases where the path format is unexpected
+            logging.exception(f"Could not parse module name from path: {types_module}")
+            raise
 
     def set_types_module(self, types_module: str | None):
         self.types_module = types_module
         if self.types_module:
-            self.custom_module = ModuleLoader.load_module(types_module)
+            try:
+                self.custom_module = ModuleLoader.load_module(types_module)
+            except (ImportError, ModuleNotFoundError) as e:
+                # If module loading fails, log the error and set custom_module to None.
+                # The loader can still function with standard types.
+                logging.exception(f"Could not load custom types module '{self.types_module}': {e}")
+                self.custom_module = None
         else:
             self.custom_module = None
 
@@ -60,6 +75,7 @@ class TypeLoader:
             self.base_types[type_name] = return_type
             return return_type
         else:
+            logging.exception(f"Output type {type_name} not found")
             raise ValueError(f"Output type {type_name} not found")
 
 

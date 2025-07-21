@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from ska_utils.singleton import Singleton
 
-logging.basicConfig(format='%(asctime)s %(levelnames)s %(message)s')
+logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=logging.INFO)
 
 
 class Config(BaseModel):
@@ -53,9 +53,9 @@ class AppConfig(metaclass=Singleton):
     def __init__(self):
         if AppConfig.configs is None:
             raise ValueError("AppConfig.configs is not initialized")
-        #create a logger
+        # create a logger
         self.logger = logging.getLogger(__name__)
-        #Configure logging levels
+        # Configure logging levels
         self.logger.setLevel(logging.INFO)
 
         load_dotenv()
@@ -72,9 +72,23 @@ class AppConfig(metaclass=Singleton):
                 self.logger.exception(f"Error parsing TA_ENV_STORE environment variable - {e}")
                 raise
 
+    def _parse_ta_env_global_store(self):
+        ta_env_global_store = os.getenv("TA_ENV_GLOBAL_STORE")
+        if ta_env_global_store:
+            try:
+                env_dict = json.loads(ta_env_global_store)
+                for key, value in env_dict.items():
+                    os.environ[key] = value
+            except json.JSONDecodeError as e:
+                self.logger.exception(
+                    f"Error parsing TA_ENV_GLOBAL_STORE environment variable - {e}"
+                )
+                raise
+
     def _reload_from_environment(self):
         try:
             self._parse_ta_env_store()
+            self._parse_ta_env_global_store()
             self.props = {}
             if AppConfig.configs is None:
                 AppConfig.configs = []

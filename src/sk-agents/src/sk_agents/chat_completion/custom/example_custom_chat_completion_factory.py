@@ -86,7 +86,7 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
         elif model_name in ExampleCustomChatCompletionFactory._GOOGLE_MODELS:
             return GoogleAIChatCompletion(
                 service_id=service_id,
-                deployment_name=ExampleCustomChatCompletionFactory._GOOGLE_MODELS[model_name],
+                deployment_name=model_name,
                 api_key=self.api_key,
             )
         else:

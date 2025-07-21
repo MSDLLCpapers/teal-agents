@@ -10,7 +10,7 @@ class UserMessage(BaseModel):
     session_id: str | None = None
     task_id: str | None = None
     items: list[MultiModalItem]
-    user_context : dict[str, str] | None = None
+    user_context: dict[str, str] | None = None
 
 
 class AgentTaskItem(BaseModel):

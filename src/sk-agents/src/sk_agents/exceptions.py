@@ -63,3 +63,11 @@ class PersistenceDeleteError(AgentsException):
 
     def __init__(self, message: str):
         self.message = message
+
+class AuthenticationException(AgentsException):
+    """Exception raised errors when authenticating users"""
+
+    message: str
+
+    def __init__(self, message: str):
+        self.message = message

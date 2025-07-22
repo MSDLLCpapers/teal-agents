@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from src.sk_agents.ska_types import ExtraData, MultiModalItem, TokenUsage
+from sk_agents.ska_types import ExtraData, MultiModalItem, TokenUsage
 
 
 class UserMessage(BaseModel):
@@ -18,6 +18,7 @@ class AgentTaskItem(BaseModel):
     item: MultiModalItem
     request_id: str
     updated: datetime
+    pending_tool_calls: list[dict] | None = None # Store serialized FunctionCallContent
 
 
 class AgentTask(BaseModel):
@@ -27,7 +28,7 @@ class AgentTask(BaseModel):
     items: list[AgentTaskItem]
     created_at: datetime
     last_updated: datetime
-    status: Literal["Running", "Paused", "Completed", "Failed"] = "Running"
+    status: Literal["Running", "Paused", "Completed", "Failed","Canceled"] = "Running"
 
 
 class TealAgentsResponse(BaseModel):
@@ -47,3 +48,12 @@ class TealAgentsPartialResponse(BaseModel):
     request_id: str
     output_partial: str
     source: str | None = None
+
+class HitlResponse(BaseModel):
+    task_id: str
+    session_id: str
+    request_id: str
+    message: str = "Human intervention required."
+    approval_url: str
+    rejection_url: str
+    tool_calls: list[dict]  # Serialized FunctionCallContent

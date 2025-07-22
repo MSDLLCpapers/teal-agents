@@ -1,5 +1,6 @@
 import logging
 import uuid
+from collections.abc import AsyncIterable
 from datetime import datetime
 
 from semantic_kernel.contents import ChatMessageContent, ImageContent, TextContent
@@ -10,11 +11,7 @@ from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
 from sk_agents.exceptions import AgentInvokeException, AuthenticationException, PersistenceLoadError
 from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
 from sk_agents.persistence.in_memory_persistence_manager import InMemoryPersistenceManager
-from sk_agents.ska_types import (
-    BaseConfig,
-    BaseHandler,
-    TokenUsage,
-)
+from sk_agents.ska_types import BaseConfig, BaseHandler, TokenUsage, ContentType
 from sk_agents.skagents.v1 import AgentBuilder
 from sk_agents.skagents.v1.chat.config import Config
 from sk_agents.skagents.v1.utils import get_token_usage_for_response, item_to_content
@@ -80,7 +77,6 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
         return agent_task
 
-    @staticmethod
     def authenticate_user(self, token: str) -> str:
         try:
             user_id = self.authorizer.authorize_request(auth_header=token)
@@ -106,10 +102,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         return session_id, task_id, request_id
 
-    @staticmethod
-    def _manage_incoming_task(self, task_id, session_id, user_id, request_id, inputs):
+    async def _manage_incoming_task(
+        self, task_id: str, session_id: str, user_id: str, request_id: str, inputs: UserMessage
+    ):
         try:
-            agent_task = self.state.load(task_id)
+            agent_task = await self.state.load(task_id)
             return agent_task
         except PersistenceLoadError:
             agent_task = TealAgentsV1Alpha1Handler._configure_agent_task(
@@ -121,23 +118,24 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 inputs=inputs,
                 status="Running",
             )
-            self.state.create(agent_task)
+            await self.state.create(agent_task)
             return agent_task
+        except Exception as e:
+            raise Exception(f"Unexpected error ocurred while managing incoming task: {e}") from e
 
-    @staticmethod
-    def _manage_agent_response_task(
+    async def _manage_agent_response_task(
         self, agent_task: AgentTask, agent_response: TealAgentsResponse
     ):
         new_item = AgentTaskItem(
             task_id=agent_response.task_id,
             role="assistant",
-            item=MultiModalItem(content_type="text", content=TealAgentsResponse.output),
+            item=MultiModalItem(content_type=ContentType.TEXT, content=TealAgentsResponse.output),
             request_id=agent_response.request_id,
             updated=datetime.now(),
         )
         agent_task.items.append(new_item)
         agent_task.last_updated = datetime.now()
-        self.state.update(agent_task)
+        await self.state.update(agent_task)
 
     @staticmethod
     def _validate_user_id(user_id: str, task_id: str, agent_task: AgentTask) -> str:
@@ -163,7 +161,9 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         # Initial setup
         user_id = self.authenticate_user(token=auth_token)
         session_id, task_id, request_id = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
-        agent_task = self._manage_incoming_task(task_id, session_id, user_id, request_id, inputs)
+        agent_task = await self._manage_incoming_task(
+            task_id, session_id, user_id, request_id, inputs
+        )
         # Check user_id match request and state
         TealAgentsV1Alpha1Handler._validate_user_id(user_id, task_id, agent_task)
 
@@ -191,6 +191,12 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 prompt_tokens += call_usage.prompt_tokens
                 total_tokens += call_usage.total_tokens
         except Exception as e:
+            logger.exception(
+                f"Error invoking {self.name}:{self.version}"
+                f"for Session ID {session_id}, Task ID {task_id}, Request ID {request_id}, "
+                f"Error message: {str(e)}",
+                exc_info=True,
+            )
             raise AgentInvokeException(
                 f"Error invoking {self.name}:{self.version}"
                 f"for Session ID {session_id}, Task ID {task_id}, Request ID {request_id}, "
@@ -210,7 +216,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             ),
             extra_data=extra_data_collector.get_extra_data(),
         )
-        self._manage_agent_response_task(agent_task, agent_response)
+        await self._manage_agent_response_task(agent_task, agent_response)
         logger.info(
             f"{self.name}:{self.version} successful invocation with {total_tokens} tokens. "
             f"Session ID: {session_id}, Task ID: {task_id}, Request ID {request_id}"
@@ -220,11 +226,13 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
     async def invoke_stream(
         self, auth_token: str, inputs: UserMessage | None = None
-    ) -> TealAgentsResponse:
+    ) -> AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse]:
         # Initial setup
         user_id = self.authenticate_user(token=auth_token)
         session_id, task_id, request_id = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
-        agent_task = self._manage_incoming_task(task_id, session_id, user_id, request_id, inputs)
+        agent_task = await self._manage_incoming_task(
+            task_id, session_id, user_id, request_id, inputs
+        )
         # Check user_id match request and state
         TealAgentsV1Alpha1Handler._validate_user_id(user_id, task_id, agent_task)
 
@@ -244,48 +252,60 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         total_tokens: int = 0
 
         # Process the final task with streaming
-
-        async for chunk in agent.invoke_stream(chat_history):
-            # Initialize content as the partial message in chunk
-            content = chunk.content
-            # Calculate usage metrics
-            call_usage = get_token_usage_for_response(agent.get_model_type(), chunk)
-            completion_tokens += call_usage.completion_tokens
-            prompt_tokens += call_usage.prompt_tokens
-            total_tokens += call_usage.total_tokens
-            try:
-                # Attempt to parse as ExtraDataPartial
-                extra_data_partial: ExtraDataPartial = ExtraDataPartial.new_from_json(content)
-                extra_data_collector.add_extra_data_items(extra_data_partial.extra_data)
-            except Exception:
-                if len(content) > 0:
-                    # Handle and return partial response
-                    final_response.append(content)
-                    yield TealAgentsPartialResponse(
-                        session_id=session_id,
-                        task_id=task_id,
-                        request_id=request_id,
-                        output_partial=content,
-                        source=f"{self.name}:{self.version}",
-                    )
-            # Persist and return response
-            final_response = "".join(final_response)
-            agent_response = TealAgentsResponse(
-                session_id=session_id,
-                task_id=task_id,
-                request_id=request_id,
-                output=final_response,
-                source=f"{self.name}:{self.version}",
-                token_usage=TokenUsage(
-                    completion_tokens=completion_tokens,
-                    prompt_tokens=prompt_tokens,
-                    total_tokens=total_tokens,
-                ),
-                extra_data=extra_data_collector.get_extra_data(),
+        try:
+            async for chunk in agent.invoke_stream(chat_history):
+                # Initialize content as the partial message in chunk
+                content = chunk.content
+                # Calculate usage metrics
+                call_usage = get_token_usage_for_response(agent.get_model_type(), chunk)
+                completion_tokens += call_usage.completion_tokens
+                prompt_tokens += call_usage.prompt_tokens
+                total_tokens += call_usage.total_tokens
+                try:
+                    # Attempt to parse as ExtraDataPartial
+                    extra_data_partial: ExtraDataPartial = ExtraDataPartial.new_from_json(content)
+                    extra_data_collector.add_extra_data_items(extra_data_partial.extra_data)
+                except Exception:
+                    if len(content) > 0:
+                        # Handle and return partial response
+                        final_response.append(content)
+                        yield TealAgentsPartialResponse(
+                            session_id=session_id,
+                            task_id=task_id,
+                            request_id=request_id,
+                            output_partial=content,
+                            source=f"{self.name}:{self.version}",
+                        )
+        except Exception as e:
+            logger.exception(
+                f"Error invoking stream for {self.name}:{self.version} "
+                f"for Session ID {session_id}, Task ID {task_id}, Request ID {request_id}. "
+                f"Error message: {str(e)}",
+                exc_info=True,
             )
-            self._manage_agent_response_task(agent_task, agent_response)
-            logger.info(
-                f"Agent successful stream invocation. "
-                f"Session ID: {session_id}, Task ID: {task_id}, Request ID {request_id}"
-            )
-            yield agent_response
+            raise AgentInvokeException(
+                f"Error invoking stream for {self.name}:{self.version}"
+                f" for Session ID {session_id}, Task ID {task_id}, Request ID {request_id}, "
+                f"Error message: {str(e)}"
+            ) from e
+        # Persist and return response
+        final_response = "".join(final_response)
+        agent_response = TealAgentsResponse(
+            session_id=session_id,
+            task_id=task_id,
+            request_id=request_id,
+            output=final_response,
+            source=f"{self.name}:{self.version}",
+            token_usage=TokenUsage(
+                completion_tokens=completion_tokens,
+                prompt_tokens=prompt_tokens,
+                total_tokens=total_tokens,
+            ),
+            extra_data=extra_data_collector.get_extra_data(),
+        )
+        await self._manage_agent_response_task(agent_task, agent_response)
+        logger.info(
+            f"Agent successful stream invocation. "
+            f"Session ID: {session_id}, Task ID: {task_id}, Request ID {request_id}"
+        )
+        yield agent_response

@@ -1,4 +1,5 @@
 # In-memory implementation
+import asyncio
 import logging
 import threading
 
@@ -19,10 +20,10 @@ class InMemoryPersistenceManager(TaskPersistenceManager):
         self.in_memory: dict[str, AgentTask] = {}
         logger.info("InMemoryPersistenceManager initialized.")
 
-        self._lock = threading.RLock()
+        self._lock = threading.Lock()
 
     async def create(self, task: AgentTask) -> None:
-        with self._lock:
+        async with self._lock:
             try:
                 if task.task_id in self.in_memory:
                     raise PersistenceCreateError(
@@ -36,7 +37,7 @@ class InMemoryPersistenceManager(TaskPersistenceManager):
                 ) from e
 
     async def load(self, task_id: str) -> AgentTask | None:
-        with self._lock:
+        async with self._lock:
             try:
                 task = self.in_memory[task_id]
                 logger.info(f"Task '{task_id}' loaded successfully.")
@@ -51,7 +52,7 @@ class InMemoryPersistenceManager(TaskPersistenceManager):
                 ) from e
 
     async def update(self, task: AgentTask) -> None:
-        with self._lock:
+        async with self._lock:
             try:
                 if task.task_id not in self.in_memory:
                     raise PersistenceUpdateError(

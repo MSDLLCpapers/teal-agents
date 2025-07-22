@@ -1,6 +1,6 @@
 # In-memory implementation
+import asyncio
 import logging
-import threading
 
 from src.sk_agents.exceptions import (
     PersistenceCreateError,
@@ -19,7 +19,7 @@ class InMemoryPersistenceManager(TaskPersistenceManager):
         self.in_memory: dict[str, AgentTask] = {}
         logger.info("InMemoryPersistenceManager initialized.")
 
-        self._lock = threading.Lock()
+        self._lock = asyncio.Lock()
 
     async def create(self, task: AgentTask) -> None:
         async with self._lock:
@@ -66,7 +66,7 @@ class InMemoryPersistenceManager(TaskPersistenceManager):
                 ) from e
 
     async def delete(self, task_id: str) -> None:
-        with self._lock:
+        async with self._lock:
             try:
                 del self.in_memory[task_id]
                 logger.info(f"Task '{task_id}' deleted successfully.")

@@ -1,5 +1,4 @@
 # In-memory implementation
-import asyncio
 import logging
 import threading
 

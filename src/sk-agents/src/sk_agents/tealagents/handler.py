@@ -11,7 +11,7 @@ from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
 from sk_agents.exceptions import AgentInvokeException, AuthenticationException, PersistenceLoadError
 from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
 from sk_agents.persistence.in_memory_persistence_manager import InMemoryPersistenceManager
-from sk_agents.ska_types import BaseConfig, BaseHandler, TokenUsage, ContentType
+from sk_agents.ska_types import BaseConfig, BaseHandler, ContentType, TokenUsage
 from sk_agents.skagents.v1 import AgentBuilder
 from sk_agents.skagents.v1.chat.config import Config
 from sk_agents.skagents.v1.utils import get_token_usage_for_response, item_to_content

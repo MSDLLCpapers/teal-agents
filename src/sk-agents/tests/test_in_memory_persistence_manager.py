@@ -28,7 +28,7 @@ def task_item():
         item=MultiModalItem(content_type=ContentType.TEXT, content="test"),
         request_id="request_id_test",
         updated=datetime.now(),
-        pending_tool_calls = None,
+        pending_tool_calls=None,
     )
     return agent_task_item
 
@@ -42,7 +42,7 @@ def task_a():
         item=MultiModalItem(content_type=ContentType.TEXT, content="text-a"),
         request_id="request_id_a",
         updated=datetime.now(),
-        pending_tool_calls = None,
+        pending_tool_calls=None,
     )
 
     return AgentTask(
@@ -65,7 +65,7 @@ def task_b():
         item=MultiModalItem(content_type=ContentType.TEXT, content="text-b"),
         request_id="request_id_b",
         updated=datetime.now(),
-        pending_tool_calls = None,
+        pending_tool_calls=None,
     )
 
     return AgentTask(

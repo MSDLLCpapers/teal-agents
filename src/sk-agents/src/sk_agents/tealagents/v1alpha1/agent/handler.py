@@ -12,9 +12,6 @@ from sk_agents.exceptions import AgentInvokeException, AuthenticationException, 
 from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
 from sk_agents.persistence.in_memory_persistence_manager import InMemoryPersistenceManager
 from sk_agents.ska_types import BaseConfig, BaseHandler, ContentType, TokenUsage
-from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
-from sk_agents.tealagents.v1alpha1.agent.config import Config
-from sk_agents.tealagents.v1alpha1.utils import get_token_usage_for_response, item_to_content
 from sk_agents.tealagents.models import (
     AgentTask,
     AgentTaskItem,
@@ -23,6 +20,9 @@ from sk_agents.tealagents.models import (
     TealAgentsResponse,
     UserMessage,
 )
+from sk_agents.tealagents.v1alpha1.agent.config import Config
+from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
+from sk_agents.tealagents.v1alpha1.utils import get_token_usage_for_response, item_to_content
 
 logger = logging.getLogger(__name__)
 
@@ -104,7 +104,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
     async def _manage_incoming_task(
         self, task_id: str, session_id: str, user_id: str, request_id: str, inputs: UserMessage
-    ):
+    ) -> AgentTask:
         try:
             agent_task = await self.state.load(task_id)
             return agent_task
@@ -125,11 +125,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
     async def _manage_agent_response_task(
         self, agent_task: AgentTask, agent_response: TealAgentsResponse
-    ):
+    ) -> None:
         new_item = AgentTaskItem(
             task_id=agent_response.task_id,
             role="assistant",
-            item=MultiModalItem(content_type=ContentType.TEXT, content=TealAgentsResponse.output),
+            item=MultiModalItem(content_type=ContentType.TEXT, content=agent_response.output),
             request_id=agent_response.request_id,
             updated=datetime.now(),
         )
@@ -138,7 +138,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         await self.state.update(agent_task)
 
     @staticmethod
-    def _validate_user_id(user_id: str, task_id: str, agent_task: AgentTask) -> str:
+    def _validate_user_id(user_id: str, task_id: str, agent_task: AgentTask) -> None:
         try:
             assert user_id == agent_task.user_id
         except AssertionError as e:

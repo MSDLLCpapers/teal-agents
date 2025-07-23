@@ -19,7 +19,7 @@ class AgentTaskItem(BaseModel):
     item: MultiModalItem
     request_id: str
     updated: datetime
-    pending_tool_calls: list[dict] | None = None # Store serialized FunctionCallContent
+    pending_tool_calls: list[dict] | None = None  # Store serialized FunctionCallContent
 
 
 class AgentTask(BaseModel):
@@ -29,7 +29,7 @@ class AgentTask(BaseModel):
     items: list[AgentTaskItem]
     created_at: datetime
     last_updated: datetime
-    status: Literal["Running", "Paused", "Completed", "Failed","Canceled"] = "Running"
+    status: Literal["Running", "Paused", "Completed", "Failed", "Canceled"] = "Running"
 
 
 class TealAgentsResponse(BaseModel):
@@ -49,6 +49,7 @@ class TealAgentsPartialResponse(BaseModel):
     request_id: str
     output_partial: str
     source: str | None = None
+
 
 class HitlResponse(BaseModel):
     task_id: str

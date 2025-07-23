@@ -4,7 +4,7 @@ from sk_agents.ska_types import BaseConfig
 from sk_agents.tealagents.v1alpha1.config import AgentConfig
 
 
-#this may change base on ticket ticket CDW-917
+# this may change base on ticket ticket CDW-917
 class Spec(BaseModel):
     agent: AgentConfig
 

@@ -22,7 +22,6 @@ tests:
 
 .PHONY: coverage
 coverage:
-
 	uv run coverage run -m pytest
 	uv run coverage xml -o coverage.xml
 	uv run coverage report -m --fail-under=0
@@ -34,3 +33,15 @@ snapshots-fix:
 .PHONY: snapshots-create
 snapshots-create:
 	uv run pytest --inline-snapshot=create
+
+.PHONY: build-docs
+build-docs:
+	uv run mkdocs build
+
+.PHONY: serve-docs
+serve-docs:
+	uv run mkdocs serve
+
+.PHONY: deploy-docs
+deploy-docs:
+	uv run mkdocs gh-deploy --force --verbose

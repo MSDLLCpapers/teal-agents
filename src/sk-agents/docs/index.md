@@ -26,7 +26,8 @@ out the available standard models.
 There is also the ability for users to add a supplementary ChatCompletionFactory
 of their own writing. To do so, you'll need to create a module with a class that
 extends the ChatCompletionFactory abstract class and implement three methods:
-* `get_configs` - Static method you should implement if your chat completions 
+
+* `get_configs` - Static method you should implement if your chat completions
    require additional configuration (via environment variables).
 * `get_chat_completion_for_model_name` - Method that returns an instance of
   `ChatCompletionClientBase` for connecting to a model with a given name. When
@@ -39,6 +40,7 @@ extends the ChatCompletionFactory abstract class and implement three methods:
 
 Once you've created your custom factory, enable it by setting the two following
 environment variables:
+
 * TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE - The relative path to the python
   file containing your factory class
 * TA_CUSTOM_CHAT_COMPLETION_FACTORY_CLASS_NAME - The class name of your custom
@@ -48,9 +50,8 @@ Once enabled, you have the ability to use any model your factory can handle with
 a given agent by specifying the model name in the `model` field of the agent's
 YAML configuration.
 
-An example (non-working unless you have Azure OpenAI endpoints) of a custom
-factory can be found
-[here](../src/sk_agents/chat_completion/custom/example_custom_chat_completion_factory.py).
+Included is an example of a custom chat completion factory (non-working unless you have Azure OpenAI endpoints):
+::: sk_agents.chat_completion.custom.example_custom_chat_completion_factory.ExampleCustomChatCompletionFactory
 
 ### Notes
 1. A custom factory takes precedence over the default factory, so if your

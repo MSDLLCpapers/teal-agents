@@ -1,0 +1,77 @@
+site_name: Teal Agents
+theme:
+  name: material
+  features:
+    # Allows copying code blocks
+    - content.code.copy
+    # Allows selecting code blocks
+    - content.code.select
+    # Shows the current path in the sidebar
+    - navigation.path
+    # Shows sections in the sidebar
+    - navigation.sections
+    # Shows sections expanded by default
+    - navigation.expand
+    # Enables annotations in code blocks
+    - content.code.annotate
+  palette:
+    primary: black
+
+repo_name: teal-agents
+repo_url: https://github.com/MSDLLCpapers/teal-agents
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: ["src/sk_agents"]
+          selection:
+            docstring_style: google
+          options:
+            show_source: true
+            show_root_heading: true
+            # Important: Renders documentation for submodules
+            show_submodules: true
+            # Optional:  Adds headings for object types (functions, classes etc.)
+            show_symbol_type_heading: true
+            # Optional: Shows the full path to each object
+            show_object_full_path: true
+            # Shows links to other members in signatures
+            signature_crossrefs: true
+            # Orders members by source order, rather than alphabetical
+            members_order: source
+            # Puts the signature on a separate line from the member name
+            separate_signature: true
+            # Shows type annotations in signatures
+            show_signature_annotations: true
+            # Makes the font sizes nicer
+            heading_level: 2
+            # Show inherited members
+            inherited_members: true
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+
+validation:
+  omitted_files: warn
+  absolute_links: warn
+  unrecognized_links: warn
+  anchors: warn
+
+watch:
+  - "src/sk_agents"

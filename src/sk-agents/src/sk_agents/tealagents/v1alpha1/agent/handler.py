@@ -1,10 +1,16 @@
+import asyncio
 import logging
 import uuid
 from collections.abc import AsyncIterable
 from datetime import datetime
+from functools import reduce
 
+from semantic_kernel.connectors.ai.chat_completion_client_base import ChatCompletionClientBase
 from semantic_kernel.contents import ChatMessageContent, ImageContent, TextContent
 from semantic_kernel.contents.chat_history import ChatHistory
+from semantic_kernel.contents.function_call_content import FunctionCallContent
+from semantic_kernel.contents.function_result_content import FunctionResultContent
+from semantic_kernel.contents.streaming_chat_message_content import StreamingChatMessageContent
 from semantic_kernel.contents.utils.author_role import AuthorRole
 
 from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
@@ -20,6 +26,7 @@ from sk_agents.tealagents.models import (
     TealAgentsResponse,
     UserMessage,
 )
+from sk_agents.tealagents.v1alpha1 import hitl_manager
 from sk_agents.tealagents.v1alpha1.agent.config import Config
 from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
 from sk_agents.tealagents.v1alpha1.utils import get_token_usage_for_response, item_to_content
@@ -38,6 +45,19 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         self.agent_builder = agent_builder
         self.state = InMemoryPersistenceManager()
         self.authorizer = DummyAuthorizer()
+
+    async def _invoke_function(
+        self, kernel, fc_content: FunctionCallContent
+    ) -> FunctionResultContent:
+        """Helper to execute a single tool function call."""
+        function = kernel.get_function(
+            fc_content.plugin_name,
+            fc_content.function_name,
+        )
+        function_result = await function(kernel, fc_content.to_kernel_arguments())
+        return FunctionResultContent.from_function_call_content_and_result(
+            fc_content, function_result
+        )
 
     @staticmethod
     def _augment_with_user_context(inputs: UserMessage | None, chat_history: ChatHistory) -> None:
@@ -176,20 +196,78 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
         TealAgentsV1Alpha1Handler._build_chat_history(agent_task, chat_history)
 
-        # Prepare response and metadata
-        response_content = []
+        # Prepare metadata
         completion_tokens: int = 0
         prompt_tokens: int = 0
         total_tokens: int = 0
 
-        # Invoke the agent
+        # Manual tool calling implementation
         try:
-            async for content in agent.invoke(chat_history):
-                response_content.append(content)
-                call_usage = get_token_usage_for_response(agent.get_model_type(), content)
+            kernel = agent.agent.kernel
+            arguments = agent.agent.arguments
+            chat_completion_service, settings = kernel.select_ai_service(
+                arguments=arguments, type=ChatCompletionClientBase
+            )
+            assert isinstance(chat_completion_service, ChatCompletionClientBase)
+
+            # Initial call to the LLM
+            response_list = []
+            async for response_chunk in chat_completion_service.get_chat_message_contents(
+                chat_history=chat_history,
+                settings=settings,
+                kernel=kernel,
+                arguments=arguments,
+            ):
+                response_list.extend(response_chunk)
+
+            function_calls = []
+            final_response = None
+
+            # Separate content and tool calls
+            for response in response_list:
+                # Update token usage
+                call_usage = get_token_usage_for_response(agent.get_model_type(), response)
                 completion_tokens += call_usage.completion_tokens
                 prompt_tokens += call_usage.prompt_tokens
                 total_tokens += call_usage.total_tokens
+
+                # A response may have multiple items, e.g., multiple tool calls
+                fc_in_response = [
+                    item for item in response.items if isinstance(item, FunctionCallContent)
+                ]
+
+                if fc_in_response:
+                    chat_history.add_message(response)  # Add assistant's message to history
+                    function_calls.extend(fc_in_response)
+                else:
+                    # If no function calls, it's a direct answer
+                    final_response = response
+
+            # If tool calls were returned, execute them
+            if function_calls:
+                # --- INTERCEPTION POINT ---
+                for fc in function_calls:
+                    hitl_manager.check_for_intervention(fc)
+                    # In the future, a `True` return would trigger a pause flow
+
+                # Execute all functions in parallel
+                results = await asyncio.gather(
+                    *[self._invoke_function(kernel, fc) for fc in function_calls]
+                )
+
+                # Add results to history
+                for result in results:
+                    chat_history.add_message(result.to_chat_message_content())
+
+                # Make a recursive call to get the final response from the LLM
+                recursive_response = await self.invoke(auth_token, inputs)
+                return recursive_response
+
+            # No tool calls, return the direct response
+            if final_response is None:
+                logger.exception("No response received from LLM")
+                raise AgentInvokeException("No response received from LLM")
+
         except Exception as e:
             logger.exception(
                 f"Error invoking {self.name}:{self.version}"
@@ -202,12 +280,13 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 f"for Session ID {session_id}, Task ID {task_id}, Request ID {request_id}, "
                 f"Error message: {str(e)}"
             ) from e
+
         # Persist and return response
         agent_response = TealAgentsResponse(
             session_id=session_id,
             task_id=task_id,
             request_id=request_id,
-            output=response_content[-1].content,
+            output=final_response.content,
             source=f"{self.name}:{self.version}",
             token_usage=TokenUsage(
                 completion_tokens=completion_tokens,
@@ -251,31 +330,81 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         prompt_tokens: int = 0
         total_tokens: int = 0
 
-        # Process the final task with streaming
+        # Manual tool calling implementation for streaming
         try:
-            async for chunk in agent.invoke_stream(chat_history):
-                # Initialize content as the partial message in chunk
-                content = chunk.content
-                # Calculate usage metrics
-                call_usage = get_token_usage_for_response(agent.get_model_type(), chunk)
-                completion_tokens += call_usage.completion_tokens
-                prompt_tokens += call_usage.prompt_tokens
-                total_tokens += call_usage.total_tokens
-                try:
-                    # Attempt to parse as ExtraDataPartial
-                    extra_data_partial: ExtraDataPartial = ExtraDataPartial.new_from_json(content)
-                    extra_data_collector.add_extra_data_items(extra_data_partial.extra_data)
-                except Exception:
-                    if len(content) > 0:
-                        # Handle and return partial response
-                        final_response.append(content)
-                        yield TealAgentsPartialResponse(
-                            session_id=session_id,
-                            task_id=task_id,
-                            request_id=request_id,
-                            output_partial=content,
-                            source=f"{self.name}:{self.version}",
-                        )
+            kernel = agent.agent.kernel
+            arguments = agent.agent.arguments
+            chat_completion_service, settings = kernel.select_ai_service(
+                arguments=arguments, type=ChatCompletionClientBase
+            )
+            assert isinstance(chat_completion_service, ChatCompletionClientBase)
+
+            all_responses = []
+            # Stream the initial response from the LLM
+            async for response_list in chat_completion_service.get_streaming_chat_message_contents(
+                chat_history=chat_history,
+                settings=settings,
+                kernel=kernel,
+                arguments=arguments,
+            ):
+                for response in response_list:
+                    all_responses.append(response)
+                    # Calculate usage metrics
+                    call_usage = get_token_usage_for_response(agent.get_model_type(), response)
+                    completion_tokens += call_usage.completion_tokens
+                    prompt_tokens += call_usage.prompt_tokens
+                    total_tokens += call_usage.total_tokens
+
+                    if response.content:
+                        try:
+                            # Attempt to parse as ExtraDataPartial
+                            extra_data_partial: ExtraDataPartial = ExtraDataPartial.new_from_json(
+                                response.content
+                            )
+                            extra_data_collector.add_extra_data_items(extra_data_partial.extra_data)
+                        except Exception:
+                            if len(response.content) > 0:
+                                # Handle and return partial response
+                                final_response.append(response.content)
+                                yield TealAgentsPartialResponse(
+                                    session_id=session_id,
+                                    task_id=task_id,
+                                    request_id=request_id,
+                                    output_partial=response.content,
+                                    source=f"{self.name}:{self.version}",
+                                )
+
+            # Aggregate the full response to check for tool calls
+            if not all_responses:
+                return
+
+            full_completion: StreamingChatMessageContent = reduce(lambda x, y: x + y, all_responses)
+            function_calls = [
+                item for item in full_completion.items if isinstance(item, FunctionCallContent)
+            ]
+
+            # If tool calls are present, execute them
+            if function_calls:
+                chat_history.add_message(full_completion.to_chat_message_content())
+
+                # --- INTERCEPTION POINT ---
+                for fc in function_calls:
+                    hitl_manager.check_for_intervention(fc)
+
+                # Execute functions in parallel
+                results = await asyncio.gather(
+                    *[self._invoke_function(kernel, fc) for fc in function_calls]
+                )
+
+                # Add results to history
+                for result in results:
+                    chat_history.add_message(result.to_chat_message_content())
+
+                # Make a recursive call to get the final streamed response
+                async for final_response_chunk in self.invoke_stream(auth_token, inputs):
+                    yield final_response_chunk
+                return
+
         except Exception as e:
             logger.exception(
                 f"Error invoking stream for {self.name}:{self.version} "
@@ -289,12 +418,12 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 f"Error message: {str(e)}"
             ) from e
         # Persist and return response
-        final_response = "".join(final_response)
+        final_response_text = "".join(final_response)
         agent_response = TealAgentsResponse(
             session_id=session_id,
             task_id=task_id,
             request_id=request_id,
-            output=final_response,
+            output=final_response_text,
             source=f"{self.name}:{self.version}",
             token_usage=TokenUsage(
                 completion_tokens=completion_tokens,

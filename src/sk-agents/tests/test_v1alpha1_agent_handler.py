@@ -2,6 +2,7 @@ from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
+from semantic_kernel.connectors.ai.chat_completion_client_base import ChatCompletionClientBase
 from semantic_kernel.contents import ChatMessageContent, TextContent
 from semantic_kernel.contents.chat_history import ChatHistory
 from semantic_kernel.contents.utils.author_role import AuthorRole
@@ -101,6 +102,24 @@ def agent_response(agent_task):
         output="This is the agent's response.",
         token_usage=TokenUsage(completion_tokens=100, prompt_tokens=200, total_tokens=300),
     )
+
+
+class MockChatCompletionClient(ChatCompletionClientBase):
+    ai_model_id: str = "test_model_id"
+
+    async def get_chat_message_contents(self, **kwargs):
+        yield [
+            ChatMessageContent(
+                role=AuthorRole.ASSISTANT, items=[TextContent(text="Agent's final response.")]
+            )
+        ]
+
+    async def get_streaming_chat_message_contents(self, **kwargs):
+        yield [
+            ChatMessageContent(
+                role=AuthorRole.ASSISTANT, items=[TextContent(text="Agent's final response.")]
+            )
+        ]
 
 
 def test_augment_user_context(user_message):
@@ -369,6 +388,15 @@ async def test_invoke_success(
 
     mock_agent = mocker.MagicMock()
     mock_agent.get_model_type.return_value = "test_model_type"
+
+    mock_chat_completion_service = MockChatCompletionClient()
+    mock_settings = {}
+    mock_agent = mocker.MagicMock()
+    mock_agent.agent.kernel.select_ai_service.return_value = (
+        mock_chat_completion_service,
+        mock_settings,
+    )
+    mocker.patch.object(teal_agents_handler.agent_builder, "build_agent", return_value=mock_agent)
 
     # Create an async generator for agent.invoke
     async def mock_agent_invoke_generator():

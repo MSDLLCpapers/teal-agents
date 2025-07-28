@@ -21,6 +21,7 @@ from sk_agents.ska_types import BaseConfig, BaseHandler, ContentType, TokenUsage
 from sk_agents.tealagents.models import (
     AgentTask,
     AgentTaskItem,
+    HitlResponse,  # Make sure this is imported or defined
     MultiModalItem,
     TealAgentsPartialResponse,
     TealAgentsResponse,
@@ -177,7 +178,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
     async def invoke(
         self, auth_token: str, inputs: UserMessage | None = None
-    ) -> TealAgentsResponse:
+    ) -> TealAgentsResponse | HitlResponse:
         # Initial setup
         user_id = self.authenticate_user(token=auth_token)
         session_id, task_id, request_id = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
@@ -201,8 +202,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         prompt_tokens: int = 0
         total_tokens: int = 0
 
-        # Manual tool calling implementation
         try:
+            # Manual tool calling implementation (existing logic)
             kernel = agent.agent.kernel
             arguments = agent.agent.arguments
             chat_completion_service, settings = kernel.select_ai_service(
@@ -246,9 +247,12 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             # If tool calls were returned, execute them
             if function_calls:
                 # --- INTERCEPTION POINT ---
+                intervention_required = False
                 for fc in function_calls:
-                    hitl_manager.check_for_intervention(fc)
-                    # In the future, a `True` return would trigger a pause flow
+                    if hitl_manager.check_for_intervention(fc):
+                        intervention_required = True
+                if intervention_required:
+                    raise hitl_manager.HitlInterventionRequired(function_calls)
 
                 # Execute all functions in parallel
                 results = await asyncio.gather(
@@ -267,6 +271,36 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             if final_response is None:
                 logger.exception("No response received from LLM")
                 raise AgentInvokeException("No response received from LLM")
+
+        except hitl_manager.HitlInterventionRequired as hitl_exc:
+            # --- HITL HANDLING ---
+            agent_task.status = "Paused"
+            assistant_item = AgentTaskItem(
+                task_id=task_id,
+                role="assistant",
+                item=MultiModalItem(
+                    content_type=ContentType.TEXT, content="HITL intervention required."),
+                request_id=request_id,
+                updated=datetime.now(),
+                pending_tool_calls=[fc.model_dump() for fc in hitl_exc.function_calls],
+            )
+            agent_task.items.append(assistant_item)
+            agent_task.last_updated = datetime.now()
+            await self.state.update(agent_task)
+
+            base_url = "/tealagents/v1alpha1/resume"
+            approval_url = f"{base_url}/{request_id}?action=approve"
+            rejection_url = f"{base_url}/{request_id}?action=reject"
+
+            hitl_response = HitlResponse(
+                session_id=session_id,
+                task_id=task_id,
+                request_id=request_id,
+                tool_calls=[fc.model_dump() for fc in hitl_exc.function_calls],
+                approval_url=approval_url,
+                rejection_url=rejection_url,
+            )
+            return hitl_response
 
         except Exception as e:
             logger.exception(
@@ -330,7 +364,6 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         prompt_tokens: int = 0
         total_tokens: int = 0
 
-        # Manual tool calling implementation for streaming
         try:
             kernel = agent.agent.kernel
             arguments = agent.agent.arguments
@@ -388,8 +421,12 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 chat_history.add_message(full_completion.to_chat_message_content())
 
                 # --- INTERCEPTION POINT ---
+                intervention_required = False
                 for fc in function_calls:
-                    hitl_manager.check_for_intervention(fc)
+                    if hitl_manager.check_for_intervention(fc):
+                        intervention_required = True
+                if intervention_required:
+                    raise hitl_manager.HitlInterventionRequired(function_calls)
 
                 # Execute functions in parallel
                 results = await asyncio.gather(
@@ -404,6 +441,38 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 async for final_response_chunk in self.invoke_stream(auth_token, inputs):
                     yield final_response_chunk
                 return
+
+        except hitl_manager.HitlInterventionRequired as hitl_exc:
+            # --- HITL HANDLING ---
+            agent_task.status = "Paused"
+            assistant_item = AgentTaskItem(
+                task_id=task_id,
+                role="assistant",
+                item=MultiModalItem(
+                    content_type=ContentType.TEXT, content="HITL intervention required."),
+                request_id=request_id,
+                updated=datetime.now(),
+                pending_tool_calls=[fc.model_dump() for fc in hitl_exc.function_calls],
+
+            )
+            agent_task.items.append(assistant_item)
+            agent_task.last_updated = datetime.now()
+            await self.state.update(agent_task)
+
+            base_url = "/tealagents/v1alpha1/resume"
+            approval_url = f"{base_url}/{request_id}?action=approve"
+            rejection_url = f"{base_url}/{request_id}?action=reject"
+
+            hitl_response = HitlResponse(
+                session_id=session_id,
+                task_id=task_id,
+                request_id=request_id,
+                tool_call=[fc.model_dump() for fc in hitl_exc.function_calls],
+                approval_url=approval_url,
+                rejection_url=rejection_url,
+            )
+            yield hitl_response
+            return
 
         except Exception as e:
             logger.exception(

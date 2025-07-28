@@ -5,6 +5,7 @@ import pytest
 from semantic_kernel.connectors.ai.chat_completion_client_base import ChatCompletionClientBase
 from semantic_kernel.contents import ChatMessageContent, TextContent
 from semantic_kernel.contents.chat_history import ChatHistory
+from semantic_kernel.contents.function_call_content import FunctionCallContent
 from semantic_kernel.contents.utils.author_role import AuthorRole
 
 from sk_agents.exceptions import AgentInvokeException, AuthenticationException
@@ -12,6 +13,7 @@ from sk_agents.ska_types import BaseConfig, ContentType, MultiModalItem, TokenUs
 from sk_agents.tealagents.models import (
     AgentTask,
     AgentTaskItem,
+    HitlResponse,
     TealAgentsResponse,
     UserMessage,
 )
@@ -436,3 +438,89 @@ async def test_invoke_success(
     assert result.token_usage.completion_tokens == 50
     assert result.token_usage.prompt_tokens == 100
     assert result.token_usage.total_tokens == 150
+
+@pytest.mark.asyncio
+async def test_invoke_intervention_required(
+    teal_agents_handler, mocker, user_message, agent_task
+):
+    """
+    Test the invocation of the agent when intervention is required.
+    Mocks all internal and external dependencies.
+    """
+
+    auth_token = "test_auth_token"
+    mock_user_id = "test_user_id"
+    mock_session_id = user_message.session_id
+    mock_task_id = user_message.task_id
+    mock_request_id = "test_request_id"
+
+    # Mock dependencies
+    mocker.patch.object(teal_agents_handler, "authenticate_user", return_value=mock_user_id)
+    mocker.patch(
+        "sk_agents.tealagents.v1alpha1.agent.handler.TealAgentsV1Alpha1Handler.handle_state_id",
+        return_value=(mock_session_id, mock_task_id, mock_request_id),
+    )
+    mocker.patch.object(teal_agents_handler, "_manage_incoming_task", return_value=agent_task)
+    mocker.patch(
+        "sk_agents.tealagents.v1alpha1.agent.handler.TealAgentsV1Alpha1Handler._validate_user_id"
+    )
+    mocker.patch(
+        "sk_agents.tealagents.v1alpha1.agent.handler.TealAgentsV1Alpha1Handler._augment_with_user_context"
+    )
+    mocker.patch(
+        "sk_agents.tealagents.v1alpha1.agent.handler.TealAgentsV1Alpha1Handler._build_chat_history"
+    )
+
+    # Mock intervention check to always return True
+    mocker.patch(
+        "sk_agents.tealagents.v1alpha1.agent.handler.hitl_manager.check_for_intervention",
+        return_value=True,
+    )
+
+    # Mock token usage
+    mocker.patch(
+        "sk_agents.tealagents.v1alpha1.agent.handler.get_token_usage_for_response",
+        return_value=TokenUsage(completion_tokens=0, prompt_tokens=0, total_tokens=0),
+    )
+
+    # Mock ChatCompletion service yielding a FunctionCallContent
+    class MockChatCompletionService(ChatCompletionClientBase):
+        ai_model_id: str = "test_model_id"  # Define the required field
+
+        async def get_chat_message_contents(self, *args, **kwargs):
+            fc = FunctionCallContent(
+                plugin_name="test_plugin",
+                function_name="test_function",
+                arguments={"arg": "value"},
+            )
+            msg = ChatMessageContent(role=AuthorRole.ASSISTANT, items=[fc])
+            yield [msg]
+
+    # Mock kernel to return the mocked service
+    mock_chat_completion_service = MockChatCompletionService()
+    mock_settings = {}
+    mock_agent = mocker.MagicMock()
+    mock_agent.agent.kernel.select_ai_service.return_value = (
+        mock_chat_completion_service,
+        mock_settings,
+    )
+    mocker.patch.object(teal_agents_handler.agent_builder, "build_agent", return_value=mock_agent)
+
+    # Mock state.create to ensure the task is added to the in-memory storage
+    mocker.patch.object(teal_agents_handler.state, "create", new_callable=mocker.AsyncMock)
+    mocker.patch.object(teal_agents_handler.state, "update", new_callable=mocker.AsyncMock)
+
+    # Add the task to the in-memory storage
+    await teal_agents_handler.state.create(agent_task)
+
+    # Invoke the handler
+    result = await teal_agents_handler.invoke(auth_token=auth_token, inputs=user_message)
+
+    # Assertions
+    assert isinstance(result, HitlResponse)
+    assert result.task_id == "test-task-id"
+    assert result.session_id == "test-session-id"
+    assert result.request_id == "test_request_id"
+    assert len(result.tool_calls) == 1
+    assert "approve" in result.approval_url
+    assert "reject" in result.rejection_url

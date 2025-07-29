@@ -19,3 +19,7 @@ class TaskPersistenceManager(ABC):
     @abstractmethod
     async def delete(task_id: str) -> None:
         pass
+
+    @abstractmethod
+    async def load_by_request_id(self, request_id: str) -> AgentTask | None:
+        pass

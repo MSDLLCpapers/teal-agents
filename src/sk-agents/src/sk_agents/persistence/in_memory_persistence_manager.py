@@ -48,13 +48,12 @@ class InMemoryPersistenceManager(TaskPersistenceManager):
     async def load(self, task_id: str) -> AgentTask | None:
         async with self._lock:
             try:
-                task = self.in_memory[task_id]
+                task = self.in_memory.get(task_id)
+                if task is None:
+                    logger.info(f"Task '{task_id}' not found in memory.")
+                    return None
                 logger.info(f"Task '{task_id}' loaded successfully.")
                 return task
-            except KeyError:
-                raise PersistenceLoadError(
-                    message=f"Task '{task_id}' provided not found in memory"
-                ) from None
             except Exception as e:
                 raise PersistenceLoadError(
                     message=f"Unexpected error loading task {task_id} with error message: {e}"

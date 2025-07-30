@@ -1,5 +1,6 @@
 import asyncio
 from datetime import datetime
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -8,6 +9,7 @@ from sk_agents.tealagents.models import AgentTask, AgentTaskItem
 from src.sk_agents.exceptions import (
     PersistenceCreateError,
     PersistenceDeleteError,
+    PersistenceLoadError,
     PersistenceUpdateError,
 )
 from src.sk_agents.persistence.in_memory_persistence_manager import InMemoryPersistenceManager
@@ -181,6 +183,17 @@ async def test_load_non_existent_task(persistence_manager):
 
 
 @pytest.mark.asyncio
+async def test_load_unexpected_error_handling(persistence_manager):
+    """Test that unexpected errors in load method are wrapped in PersistenceLoadError"""
+    mock_memory = MagicMock()
+    mock_memory.get.side_effect = RuntimeError("Simulated runtime error")
+
+    with patch.object(persistence_manager, "in_memory", mock_memory):
+        with pytest.raises(PersistenceLoadError):
+            await persistence_manager.load("test-task")
+
+
+@pytest.mark.asyncio
 async def test_create_duplicate_task(persistence_manager, task_a):
     """Test creating a task with an ID that already exists should raise PersistenceCreateError."""
     await persistence_manager.create(task_a)
@@ -220,6 +233,22 @@ async def test_delete_non_existent_task(persistence_manager):
     """Test deleting a task that does not exist should raise ValueError."""
     with pytest.raises(PersistenceDeleteError):
         await persistence_manager.delete("non_existent_id")
+
+
+@pytest.mark.asyncio
+async def test_delete_unexpected_error_handling(persistence_manager, task_a):
+    """Test that unexpected errors in delete method are wrapped in PersistenceDeleteError"""
+    await persistence_manager.create(task_a)
+
+    class FailingSet(set):
+        def discard(self, elem):
+            raise RuntimeError("Simulated index error")
+
+    original_set = persistence_manager.item_request_id_index["request_id_a"]
+    persistence_manager.item_request_id_index["request_id_a"] = FailingSet(original_set)
+
+    with pytest.raises(PersistenceDeleteError):
+        await persistence_manager.delete("task-id-1")
 
 
 @pytest.mark.asyncio
@@ -622,6 +651,18 @@ async def test_load_by_request_id_not_found(persistence_manager):
     """Test loading by request_id when no task contains that request_id"""
     result = await persistence_manager.load_by_request_id("nonexistent-request")
     assert result is None
+
+
+@pytest.mark.asyncio
+async def test_load_by_request_id_unexpected_error_handling(persistence_manager):
+    """Test that unexpected errors in load_by_request_id
+    method are wrapped in PersistenceLoadError"""
+    mock_index = MagicMock()
+    mock_index.get.side_effect = RuntimeError("Simulated runtime error")
+
+    with patch.object(persistence_manager, "item_request_id_index", mock_index):
+        with pytest.raises(PersistenceLoadError):
+            await persistence_manager.load_by_request_id("test-request")
 
 
 @pytest.mark.asyncio

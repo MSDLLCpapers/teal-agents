@@ -1,8 +1,6 @@
 name: docs
 
 on:
-  push:
-    branches: ["feature/mkdocs"]
   workflow_run:
     workflows: ["build", "release"]
     types:

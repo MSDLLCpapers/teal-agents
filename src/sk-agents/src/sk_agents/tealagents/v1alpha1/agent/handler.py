@@ -247,21 +247,30 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             # If tool calls were returned, execute them
             if function_calls:
                 # --- INTERCEPTION POINT ---
-                intervention_required = False
+                intervention_calls = []
+                non_intervention_calls = []
+
                 for fc in function_calls:
                     if hitl_manager.check_for_intervention(fc):
-                        intervention_required = True
-                if intervention_required:
-                    raise hitl_manager.HitlInterventionRequired(function_calls)
+                        intervention_calls.append(fc)
+                    else:
+                        non_intervention_calls.append(fc)
 
-                # Execute all functions in parallel
-                results = await asyncio.gather(
-                    *[self._invoke_function(kernel, fc) for fc in function_calls]
-                )
+                # Process non-intervention function calls first
+                if non_intervention_calls:
+                    results = await asyncio.gather(
+                        *[self._invoke_function(kernel, fc) for fc in non_intervention_calls]
+                    )
 
-                # Add results to history
-                for result in results:
-                    chat_history.add_message(result.to_chat_message_content())
+                    # Add results to history
+                    for result in results:
+                        chat_history.add_message(result.to_chat_message_content())
+
+                # Handle intervention function calls
+                if intervention_calls:
+                    logger.info(
+                        f"Intervention required for {len(intervention_calls)} function calls.")
+                    raise hitl_manager.HitlInterventionRequired(intervention_calls)
 
                 # Make a recursive call to get the final response from the LLM
                 recursive_response = await self.invoke(auth_token, inputs)
@@ -421,21 +430,32 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 chat_history.add_message(full_completion.to_chat_message_content())
 
                 # --- INTERCEPTION POINT ---
-                intervention_required = False
+                intervention_calls = []
+                non_intervention_calls = []
+
+                # Separate function calls into intervention and non-intervention
                 for fc in function_calls:
                     if hitl_manager.check_for_intervention(fc):
-                        intervention_required = True
-                if intervention_required:
-                    raise hitl_manager.HitlInterventionRequired(function_calls)
+                        intervention_calls.append(fc)
+                    else:
+                        non_intervention_calls.append(fc)
 
-                # Execute functions in parallel
-                results = await asyncio.gather(
-                    *[self._invoke_function(kernel, fc) for fc in function_calls]
-                )
+                # Process non-intervention function calls first
+                if non_intervention_calls:
+                    results = await asyncio.gather(
+                        *[self._invoke_function(kernel, fc) for fc in non_intervention_calls]
+                    )
 
-                # Add results to history
-                for result in results:
-                    chat_history.add_message(result.to_chat_message_content())
+                    # Add results to history
+                    for result in results:
+                        chat_history.add_message(result.to_chat_message_content())
+
+                # Handle intervention function calls
+                if intervention_calls:
+                    logger.info(
+                        f"Intervention required for {len(intervention_calls)} function calls."
+                    )
+                    raise hitl_manager.HitlInterventionRequired(intervention_calls)
 
                 # Make a recursive call to get the final streamed response
                 async for final_response_chunk in self.invoke_stream(auth_token, inputs):
@@ -449,11 +469,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 task_id=task_id,
                 role="assistant",
                 item=MultiModalItem(
-                    content_type=ContentType.TEXT, content="HITL intervention required."),
+                    content_type=ContentType.TEXT, content="HITL intervention required."
+                ),
                 request_id=request_id,
                 updated=datetime.now(),
                 pending_tool_calls=[fc.model_dump() for fc in hitl_exc.function_calls],
-
             )
             agent_task.items.append(assistant_item)
             agent_task.last_updated = datetime.now()
@@ -467,7 +487,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 session_id=session_id,
                 task_id=task_id,
                 request_id=request_id,
-                tool_call=[fc.model_dump() for fc in hitl_exc.function_calls],
+                tool_calls=[fc.model_dump() for fc in hitl_exc.function_calls],
                 approval_url=approval_url,
                 rejection_url=rejection_url,
             )
@@ -486,6 +506,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 f" for Session ID {session_id}, Task ID {task_id}, Request ID {request_id}, "
                 f"Error message: {str(e)}"
             ) from e
+
         # Persist and return response
         final_response_text = "".join(final_response)
         agent_response = TealAgentsResponse(

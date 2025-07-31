@@ -6,8 +6,8 @@ The Agent Platform aims to provide two major sets of functionality:
    multiple agents for more complex use cases
 
 ## Core Agent Framework
-The core framework can be found in the src/sk-agents directory. For more 
-information, see its [README.md](src/sk-agents/README.md).
+The core framework can be found in the src/sk-agents directory. For more
+information, see its [README.md](src/sk-agents/README.md) or [documentation site](https://msdllcpapers.github.io/teal-agents/).
 
 ## Orchestrators
 Orchestrators provide the patterns in which agents are grouped and interact with

@@ -11,7 +11,7 @@ from sk_agents.tealagents.remote_plugin_loader import (
     RemotePluginLoader,
 )
 from sk_agents.tealagents.v1alpha1.agent.agent import (
-    ChatAgents,  #need to change the import name base on ticket CDW-917
+    ChatAgents,  # need to change the import name base on ticket CDW-917
 )
 from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
 
@@ -21,13 +21,14 @@ def handle(config: BaseConfig, app_config: AppConfig, authorization: str | None 
         raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
 
     match config.kind:
-       #need to be modified base on ticket CDW-917
+        # need to be modified base on ticket CDW-917
         case "agent":
             return _handle_chat(config, app_config, authorization, False)
         case _:
             raise ValueError(f"Unknown kind: {config.kind}")
 
-#need to be modified base on ticket CDW-917
+
+# need to be modified base on ticket CDW-917
 def _handle_chat(
     config: BaseConfig,
     app_config: AppConfig,

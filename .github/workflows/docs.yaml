@@ -26,5 +26,5 @@ jobs:
         working-directory: ./src/sk-agents
         run: make sync
       - name: Deploy docs
-        working-directory: ./src/sk-agents/docs
-        run: uv run mkdocs gh-deploy --force --verbose
+        working-directory: ./src/sk-agents
+        run: make deploy-docs

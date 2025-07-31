@@ -1,4 +1,4 @@
-# Teal Agents Framework
+# Teal Agents
 ## Chat Completion Factories
 ### Background
 If you hadn't noticed, Teal Agents Framework is built on top of the open source

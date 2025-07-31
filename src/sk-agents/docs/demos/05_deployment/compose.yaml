@@ -1,0 +1,8 @@
+services:
+  teal-agents:
+    image: teal-agents:latest
+    ports:
+      - "8110:8000"
+    env_file: ".env"
+    volumes:
+      - ./agents:/app/src/sk-agents/agents

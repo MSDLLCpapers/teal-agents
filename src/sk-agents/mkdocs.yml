@@ -1,4 +1,4 @@
-site_name: Teal Agents
+site_name: Teal Agents Framework
 theme:
   name: material
   features:
@@ -46,7 +46,7 @@ plugins:
             # Shows type annotations in signatures
             show_signature_annotations: true
             # Makes the font sizes nicer
-            heading_level: 2
+            heading_level: 5
             # Show inherited members
             inherited_members: true
 markdown_extensions:

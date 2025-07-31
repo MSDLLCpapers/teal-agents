@@ -2,7 +2,7 @@ import threading
 from abc import ABCMeta
 
 
-#updated the old singleten class to make it thread safe
+# updated the old singleten class to make it thread safe
 class Singleton(ABCMeta):
     _instances = {}
     _lock = threading.Lock()

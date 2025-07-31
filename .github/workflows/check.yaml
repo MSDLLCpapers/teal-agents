@@ -90,3 +90,19 @@ jobs:
         run: |
           make sync
           make coverage
+
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        working-directory: ./src/sk-agents
+        run: make sync
+      - name: Build docs
+        working-directory: ./src/sk-agents
+        run: make build-docs

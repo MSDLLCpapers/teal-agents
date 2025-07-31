@@ -1,0 +1,210 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Get Weather API",
+    "description": "Get weather details",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "https://api.open-meteo.com"
+    }
+  ],
+  "paths": {
+    "/v1/forecast": {
+      "get": {
+        "summary": "Get forecast",
+        "description": "Get the forecast for the given parameters",
+        "operationId": "GetForecast",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "latitude",
+            "schema": {
+              "type": "number"
+            },
+            "description": "The latitude for the location",
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "longitude",
+            "schema": {
+              "type": "number"
+            },
+            "description": "The longitude for the location",
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "daily",
+            "schema": {
+              "type": "string",
+              "default": "temperature_2m_max,temperature_2m_min"
+            },
+            "description": "Daily metrics",
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "temperature_unit",
+            "schema": {
+              "type": "string",
+              "default": "fahrenheit"
+            },
+            "description": "Temperature units",
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "wind_speed_unit",
+            "schema": {
+              "type": "string",
+              "default": "mph"
+            },
+            "description": "Wind speed units",
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "precipitation_unit",
+            "schema": {
+              "type": "string",
+              "default": "inch"
+            },
+            "description": "Precipitation units",
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "timezone",
+            "schema": {
+              "type": "string",
+              "default": "America/Chicago"
+            },
+            "description": "Time zone",
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "forecast_days",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            },
+            "description": "Number of days to forecast",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "DailyUnits": {
+        "description": "Metadata about the response for the daily structure",
+        "properties": {
+          "time": {
+            "type": "string",
+            "title": "time",
+            "description": "The format of the response time in the daily structure"
+          },
+          "temperature_2m_max": {
+            "type": "string",
+            "title": "temperature_2m_max",
+            "description": "The unit in which the response max is returned (degrees C or F)"
+          },
+          "temperature_2m_min": {
+            "type": "string",
+            "title": "temperature_2m_min",
+            "description": "The unit in which the response min is returned (degrees C or F)"
+          }
+        }
+      },
+      "Daily": {
+        "properties": {
+          "time": {
+            "type": "array",
+            "description": "An array of formats for the defined properties",
+            "items": {
+              "type": "string"
+            }
+          },
+          "temperature_2m_max": {
+            "description": "The max temperature for the location on the corresponding day",
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          },
+          "temperature_2m_min": {
+            "description": "The min temperature for the location on the corresponding day",
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        }
+      },
+      "ResponseBody": {
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "title": "latitude",
+            "description": "The latitude of the specified location"
+          },
+          "longitude": {
+            "type": "number",
+            "title": "longitude",
+            "description": "The longitude of the specified location"
+          },
+          "generationtime_ms": {
+            "type": "number",
+            "title": "generationtime_ms",
+            "description": "The generation time of the request"
+          },
+          "utc_offset_seconds": {
+            "type": "integer",
+            "title": "utc_offset_seconds",
+            "description": "The number of seconds offset from UTC for the given location"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "timezone",
+            "description": "The timezone for the location"
+          },
+          "timezone_abbreviation": {
+            "type": "string",
+            "title": "timezone_abbreviation",
+            "description": "The abbreviation of the timezone"
+          },
+          "elevation": {
+            "type": "integer",
+            "title": "elevation",
+            "description": "The elevation of the location"
+          },
+          "daily_units": {
+            "description": "Metadata about the daily structure",
+            "$ref": "#/components/schemas/DailyUnits"
+          },
+          "daily": {
+            "description": "Lists of results with each entry corresponding to each other and described by daily_units",
+            "$ref": "#/components/schemas/Daily"
+          }
+        }
+      }
+    }
+  }
+}

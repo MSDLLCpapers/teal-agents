@@ -1,7 +1,6 @@
 name: Deploy docs
 
 on:
-  workflow_dispatch:
   push:
     branches:
       - "feature/mkdocs"
@@ -27,5 +26,5 @@ jobs:
         working-directory: ./src/sk-agents
         run: make sync
       - name: Deploy docs
-        working-directory: ./src/sk-agents
+        working-directory: ./src/sk-agents/docs
         run: make deploy-docs

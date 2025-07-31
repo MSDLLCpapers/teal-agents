@@ -3,6 +3,8 @@ from datetime import datetime
 
 import pytest
 
+from sk_agents.ska_types import ContentType, MultiModalItem
+from sk_agents.tealagents.models import AgentTask, AgentTaskItem
 from src.sk_agents.exceptions import (
     PersistenceCreateError,
     PersistenceDeleteError,
@@ -10,8 +12,6 @@ from src.sk_agents.exceptions import (
     PersistenceUpdateError,
 )
 from src.sk_agents.persistence.in_memory_persistence_manager import InMemoryPersistenceManager
-from src.sk_agents.ska_types import MultiModalItem
-from src.sk_agents.tealagents.models import AgentTask, AgentTaskItem
 
 
 @pytest.fixture
@@ -25,9 +25,10 @@ def task_item():
     agent_task_item = AgentTaskItem(
         task_id="task-id-1",
         role="user",
-        item=MultiModalItem(content_type="text", content="test"),
+        item=MultiModalItem(content_type=ContentType.TEXT, content="test"),
         request_id="request_id_test",
         updated=datetime.now(),
+        pending_tool_calls=None,
     )
     return agent_task_item
 
@@ -38,9 +39,10 @@ def task_a():
     agent_task_item = AgentTaskItem(
         task_id="task-id-1",
         role="user",
-        item=MultiModalItem(content_type="text", content="text-a"),
+        item=MultiModalItem(content_type=ContentType.TEXT, content="text-a"),
         request_id="request_id_a",
         updated=datetime.now(),
+        pending_tool_calls=None,
     )
 
     return AgentTask(
@@ -60,9 +62,10 @@ def task_b():
     agent_task_item = AgentTaskItem(
         task_id="task-id-2",
         role="user",
-        item=MultiModalItem(content_type="text", content="text-b"),
+        item=MultiModalItem(content_type=ContentType.TEXT, content="text-b"),
         request_id="request_id_b",
         updated=datetime.now(),
+        pending_tool_calls=None,
     )
 
     return AgentTask(

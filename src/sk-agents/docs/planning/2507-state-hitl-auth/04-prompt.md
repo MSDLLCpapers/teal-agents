@@ -3,7 +3,7 @@ Context about the work which is not yet completed is available in the following 
 
 * @planning/2507-state-hitl-auth/01-02-state-refactor-implementation-plan.md
 * @planning/2507-state-hitl-auth/02-02-manual-tool-call-implementation-plan.md
-* @planning/2507-state-hitl-auth/02-03-hitl-implementation-plan.md
+* @planning/2507-state-hitl-auth/03-03-hitl-implementation-plan.md
 
 If helpful, there are additional files in the `planning/2507-state-hitl-auth` directory
 which can provide more context on the changes detailed in the above files.

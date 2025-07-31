@@ -14,6 +14,7 @@ will have to refactor some of the code, "de-abstracting" the portion of the Sema
 Kernel library where an agent performs tool calls.
 
 ## Reference Documentation
+
 - `context/teal-agents-overview.md` - A reference of the overall structure and
   background of the Teal Agents project
 - `context/state-refactor.md` - An overview of work that needs to be done to enable

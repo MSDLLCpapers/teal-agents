@@ -11,8 +11,8 @@ The application now includes a pluggable authorization system:
 - **`RequestAuthorizer`** - Abstract base class requiring `authorize_request(auth_header: str) -> str`
 - **`DummyAuthorizer`** - Development implementation returning 'dummyuser' for all requests
 - **`AuthorizerFactory`** - Thread-safe singleton factory with environment variable configuration
-  - `TA_AUTHORIZER_MODULE` - Module path for authorization implementation
-  - `TA_AUTHORIZER_CLASS` - Class name for authorization implementation
+    - `TA_AUTHORIZER_MODULE` - Module path for authorization implementation
+    - `TA_AUTHORIZER_CLASS` - Class name for authorization implementation
 - **Error handling** - Comprehensive handling for import failures and misconfigurations
 
 ### Persistence System
@@ -20,37 +20,37 @@ A pluggable state storage system is now available:
 
 - **`src/sk_agents/persistence/` module** - Complete persistence infrastructure
 - **`TaskPersistenceManager`** - Abstract base class with CRUD operations for `AgentTask` objects
-  - `create(task: AgentTask) -> None`
-  - `load(task_id: str) -> AgentTask | None`
-  - `update(task: AgentTask) -> None`
-  - `delete(task_id: str) -> None`
+    - `create(task: AgentTask) -> None`
+    - `load(task_id: str) -> AgentTask | None`
+    - `update(task: AgentTask) -> None`
+    - `delete(task_id: str) -> None`
 - **`InMemoryPersistenceManager`** - Thread-safe in-memory implementation with proper locking
 - **`PersistenceFactory`** - Environment variable configuration
-  - `TA_PERSISTENCE_MODULE` - Module path for persistence implementation
-  - `TA_PERSISTENCE_CLASS` - Class name for persistence implementation
+    - `TA_PERSISTENCE_MODULE` - Module path for persistence implementation
+    - `TA_PERSISTENCE_CLASS` - Class name for persistence implementation
 - **Error handling** - Persistence failures result in 5xx responses
 
 ### State Models
 New data models support complete conversation state management:
 
 - **`AgentTask`** - Core state container with:
-  - `task_id`, `session_id`, `user_id` for identification
-  - `items: list[AgentTaskItem]` for conversation history
-  - `created_at`, `last_updated_at` timestamps
-  - `status: Literal["Running", "Paused", "Completed", "Failed"]` for state tracking
+    - `task_id`, `session_id`, `user_id` for identification
+    - `items: list[AgentTaskItem]` for conversation history
+    - `created_at`, `last_updated_at` timestamps
+    - `status: Literal["Running", "Paused", "Completed", "Failed"]` for state tracking
 - **`AgentTaskItem`** - Individual conversation entries with:
-  - `role: Literal["user", "assistant"]` for message attribution
-  - `item: MultiModalItem` for content
-  - `request_id: str` for tracking individual requests
-  - `updated: datetime` for chronological ordering
+    - `role: Literal["user", "assistant"]` for message attribution
+    - `item: MultiModalItem` for content
+    - `request_id: str` for tracking individual requests
+    - `updated: datetime` for chronological ordering
 - **`UserMessage`** - Input model with optional state identifiers:
-  - `session_id: str | None` for session continuity
-  - `task_id: str | None` for task resumption
-  - `items: list[MultiModalItem]` for multimodal content
+    - `session_id: str | None` for session continuity
+    - `task_id: str | None` for task resumption
+    - `items: list[MultiModalItem]` for multimodal content
 - **`TealAgentsResponse`/`TealAgentsPartialResponse`** - Response models with:
-  - `session_id`, `task_id`, `request_id` for complete state tracking
-  - `output` field (collapsed from previous `output_raw`/`output_pydantic`)
-  - All existing response fields preserved
+    - `session_id`, `task_id`, `request_id` for complete state tracking
+    - `output` field (collapsed from previous `output_raw`/`output_pydantic`)
+    - All existing response fields preserved
 
 ## New API Architecture
 
@@ -62,10 +62,10 @@ A completely isolated API version has been created:
 - **`src/sk_agents/tealagents/v1alpha1/handler.py`** - Core handler implementation
 - **`src/sk_agents/tealagents/v1alpha1/agent.py`** - LLM interaction and tool call
 - **Isolation requirements**:
-  - No imports from `skagents` modules in `tealagents` modules
-  - No shared mutable state between API versions
-  - Separate error handling paths to prevent cross-contamination
-  - Independent configuration validation logic
+    - No imports from `skagents` modules in `tealagents` modules
+    - No shared mutable state between API versions
+    - Separate error handling paths to prevent cross-contamination
+    - Independent configuration validation logic
 
 ### Routing Integration
 The application routing has been extended to support the new API:
@@ -82,9 +82,9 @@ The groundwork for Human-in-the-Loop functionality has been established:
 
 - **`src/sk_agents/hitl/hitl_manager.py`** - Placeholder module with interception point
 - **`check_for_intervention(tool_call: FunctionCallContent) -> bool`** - Core interception function
-  - Currently returns `False` (no intervention) for all tool calls
-  - Establishes the exact point where HITL logic will be implemented
-  - Receives complete `FunctionCallContent` objects for inspection
+    - Currently returns `False` (no intervention) for all tool calls
+    - Establishes the exact point where HITL logic will be implemented
+    - Receives complete `FunctionCallContent` objects for inspection
 
 ### Manual Tool Orchestration
 The `Agent` (`src/sk_agents/tealagents/v1alpha1/agent.py`) implements the tool invocation loop:
@@ -114,9 +114,9 @@ Robust error handling and concurrency support:
 
 - **Thread-safe state access** - Proper locking mechanisms in persistence layer
 - **Comprehensive error responses**:
-  - 401 for authorization failures
-  - 404 for missing tasks
-  - 5xx for persistence failures
+    - 401 for authorization failures
+    - 404 for missing tasks
+    - 5xx for persistence failures
 - **Streaming support** - State management with keepalive mechanisms
 - **Race condition handling** - Concurrent access to same task properly managed
 
@@ -152,21 +152,25 @@ Response models are designed to support HITL workflows:
 The architecture establishes the following foundation for Phase 3 HITL implementation:
 
 ### 1. Tool Call Interception
+
 - **`hitl_manager.check_for_intervention()`** - Ready to implement policy-based tool approval
 - **Complete tool context** - `FunctionCallContent` objects provide full tool information
 - **Execution control** - Return `True` to block tool execution
 
 ### 2. State Persistence for Paused Tasks
+
 - **Task pausing** - Change `AgentTask.status` to "Paused"
 - **Conversation state** - Complete chat history preserved for resumption
 - **User context** - User authorization preserved for approval requests
 
 ### 3. Response Mechanisms
+
 - **State tracking** - Response models include all necessary identifiers
 - **Client communication** - Mechanisms exist to inform clients of approval requirements
 - **Resumption support** - Task can be resumed with `request_id` in subsequent requests
 
 ### 4. Authorization Integration
+
 - **User identification** - Every request tied to specific user
 - **Approval tracking** - Tool approval requests can be associated with users
 - **Security** - User ownership verification prevents unauthorized task access
@@ -181,6 +185,7 @@ New environment variables introduced:
 - `TA_PERSISTENCE_CLASS` - Class name for persistence implementation
 
 **Default values for development:**
+
 - Authorizer: `sk_agents.authorization.dummy_authorizer.DummyAuthorizer`
 - Persistence: `sk_agents.persistence.in_memory_persistence_manager.InMemoryPersistenceManager`
 

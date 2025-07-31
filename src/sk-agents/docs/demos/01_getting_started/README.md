@@ -29,6 +29,7 @@ spec:
 ```
 
 An agent configuration file can contain the following elements:
+
 * apiVersion - At present, this should always be `skagents/v1`
 * kind - The way in which an agent will execute its tasks. Currently only the
   value `Sequential` is supported, which means, for each invocation, the agent
@@ -37,8 +38,8 @@ An agent configuration file can contain the following elements:
 * service_name - The name of the agent (and thus its service). This, in
   combination with the version will make up the agent's REST and streaming
   endpoints. In this example, said endpoints would be
-  * `/ChatBot/0.1`
-  * `/ChatBot/0.1/stream`
+    * `/ChatBot/0.1`
+    * `/ChatBot/0.1/stream`
 * version - The version of the agent (see above)
 * input_type - The payload format for requests to this agent (more on this
   later)
@@ -46,19 +47,21 @@ An agent configuration file can contain the following elements:
   this agent (more on this later)
 * spec - Agent and task configuration
 * agents - A list of agents that can be used by tasks
-  * name - The name of the agent
-  * role - The role/description of the agent
-  * model - The LLM model to use
-  * system_prompt - A system prompt for the agent
+    * name - The name of the agent
+    * role - The role/description of the agent
+    * model - The LLM model to use
+    * system_prompt - A system prompt for the agent
 * tasks - A list of tasks to be executed by the agent
-  * name - The name of the task
-  * task_no - The order in which the task should be executed
-  * description - A description of the task
-  * instructions - Instructions for the task
-  * agent - The agent to use for the task (must match agent defined in the
+    * name - The name of the task
+    * task_no - The order in which the task should be executed
+    * description - A description of the task
+    * instructions - Instructions for the task
+    * agent - The agent to use for the task (must match agent defined in the
     agents section)
 
 ## Currently available models
+
 The models currently available for agent configuration include:
+
 * gpt-4o (Not for MSD usage)
 * gpt-4o-mini (Not for MSD usage)

@@ -19,6 +19,7 @@ annotated with the `kernel_function` annotation from Semantic Kernel
 #### Authorization & Extra Data
 Your custom plugin classes MUST inherit from BasePlugin. This base class has an
 `__init__` method which accepts two arguments:
+
 * `authorization` which contains the value contained in the `Authorization`
    header received from the client, if one is present. You can access the
    authorization token (if present) via `self.authorization`.

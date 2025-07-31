@@ -8,17 +8,18 @@ This document outlines the development tasks required to implement the Human-in-
 
 - **File:** `src/sk_agents/ska_types.py`
 - **Changes:**
-    1.  **Modify `AgentTaskItem`:** Add an optional field to store tool calls that are pending approval.
+
+    1.**Modify `AgentTaskItem`:** Add an optional field to store tool calls that are pending approval.
         ```python
         # In AgentTaskItem class
         pending_tool_calls: list[dict] | None = None # Store serialized FunctionCallContent
         ```
-    2.  **Modify `AgentTask`:** Add a "Canceled" status to the `status` literal to handle rejections.
+    2.**Modify `AgentTask`:** Add a "Canceled" status to the `status` literal to handle rejections.
         ```python
         # In AgentTask class
         status: Literal["Running", "Paused", "Completed", "Failed", "Canceled"]
         ```
-    3.  **Create `HitlResponse` Model:** Define a new Pydantic model for the response sent to the client when an intervention is required.
+    3.**Create `HitlResponse` Model:** Define a new Pydantic model for the response sent to the client when an intervention is required.
         ```python
         class HitlResponse(BaseModel):
             task_id: str
@@ -28,7 +29,7 @@ This document outlines the development tasks required to implement the Human-in-
             approval_url: str
             rejection_url: str
             tool_calls: list[dict] # Serialized FunctionCallContent
-        ```
+            ```
 
 ## Task 2: Implement Persistence Layer Extension
 
@@ -38,13 +39,13 @@ This document outlines the development tasks required to implement the Human-in-
     - `src/sk_agents/persistence/task_persistence_manager.py`
     - `src/sk_agents/persistence/in_memory_persistence_manager.py`
 - **Changes:**
-    1.  **Update `TaskPersistenceManager` ABC:** Add a new abstract method to find a task by `request_id`.
+    1. **Update `TaskPersistenceManager` ABC:** Add a new abstract method to find a task by `request_id`.
         ```python
         @abstractmethod
         def load_by_request_id(self, request_id: str) -> AgentTask | None:
             ...
         ```
-    2.  **Implement in `InMemoryPersistenceManager`:** Implement the new method. This will likely require creating a new index (dictionary) to map `request_id` to `task_id`. Ensure this index is properly maintained with thread-safe locks.
+    2. **Implement in `InMemoryPersistenceManager`:** Implement the new method. This will likely require creating a new index (dictionary) to map `request_id` to `task_id`. Ensure this index is properly maintained with thread-safe locks.
 
 ## Task 3: Implement HITL Trigger and Pause Logic
 
@@ -55,16 +56,16 @@ This document outlines the development tasks required to implement the Human-in-
     - `src/sk_agents/tealagents/v1alpha1/agent.py`
     - `src/sk_agents/tealagents/v1alpha1/handler.py`
 - **Changes:**
-    1.  **Update `hitl_manager.py`:** For now, hardcode `check_for_intervention` to return `True` if a tool call's name matches a predefined "high-risk" tool (e.g., `ShellCommand`).
-    2.  **Create Custom Exception:** Define a custom exception, e.g., `HitlInterventionRequired(Exception)`, to signal the need for HITL from the agent to the handler.
-    3.  **Modify `agent.py`:** In `invoke()` and `invoke_stream()`, after extracting tool calls, iterate through them. If `check_for_intervention()` returns `True` for any of them, raise `HitlInterventionRequired` with the list of all tool calls from the LLM's response.
-    4.  **Modify `handler.py`:**
-        - Wrap the `agent.invoke()` call in a `try...except HitlInterventionRequired` block.
-        - In the `except` block:
-            - Set `AgentTask.status` to `"Paused"`.
-            - Create a new `AgentTaskItem` for the assistant's turn, storing the pending tool calls from the exception into the new `pending_tool_calls` field.
-            - Persist the updated `AgentTask` using the `persistence_manager`.
-            - Construct and return the `HitlResponse`, generating the appropriate approval and rejection URLs (e.g., `/tealagents/v1alpha1/resume/{request_id}`).
+    1. **Update `hitl_manager.py`:** For now, hardcode `check_for_intervention` to return `True` if a tool call's name matches a predefined "high-risk" tool (e.g., `ShellCommand`).
+    2. **Create Custom Exception:** Define a custom exception, e.g., `HitlInterventionRequired(Exception)`, to signal the need for HITL from the agent to the handler.
+    3. **Modify `agent.py`:** In `invoke()` and `invoke_stream()`, after extracting tool calls, iterate through them. If `check_for_intervention()` returns `True` for any of them, raise `HitlInterventionRequired` with the list of all tool calls from the LLM's response.
+    4. **Modify `handler.py`:**
+            - Wrap the `agent.invoke()` call in a `try...except HitlInterventionRequired` block.
+            - In the `except` block:
+                - Set `AgentTask.status` to `"Paused"`.
+                - Create a new `AgentTaskItem` for the assistant's turn, storing the pending tool calls from the exception into the new `pending_tool_calls` field.
+                - Persist the updated `AgentTask` using the `persistence_manager`.
+                - Construct and return the `HitlResponse`, generating the appropriate approval and rejection URLs (e.g., `/tealagents/v1alpha1/resume/{request_id}`).
 
 ## Task 4: Create the HITL Resume Endpoint
 

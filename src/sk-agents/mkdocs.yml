@@ -66,6 +66,9 @@ markdown_extensions:
   - pymdownx.inlinehilite
   - pymdownx.snippets
   - pymdownx.superfences
+  - pymdownx.tasklist:
+      # Optional: Add a class to the checkboxes for styling
+      custom_checkbox: true
 
 validation:
   omitted_files: warn

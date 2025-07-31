@@ -19,7 +19,7 @@ For an overview of the scope of phase 5, see
 * Introduce a factor class that will return an appropriate singleton instance of the
   configured `SecureAuthStorageManager` implementation as defined in the environment
   variables:
-  * `TA_SECURE_AUTH_STORAGE_MANAGER_MODULE` - The module path to the
-    `SecureAuthStorageManager` implementation.
-  * `TA_SECURE_AUTH_STORAGE_MANAGER_CLASS` - The class name of the
-    `SecureAuthStorageManager` implementation.
+    * `TA_SECURE_AUTH_STORAGE_MANAGER_MODULE` - The module path to the
+      `SecureAuthStorageManager` implementation.
+    * `TA_SECURE_AUTH_STORAGE_MANAGER_CLASS` - The class name of the
+      `SecureAuthStorageManager` implementation.

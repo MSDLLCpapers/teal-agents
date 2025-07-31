@@ -187,6 +187,7 @@ async def invoke_stream(self, history: ChatHistory) -> AsyncIterable[StreamingCh
 ## 4. Testing Strategy
 
 The testing strategy remains the same as the previous plan, but the tests in `tests/test_tealagents_handler.py` will now be written against this specific implementation, verifying:
+
 1.  Simple chat works without regression.
 2.  Tool calls are correctly identified and executed.
 3.  The `hitl_manager.check_for_intervention` function is called for each tool invocation.

@@ -10,6 +10,7 @@ Semantic Kernel for LLM integration. The source code can be found in the
 `src/sk_agents` subdirectory of this workspace.
 
 Currently, there are two versions of the YAML configuration API:
+
   * skagents/v1 - The original version which, while still supported, is
     deprecated (although we currently lack a stable successor).
   * skagents/v2alpha1 - An prototype version which was never stabilized but
@@ -25,6 +26,7 @@ only `appv2.py` as a reference.
 
 `appv2.py` sets up the pulls in the applicable routes and handlers from the
 `routes.py` file which specifies the following endpoints:
+
 * POST /<AgentName>/<AgentVersion> - Direct REST invocation
 * POST /<AgentName>/<AgentVersion>/sse - SSE streaming invocation
 
@@ -45,6 +47,7 @@ implementation of the `BaseHandler` class) and then passes the request on to
 that handler for processing.
 
 NOTES:
+
 * There's a lot that goes in to instantiating the appropriate handler class
   including leveraging kernel and agent builders which define the intersection of
   this application with Semantic Kernel.

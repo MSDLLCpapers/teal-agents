@@ -76,6 +76,7 @@ Upon completion of phases 1-4, agent task state should be available. We should h
 ability to intercept tool calls and evaluate them, and we should have a tool catalog
 which contains the appropriate metadata for each tool. To introduce tool authorization,
 we still need to implement the following:
+
 1. The ability to store and retrieve the required tool authorization information for a
    given user and tool.
 2. The ability to craft and send an appropriate response to the client when a tool

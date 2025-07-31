@@ -5,6 +5,7 @@ of plugins, which can be bundles of similar tools, thus more closely aligning
 with traditional concepts in software development around the creation of APIs.
 
 In the Teal Agent Framework, plugins can be included in two ways:
+
 1. Local/Custom Plugins
 2. OpenAPI API Plugins
 
@@ -22,6 +23,7 @@ available remote plugins via a centralized catalog.
 
 ### Example
 In this example, we'll use two APIs.
+
 1. An API which, given a location search string, returns a number of
    geographical details about the location, including its latitude, longitude,
    and timezone.

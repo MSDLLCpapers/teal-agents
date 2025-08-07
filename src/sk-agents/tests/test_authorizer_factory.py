@@ -21,8 +21,9 @@ def mock_app_config():
     return MagicMock()
 
 
+@pytest.mark.asyncio
 @patch("sk_agents.authorization.authorizer_factory.ModuleLoader.load_module")
-def test_successful_initialization_and_get_authorizer(mock_load_module, mock_app_config):
+async def test_successful_initialization_and_get_authorizer(mock_load_module, mock_app_config):
     mock_app_config.get.side_effect = lambda key: {
         TA_AUTHORIZER_MODULE.env_name: "dummy_module",
         TA_AUTHORIZER_CLASS.env_name: "DummyAuthorizer",
@@ -35,9 +36,9 @@ def test_successful_initialization_and_get_authorizer(mock_load_module, mock_app
 
     factory = AuthorizerFactory(mock_app_config)
     authorizer = factory.get_authorizer()
-
+    authorizer_response = await authorizer.authorize_request("Bearer xyz")
     assert isinstance(authorizer, DummyAuthorizer)
-    assert authorizer.authorize_request("Bearer xyz") == "dummyuser"
+    assert authorizer_response == "dummyuser"
 
 
 @patch("sk_agents.authorization.authorizer_factory.ModuleLoader.load_module")

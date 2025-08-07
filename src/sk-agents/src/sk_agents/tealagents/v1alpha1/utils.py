@@ -11,7 +11,7 @@ from sk_agents.ska_types import (
 )
 
 
-def item_to_content(item: MultiModalItem) -> TextContent | ImageContent | None:
+def item_to_content(item: MultiModalItem) -> TextContent | ImageContent:
     match item.content_type:
         case ContentType.TEXT:
             return TextContent(text=item.content)

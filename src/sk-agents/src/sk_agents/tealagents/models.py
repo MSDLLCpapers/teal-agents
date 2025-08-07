@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
+from semantic_kernel.contents.chat_history import ChatHistory
 
 from sk_agents.ska_types import ExtraData, MultiModalItem, TokenUsage
 
@@ -20,6 +21,7 @@ class AgentTaskItem(BaseModel):
     request_id: str
     updated: datetime
     pending_tool_calls: list[dict] | None = None  # Store serialized FunctionCallContent
+    chat_history: ChatHistory | None = None
 
 
 class AgentTask(BaseModel):
@@ -59,3 +61,10 @@ class HitlResponse(BaseModel):
     approval_url: str
     rejection_url: str
     tool_calls: list[dict]  # Serialized FunctionCallContent
+
+
+class RejectedToolResponse(BaseModel):
+    task_id: str
+    session_id: str
+    request_id: str
+    message: str = "Tool excecution rejected."

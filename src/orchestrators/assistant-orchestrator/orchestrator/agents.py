@@ -20,42 +20,42 @@ class AgentInput(BaseModel):
     user_context: dict[str, str]
 
 
-# def _conversation_to_agent_input(conv: Conversation) -> AgentInput:
-#     chat_history: list[ChatHistoryItem] = []
-#     for item in conv.history:
-#         if hasattr(item, "recipient"):
-#             chat_history.append(ChatHistoryItem(role="user", content=item.content))
-#         elif hasattr(item, "sender"):
-#             chat_history.append(ChatHistoryItem(role="assistant", content=item.content))
-#     user_context: dict[str, str] = {}
-#     for key, item in conv.user_context.items():
-#         user_context[key] = item.value
-#     return AgentInput(chat_history=chat_history, user_context=user_context)
-
-
 def _conversation_to_agent_input(conv: Conversation) -> AgentInput:
-    chat_history_items = []
-    
+    chat_history: list[ChatHistoryItem] = []
     for item in conv.history:
-        role = ""
         if hasattr(item, "recipient"):
-            role = "user"
+            chat_history.append(ChatHistoryItem(role="user", content=item.content))
         elif hasattr(item, "sender"):
-            role = "assistant"
+            chat_history.append(ChatHistoryItem(role="assistant", content=item.content))
+    user_context: dict[str, str] = {}
+    for key, item in conv.user_context.items():
+        user_context[key] = item.value
+    return AgentInput(chat_history=chat_history, user_context=user_context)
+
+
+# def _conversation_to_agent_input(conv: Conversation) -> AgentInput:
+#     chat_history_items = []
+    
+#     for item in conv.history:
+#         role = ""
+#         if hasattr(item, "recipient"):
+#             role = "user"
+#         elif hasattr(item, "sender"):
+#             role = "assistant"
         
-        chat_history_items.append(
-            {
-                "role": role,
-                "items": [
-                    {
-                        "content_type": "text",
-                        "content": item.content
-                    }
-                ]
-            }
-        )
+#         chat_history_items.append(
+#             {
+#                 "role": role,
+#                 "items": [
+#                     {
+#                         "content_type": "text",
+#                         "content": item.content
+#                     }
+#                 ]
+#             }
+#         )
         
-    return AgentInput(chat_history=chat_history_items)
+#     return AgentInput(chat_history=chat_history_items)
 
 
 class BaseAgent(ABC, BaseModel):

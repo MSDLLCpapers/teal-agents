@@ -10,9 +10,6 @@ from sk_agents.tealagents.remote_plugin_loader import (
     RemotePluginCatalog,
     RemotePluginLoader,
 )
-from sk_agents.tealagents.v1alpha1.agent.agent import (
-    ChatAgents,  # need to change the import name base on ticket CDW-917
-)
 from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
 
 
@@ -33,11 +30,13 @@ def _handle_chat(
     config: BaseConfig,
     app_config: AppConfig,
     authorization: str | None = None,
-    is_v2: bool = False,
 ) -> BaseHandler:
+    from sk_agents.tealagents.v1alpha1.agent.handler import TealAgentsV1Alpha1Handler
+
     remote_plugin_loader = RemotePluginLoader(RemotePluginCatalog(app_config))
     chat_completion_builder = ChatCompletionBuilder(app_config)
     kernel_builder = KernelBuilder(chat_completion_builder, remote_plugin_loader, app_config)
     agent_builder = AgentBuilder(kernel_builder, authorization)
-    chat_agents = ChatAgents(config, agent_builder, is_v2)
+    chat_agents = TealAgentsV1Alpha1Handler(config, agent_builder)
     return chat_agents
+ 

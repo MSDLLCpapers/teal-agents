@@ -25,6 +25,7 @@ from sk_agents.ska_types import (
 from sk_agents.skagents import handle as skagents_handle
 from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.state import StateManager
+from sk_agents.tealagents.v1alpha1.agent.handler import TealAgentsV1Alpha1Handler
 from sk_agents.utils import docstring_parameter, get_sse_event_for_response
 
 logger = logging.getLogger(__name__)
@@ -258,5 +259,31 @@ class Routes:
             except WebSocketDisconnect:
                 logger.exception("websocket disconnected")
                 print("websocket disconnected")
+
+        return router
+
+    @staticmethod
+    def get_resume_routes() -> APIRouter:
+        router = APIRouter()
+
+        @router.post("/tealagents/v1alpha1/resume/{request_id}")
+        async def resume(request_id: str, request: Request, body: dict):
+            authorization = request.headers.get("authorization", None)
+            return await TealAgentsV1Alpha1Handler.resume_task(
+                request_id, authorization, body, stream=False
+            )
+
+        @router.post("/tealagents/v1alpha1/resume/{request_id}/sse")
+        async def resume_sse(request_id: str, request: Request, body: dict):
+            authorization = request.headers.get("authorization", None)
+
+            async def event_generator():
+                # noinspection PyTypeChecker
+                async for content in TealAgentsV1Alpha1Handler.resume_task(
+                    request_id, authorization, body, stream=True
+                ):
+                    yield get_sse_event_for_response(content)
+
+            return StreamingResponse(event_generator(), media_type="text/event-stream")
 
         return router

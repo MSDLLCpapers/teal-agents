@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from ..tealagents.models import AgentTask
+from sk_agents.tealagents.models import AgentTask
 
 
 class TaskPersistenceManager(ABC):

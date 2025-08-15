@@ -75,6 +75,23 @@ TA_PERSISTENCE_CLASS = Config(
     is_required=True,
     default_value="InMemoryPersistenceManager",
 )
+TA_PLUGIN_CATALOG_MODULE = Config(
+    env_name="TA_PLUGIN_CATALOG_MODULE",
+    is_required=False,
+    default_value="plugincatalog/local_plugin_catalog.py",
+)
+
+TA_PLUGIN_CATALOG_CLASS = Config(
+    env_name="TA_PLUGIN_CATALOG_CLASS",
+    is_required=False,
+    default_value="LocalPluginCatalog",
+)
+
+TA_PLUGIN_CATALOG_FILE = Config(
+    env_name="TA_PLUGIN_CATALOG_FILE",
+    is_required=False,
+    default_value="plugincatalog/catalog.json",
+)
 
 configs: list[Config] = [
     TA_API_KEY,
@@ -101,4 +118,7 @@ configs: list[Config] = [
     TA_PERSISTENCE_CLASS,
     TA_AUTHORIZER_CLASS,
     TA_AUTHORIZER_MODULE,
+    TA_PLUGIN_CATALOG_CLASS,
+    TA_PLUGIN_CATALOG_MODULE,
+    TA_PLUGIN_CATALOG_FILE
 ]

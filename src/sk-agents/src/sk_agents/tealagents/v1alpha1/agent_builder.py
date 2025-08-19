@@ -39,7 +39,7 @@ class AgentBuilder:
         )
 
         settings = kernel.get_prompt_execution_settings_from_service_id(agent_config.name)
-        settings.function_choice_behavior = FunctionChoiceBehavior.Auto()
+        settings.function_choice_behavior = FunctionChoiceBehavior.Auto(auto_invoke=False)
         if agent_config.temperature:
             settings.extension_data = {"temperature": float(agent_config.temperature)}
             settings.unpack_extension_data()

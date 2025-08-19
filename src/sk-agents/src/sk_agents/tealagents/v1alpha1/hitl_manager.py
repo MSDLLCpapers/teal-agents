@@ -1,6 +1,6 @@
 from semantic_kernel.contents.function_call_content import FunctionCallContent
 
-#Placeholder for high-risk tools that require human intervention
+# Placeholder for high-risk tools that require human intervention
 HIGH_RISK_TOOLS = {
     ("sensitive_plugin", "delete_user_data"),
     ("finance_plugin", "initiate_transfer"),
@@ -8,6 +8,7 @@ HIGH_RISK_TOOLS = {
     ("utility_plugin", "ShellCommand"),
     # Add more (plugin_name, function_name) as needed
 }
+
 
 def check_for_intervention(tool_call: FunctionCallContent) -> bool:
     """
@@ -22,6 +23,7 @@ def check_for_intervention(tool_call: FunctionCallContent) -> bool:
     )
 
     return is_high_risk
+
 
 # Custom exception for HITL intervention
 class HitlInterventionRequired(Exception):
@@ -38,4 +40,3 @@ class HitlInterventionRequired(Exception):
         else:
             message = "HITL intervention required"
         super().__init__(message)
-

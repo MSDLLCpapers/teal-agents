@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 
 class RequestAuthorizer(ABC):
     @abstractmethod
-    def authorize_request(self, auth_header: str) -> str:
+    async def authorize_request(self, auth_header: str) -> str:
         """
         Validates the given authorization header and returns a unique identifier
         for the authenticated user.

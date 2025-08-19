@@ -96,6 +96,19 @@ def agent_task(mock_date_time, agent_task_item):
 
 
 @pytest.fixture
+def agent_task_invoke(mock_date_time, agent_task_item, user_message):
+    return AgentTask(
+        task_id=user_message.task_id,
+        session_id=user_message.session_id,
+        user_id="test-user",
+        items=[agent_task_item],
+        created_at=mock_date_time,
+        last_updated=mock_date_time,
+        status="Running",
+    )
+
+
+@pytest.fixture
 def agent_response(agent_task):
     return TealAgentsResponse(
         session_id=agent_task.session_id,
@@ -110,7 +123,7 @@ class MockChatCompletionClient(ChatCompletionClientBase):
     ai_model_id: str = "test_model_id"
 
     async def get_chat_message_contents(self, **kwargs):
-        yield [
+        return [
             ChatMessageContent(
                 role=AuthorRole.ASSISTANT, items=[TextContent(text="Agent's final response.")]
             )
@@ -190,7 +203,8 @@ def test_configure_agent_task(mocker, user_message):
     assert agent_task_item.item.content == user_message.items[0].content
 
 
-def test_authenticate_user_success(teal_agents_handler, mocker):
+@pytest.mark.asyncio
+async def test_authenticate_user_success(teal_agents_handler, mocker):
     """
     Test that authenticate_user successfully returns a user ID
     when authorization is successful.
@@ -201,13 +215,14 @@ def test_authenticate_user_success(teal_agents_handler, mocker):
         teal_agents_handler.authorizer, "authorize_request", return_value=expected_user_id
     )
 
-    user_id = teal_agents_handler.authenticate_user(token=test_token)
+    user_id = await teal_agents_handler.authenticate_user(token=test_token)
 
     assert user_id == expected_user_id
     teal_agents_handler.authorizer.authorize_request.assert_called_once_with(auth_header=test_token)
 
 
-def test_authenticate_user_failure(teal_agents_handler, mocker):
+@pytest.mark.asyncio
+async def test_authenticate_user_failure(teal_agents_handler, mocker):
     """
     Test that authenticate_user raises an AuthenticationException
     when authorization fails.
@@ -215,14 +230,14 @@ def test_authenticate_user_failure(teal_agents_handler, mocker):
 
     test_token = "invalid_auth_token_xyz"
     mock_exception_message = "Token is expired"
-    mock_original_exception = ValueError(mock_exception_message)
+    mock_original_exception = Exception(mock_exception_message)
 
     mocker.patch.object(
         teal_agents_handler.authorizer, "authorize_request", side_effect=mock_original_exception
     )
 
     with pytest.raises(AuthenticationException):
-        teal_agents_handler.authenticate_user(token=test_token)
+        await teal_agents_handler.authenticate_user(token=test_token)
 
 
 def test_handle_state_id(user_message):
@@ -253,7 +268,9 @@ def test_handle_state_id(user_message):
 
 
 @pytest.mark.asyncio
-async def test_manage_incoming_task_load_success(teal_agents_handler, mocker, user_message):
+async def test_manage_incoming_task_load_success(
+    teal_agents_handler, mocker, user_message, agent_task
+):
     """
     Test _manage_incoming_task when the task is successfully loaded from state.
     """
@@ -262,20 +279,17 @@ async def test_manage_incoming_task_load_success(teal_agents_handler, mocker, us
     user_id = "test_user"
     request_id = "test_request_id"
 
-    mock_loaded_task = mocker.MagicMock(spec=AgentTask, task_id=task_id, status="Running")
-    mocker.patch.object(teal_agents_handler.state, "load", return_value=mock_loaded_task)
+    mocker.patch.object(teal_agents_handler.state, "load", return_value=agent_task)
     mocker.patch.object(teal_agents_handler.state, "create")
 
-    result_task = await teal_agents_handler._manage_incoming_task(
+    await teal_agents_handler._manage_incoming_task(
         task_id=task_id,
         session_id=session_id,
         user_id=user_id,
         request_id=request_id,
         inputs=user_message,
     )
-    assert isinstance(result_task, AgentTask)
 
-    assert result_task == mock_loaded_task
     teal_agents_handler.state.load.assert_called_once_with(task_id)
     teal_agents_handler.state.create.assert_not_called()
 
@@ -356,7 +370,7 @@ async def test_manage_agent_response_task(
 
 @pytest.mark.asyncio
 async def test_invoke_success(
-    teal_agents_handler, mocker, mock_config, user_message, agent_task, agent_response
+    teal_agents_handler, mocker, mock_config, user_message, agent_task_invoke, agent_response
 ):
     """
     Test the successful invocation of the agent.
@@ -374,7 +388,15 @@ async def test_invoke_success(
         "sk_agents.tealagents.v1alpha1.agent.handler.TealAgentsV1Alpha1Handler.handle_state_id",
         return_value=(mock_session_id, mock_task_id, mock_request_id),
     )
-    mocker.patch.object(teal_agents_handler, "_manage_incoming_task", return_value=agent_task)
+    mocker.patch.object(
+        teal_agents_handler, "_manage_incoming_task", return_value=agent_task_invoke
+    )
+    mocker.patch.object(
+        teal_agents_handler.state,
+        "load_by_request_id",
+        return_value=agent_task_invoke,
+        new_callable=mocker.AsyncMock,
+    )
     mocker.patch(
         "sk_agents.tealagents.v1alpha1.agent.handler.TealAgentsV1Alpha1Handler._validate_user_id"
     )
@@ -422,7 +444,7 @@ async def test_invoke_success(
         mock_task_id, mock_session_id, mock_user_id, mock_request_id, user_message
     )
     TealAgentsV1Alpha1Handler._validate_user_id.assert_called_once_with(
-        mock_user_id, mock_task_id, agent_task
+        mock_user_id, mock_task_id, agent_task_invoke
     )
     teal_agents_handler.agent_builder.build_agent.assert_called_once()
     TealAgentsV1Alpha1Handler._augment_with_user_context.assert_called_once()
@@ -439,9 +461,10 @@ async def test_invoke_success(
     assert result.token_usage.prompt_tokens == 100
     assert result.token_usage.total_tokens == 150
 
+
 @pytest.mark.asyncio
 async def test_invoke_intervention_required(
-    teal_agents_handler, mocker, user_message, agent_task
+    teal_agents_handler, mocker, user_message, agent_task_invoke
 ):
     """
     Test the invocation of the agent when intervention is required.
@@ -460,7 +483,9 @@ async def test_invoke_intervention_required(
         "sk_agents.tealagents.v1alpha1.agent.handler.TealAgentsV1Alpha1Handler.handle_state_id",
         return_value=(mock_session_id, mock_task_id, mock_request_id),
     )
-    mocker.patch.object(teal_agents_handler, "_manage_incoming_task", return_value=agent_task)
+    mocker.patch.object(
+        teal_agents_handler, "_manage_incoming_task", return_value=agent_task_invoke
+    )
     mocker.patch(
         "sk_agents.tealagents.v1alpha1.agent.handler.TealAgentsV1Alpha1Handler._validate_user_id"
     )
@@ -469,6 +494,12 @@ async def test_invoke_intervention_required(
     )
     mocker.patch(
         "sk_agents.tealagents.v1alpha1.agent.handler.TealAgentsV1Alpha1Handler._build_chat_history"
+    )
+    mocker.patch.object(
+        teal_agents_handler.state,
+        "load_by_request_id",
+        return_value=agent_task_invoke,
+        new_callable=mocker.AsyncMock,
     )
 
     # Mock intervention check to always return True
@@ -494,7 +525,7 @@ async def test_invoke_intervention_required(
                 arguments={"arg": "value"},
             )
             msg = ChatMessageContent(role=AuthorRole.ASSISTANT, items=[fc])
-            yield [msg]
+            return [msg]
 
     # Mock kernel to return the mocked service
     mock_chat_completion_service = MockChatCompletionService()
@@ -511,7 +542,7 @@ async def test_invoke_intervention_required(
     mocker.patch.object(teal_agents_handler.state, "update", new_callable=mocker.AsyncMock)
 
     # Add the task to the in-memory storage
-    await teal_agents_handler.state.create(agent_task)
+    await teal_agents_handler.state.create(agent_task_invoke)
 
     # Invoke the handler
     result = await teal_agents_handler.invoke(auth_token=auth_token, inputs=user_message)

@@ -2,14 +2,14 @@
 import asyncio
 import logging
 
-from src.sk_agents.exceptions import (
+from sk_agents.exceptions import (
     PersistenceCreateError,
     PersistenceDeleteError,
     PersistenceLoadError,
     PersistenceUpdateError,
 )
-from src.sk_agents.persistence.task_persistence_manager import TaskPersistenceManager
-from src.sk_agents.tealagents.models import AgentTask
+from sk_agents.persistence.task_persistence_manager import TaskPersistenceManager
+from sk_agents.tealagents.models import AgentTask
 
 logger = logging.getLogger(__name__)
 

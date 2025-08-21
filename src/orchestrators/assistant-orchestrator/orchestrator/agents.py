@@ -10,53 +10,71 @@ from ska_utils import strtobool
 from model import Conversation
 
 
+class ChatHistoryImageItem(BaseModel):
+    role: str
+    items: list[dict]
+
 class ChatHistoryItem(BaseModel):
     role: str
     content: str
 
 
 class AgentInput(BaseModel):
-    chat_history: list[ChatHistoryItem]
+    #chat_history: list[ChatHistoryItem]
+    chat_history: list[ChatHistoryItem|ChatHistoryImageItem] #| list[dict]  # Accepts both formats
     user_context: dict[str, str]
 
+#Original
+# def _conversation_to_agent_input(conv: Conversation) -> AgentInput:
+#     chat_history: list[ChatHistoryItem] = []
+#     for item in conv.history:
+#         if hasattr(item, "recipient"):
+#             chat_history.append(ChatHistoryItem(role="user", content=item.content))
+#         elif hasattr(item, "sender"):
+#             chat_history.append(ChatHistoryItem(role="assistant", content=item.content))
+#     user_context: dict[str, str] = {}
+#     for key, item in conv.user_context.items():
+#         user_context[key] = item.value
+#     return AgentInput(chat_history=chat_history, user_context=user_context)
 
-def _conversation_to_agent_input(conv: Conversation) -> AgentInput:
-    chat_history: list[ChatHistoryItem] = []
+##Danny
+def _conversation_to_agent_input(conv: Conversation, image_data: str | None) -> AgentInput:
+    chat_history: list[ChatHistoryItem | ChatHistoryImageItem] = []
     for item in conv.history:
-        if hasattr(item, "recipient"):
+        if image_data:
+            chat_history.append(ChatHistoryImageItem(
+                role = "user",
+                items =  [
+                    {
+                        "content_type": "text",
+                        "content": item.content
+                    },
+                    {
+                        "content_type": "image",
+                        "content": image_data
+                    }
+                ]
+            ))
+
+        elif hasattr(item, "recipient"):
+            # Create a ChatHistoryItem for user messages (simple format)
             chat_history.append(ChatHistoryItem(role="user", content=item.content))
         elif hasattr(item, "sender"):
+            # Create a ChatHistoryItem for assistant messages (simple format)
             chat_history.append(ChatHistoryItem(role="assistant", content=item.content))
+
+
+    # Build user_context
     user_context: dict[str, str] = {}
     for key, item in conv.user_context.items():
         user_context[key] = item.value
+
+    # Return AgentInput
     return AgentInput(chat_history=chat_history, user_context=user_context)
 
-
-# def _conversation_to_agent_input(conv: Conversation) -> AgentInput:
-#     chat_history_items = []
-    
-#     for item in conv.history:
-#         role = ""
-#         if hasattr(item, "recipient"):
-#             role = "user"
-#         elif hasattr(item, "sender"):
-#             role = "assistant"
-        
-#         chat_history_items.append(
-#             {
-#                 "role": role,
-#                 "items": [
-#                     {
-#                         "content_type": "text",
-#                         "content": item.content
-#                     }
-#                 ]
-#             }
-#         )
-        
-#     return AgentInput(chat_history=chat_history_items)
-
+# When serializing the AgentInput object, use exclude_none=True
+def serialize_agent_input(agent_input: AgentInput) -> dict:
+    return agent_input.model_dump(exclude_none=True)
 
 class BaseAgent(ABC, BaseModel):
     name: str
@@ -84,10 +102,11 @@ class BaseAgent(ABC, BaseModel):
             await ws.send(input_message)
             async for message in ws:
                 yield message
-
-    def invoke_api(self, conv: Conversation, authorization: str | None = None) -> dict:
+    #Origianl
+    def invoke_api(self, conv: Conversation, authorization: str | None = None, 
+                   image_data: str | None = None) -> dict:
         """Invoke the agent via an HTTP API call."""
-        base_input = _conversation_to_agent_input(conv)
+        base_input = _conversation_to_agent_input(conv, image_data)
         input_message = self.get_invoke_input(base_input)
 
         headers = {
@@ -95,12 +114,15 @@ class BaseAgent(ABC, BaseModel):
             "Authorization": authorization,
             "Content-Type": "application/json",
         }
+
         response = requests.post(self.endpoint_api, data=input_message, headers=headers)
+
 
         if response.status_code != 200:
             raise Exception(f"Failed to invoke agent API: {response.status_code} - {response.text}")
 
         return response.json()
+
 
     async def invoke_sse(self, conv: Conversation, authorization: str | None = None) -> dict:
         """Invoke the agent via an HTTP API call for SSE response."""

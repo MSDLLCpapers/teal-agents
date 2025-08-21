@@ -118,7 +118,19 @@ async def add_conversation_message_by_id(
             if jt.telemetry_enabled()
             else nullcontext()
         ):
-            response = agent.invoke_api(conv, authorization)
+
+            # Check if the message contains an image indicator (e.g., base64-encoded image data)
+            if request.image_data:
+                response = agent.invoke_api(
+                    conv, authorization, request.image_data)
+            else:
+                response = agent.invoke_api(
+                    conv, authorization, None)
+
+
+            # response = agent.invoke_api(
+            #     conv, authorization)
+
             try:
                 # Set the agent response from raw output
                 agent_response = response.get("output_raw", "No output available.")

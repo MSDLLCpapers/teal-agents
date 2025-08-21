@@ -127,10 +127,6 @@ async def add_conversation_message_by_id(
                 response = agent.invoke_api(
                     conv, authorization, None)
 
-
-            # response = agent.invoke_api(
-            #     conv, authorization)
-
             try:
                 # Set the agent response from raw output
                 agent_response = response.get("output_raw", "No output available.")

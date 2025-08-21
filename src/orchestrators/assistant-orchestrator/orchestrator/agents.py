@@ -103,7 +103,7 @@ class BaseAgent(ABC, BaseModel):
             async for message in ws:
                 yield message
     #Origianl
-    def invoke_api(self, conv: Conversation, authorization: str | None = None, 
+    def invoke_api(self, conv: Conversation, authorization: str | None = None,
                    image_data: str | None = None) -> dict:
         """Invoke the agent via an HTTP API call."""
         base_input = _conversation_to_agent_input(conv, image_data)

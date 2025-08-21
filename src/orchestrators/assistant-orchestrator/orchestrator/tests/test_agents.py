@@ -101,7 +101,7 @@ def agent_instance():
 
 @pytest.fixture
 def conversation_for_testing():
-    return Conversation(conversation_id="test-id", user_id="test-iser", 
+    return Conversation(conversation_id="test-id", user_id="test-iser",
                         history=[], user_context={},)
 
 

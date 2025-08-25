@@ -260,3 +260,82 @@ class Routes:
                 print("websocket disconnected")
 
         return router
+
+@staticmethod
+def get_stateful_routes(
+    name: str,
+    version: str,
+    description: str,
+    config: BaseConfig,
+    app_config: AppConfig,
+    state_manager: StateManager,
+    auth_manager: AuthenticationManager,
+    input_class: Type[UserMessage],
+) -> APIRouter:
+    """
+    Get the stateful API routes for the given configuration.
+    """
+    router = APIRouter()
+    
+    async def get_user_id(authorization: str = Header(None)):
+        user_id = await auth_manager.authenticate(authorization)
+        if not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED, 
+                detail="Authentication required"
+            )
+        return user_id
+    
+    @router.post(
+        "/chat",
+        response_model=StateResponse,
+        summary="Send a message to the agent",
+        response_description="Agent response with state identifiers",
+        tags=["Agent"],
+    )
+    async def chat(
+        message: input_class, 
+        user_id: str = Depends(get_user_id)
+    ) -> StateResponse:
+        # Handle new task creation or task retrieval
+        if message.task_id is None:
+            # New task
+            session_id, task_id = await state_manager.create_task(
+                message.session_id, 
+                user_id
+            )
+            task_state = await state_manager.get_task(task_id)
+        else:
+            # Follow-on request
+            task_id = message.task_id
+            task_state = await state_manager.get_task(task_id)
+            # Verify user ownership
+            if task_state.user_id != user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Not authorized to access this task"
+                )
+            session_id = task_state.session_id
+        
+        # Create a new request
+        request_id = await state_manager.create_request(task_id)
+        
+        # Process the message using the handler
+        # ... (implementation depends on how agents are invoked)
+        
+        # Add message to task history
+        # ... (implementation to build chat history and update task state)
+        
+        # Return response with state identifiers
+        return StateResponse(
+            session_id=session_id,
+            task_id=task_id,
+            request_id=request_id,
+            status=TaskStatus.COMPLETED,
+            content="Agent response"  # Replace with actual response
+        )
+    
+    # Additional routes can be added here as needed
+    # For example, routes to get task status, cancel tasks, etc.
+    
+    return router

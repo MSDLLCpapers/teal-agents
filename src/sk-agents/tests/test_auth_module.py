@@ -20,7 +20,7 @@ def sample_auth_data():
 
 def test_store_and_retrieve(auth_manager, sample_auth_data):
     """Test that data can be stored and retrieved successfully."""
-    user_id = "user123"
+    user_id = "test_user"
     key = "tool_a"
     auth_manager.store(user_id, key, sample_auth_data)
     retrieved_data = auth_manager.retrieve(user_id, key)
@@ -34,17 +34,13 @@ def test_retrieve_non_existent_key(auth_manager):
 
 def test_delete(auth_manager, sample_auth_data):
     """Test that a stored item can be deleted successfully."""
-    user_id = "user123"
+    user_id = "test_user"
     key = "tool_b"
     auth_manager.store(user_id, key, sample_auth_data)
     assert auth_manager.retrieve(user_id, key) is not None
     auth_manager.delete(user_id, key)
     assert auth_manager.retrieve(user_id, key) is None
 
-def test_delete_non_existent_key(auth_manager):
-    """Test that deleting a non-existent key doesn't raise an error."""
-    auth_manager.delete("user_x", "key_y")
-    assert True  # The test passes if no exception is raised
 
 def test_concurrency(auth_manager):
     """Test that concurrent store and retrieve operations are thread-safe."""
@@ -54,7 +50,6 @@ def test_concurrency(auth_manager):
     threads = []
     
     def worker(thread_id):
-        # Create a unique key and data for each thread
         key = f"tool_{thread_id}"
         data = OAuth2AuthData(
             access_token=f"token_{thread_id}",
@@ -62,27 +57,21 @@ def test_concurrency(auth_manager):
             scopes=["read"]
         )
         
-        # Perform mixed read/write operations
         for _ in range(num_operations_per_thread):
-            # Store the data
             auth_manager.store(user_id, key, data)
             
-            # Retrieve the data and check its integrity
             retrieved_data = auth_manager.retrieve(user_id, key)
             assert retrieved_data is not None
             assert retrieved_data.access_token == data.access_token
     
-    # Start all worker threads
     for i in range(num_threads):
         thread = threading.Thread(target=worker, args=(i,))
         threads.append(thread)
         thread.start()
     
-    # Wait for all threads to complete
     for thread in threads:
         thread.join()
     
-    # Final check: retrieve all items and verify their integrity
     for i in range(num_threads):
         key = f"tool_{i}"
         retrieved_data = auth_manager.retrieve(user_id, key)

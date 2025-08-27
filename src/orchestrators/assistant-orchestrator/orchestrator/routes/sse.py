@@ -122,7 +122,7 @@ async def sse_event_response(
             try:
                 # Initialize agent_response to be an empty string, to be populated from raw output
                 agent_response = ""
-                async for content in agent.invoke_sse(conv, authorization):
+                async for content in agent.invoke_sse(conv, authorization,request.image_data):
                     try:
                         # Check if extra data and process extra data, as done in ws
                         extra_data: ExtraData = ExtraData.new_from_json(content)

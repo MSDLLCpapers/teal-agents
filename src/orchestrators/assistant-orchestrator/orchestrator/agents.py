@@ -94,7 +94,7 @@ class BaseAgent(ABC, BaseModel):
     async def invoke_stream(
         self, conv: Conversation, authorization: str | None = None
     ) -> AsyncIterable[str]:
-        base_input = _conversation_to_agent_input(conv)
+        base_input = _conversation_to_agent_input(conv,None)
         input_message = self.get_invoke_input(base_input)
 
         headers = {
@@ -130,9 +130,10 @@ class BaseAgent(ABC, BaseModel):
         return response.json()
 
 
-    async def invoke_sse(self, conv: Conversation, authorization: str | None = None) -> dict:
+    async def invoke_sse(self, conv: Conversation, authorization: str | None = None,
+                         image_data: list[str] | str | None = None) -> dict:
         """Invoke the agent via an HTTP API call for SSE response."""
-        base_input = _conversation_to_agent_input(conv)
+        base_input = _conversation_to_agent_input(conv, image_data)
         input_message = self.get_invoke_input(base_input)
 
         headers = {

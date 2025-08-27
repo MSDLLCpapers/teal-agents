@@ -20,41 +20,48 @@ class ChatHistoryItem(BaseModel):
 
 
 class AgentInput(BaseModel):
-    #chat_history: list[ChatHistoryItem]
-    chat_history: list[ChatHistoryItem|ChatHistoryImageItem] #| list[dict]  # Accepts both formats
+    chat_history: list[ChatHistoryItem|ChatHistoryImageItem]
     user_context: dict[str, str]
 
-#Original
-# def _conversation_to_agent_input(conv: Conversation) -> AgentInput:
-#     chat_history: list[ChatHistoryItem] = []
-#     for item in conv.history:
-#         if hasattr(item, "recipient"):
-#             chat_history.append(ChatHistoryItem(role="user", content=item.content))
-#         elif hasattr(item, "sender"):
-#             chat_history.append(ChatHistoryItem(role="assistant", content=item.content))
-#     user_context: dict[str, str] = {}
-#     for key, item in conv.user_context.items():
-#         user_context[key] = item.value
-#     return AgentInput(chat_history=chat_history, user_context=user_context)
-
-##Danny
-def _conversation_to_agent_input(conv: Conversation, image_data: str | None) -> AgentInput:
+def _conversation_to_agent_input(conv: Conversation, 
+                                 image_data: list[str] | str | None) -> AgentInput:
     chat_history: list[ChatHistoryItem | ChatHistoryImageItem] = []
-    for item in conv.history:
+    for idx, item in enumerate(conv.history):
         if image_data:
-            chat_history.append(ChatHistoryImageItem(
-                role = "user",
-                items =  [
-                    {
-                        "content_type": "text",
-                        "content": item.content
-                    },
-                    {
+            image_items = []
+            if idx ==len(conv.history)-1:
+                # Handle both string and list of strings for image_data
+                if isinstance(image_data, list):
+                    for img in image_data:
+                        image_items.append({
+                            "content_type": "image",
+                            "content": img
+                        })
+                else:
+                    image_items.append({
                         "content_type": "image",
                         "content": image_data
-                    }
-                ]
-            ))
+                    })
+                chat_history.append(ChatHistoryImageItem(
+                    role="user",
+                    items=[
+                        {
+                            "content_type": "text",
+                            "content": item.content
+                        },
+                        *image_items  # Add all image items
+                    ]
+                ))
+            else:
+                chat_history.append(ChatHistoryImageItem(
+                    role="user",
+                    items=[
+                        {
+                            "content_type": "text",
+                            "content": item.content
+                        },
+                    ]
+                ))
 
         elif hasattr(item, "recipient"):
             # Create a ChatHistoryItem for user messages (simple format)
@@ -62,7 +69,6 @@ def _conversation_to_agent_input(conv: Conversation, image_data: str | None) -> 
         elif hasattr(item, "sender"):
             # Create a ChatHistoryItem for assistant messages (simple format)
             chat_history.append(ChatHistoryItem(role="assistant", content=item.content))
-
 
     # Build user_context
     user_context: dict[str, str] = {}
@@ -72,9 +78,7 @@ def _conversation_to_agent_input(conv: Conversation, image_data: str | None) -> 
     # Return AgentInput
     return AgentInput(chat_history=chat_history, user_context=user_context)
 
-# When serializing the AgentInput object, use exclude_none=True
-def serialize_agent_input(agent_input: AgentInput) -> dict:
-    return agent_input.model_dump(exclude_none=True)
+
 
 class BaseAgent(ABC, BaseModel):
     name: str
@@ -104,7 +108,8 @@ class BaseAgent(ABC, BaseModel):
                 yield message
     #Origianl
     def invoke_api(self, conv: Conversation, authorization: str | None = None,
-                   image_data: str | None = None) -> dict:
+                   image_data: list[str] | str | None = None) -> dict:
+
         """Invoke the agent via an HTTP API call."""
         base_input = _conversation_to_agent_input(conv, image_data)
         input_message = self.get_invoke_input(base_input)
@@ -114,6 +119,7 @@ class BaseAgent(ABC, BaseModel):
             "Authorization": authorization,
             "Content-Type": "application/json",
         }
+
 
         response = requests.post(self.endpoint_api, data=input_message, headers=headers)
 
@@ -170,6 +176,7 @@ class FallbackAgent(BaseAgent):
         fallback_input = FallbackInput(
             chat_history=agent_input.chat_history,
             user_context=agent_input.user_context,
+            imageItems=agent_input.imageItems,
             agents=agents,
         )
         return fallback_input.model_dump_json()

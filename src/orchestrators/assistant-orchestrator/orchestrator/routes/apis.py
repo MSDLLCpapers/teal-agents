@@ -119,13 +119,10 @@ async def add_conversation_message_by_id(
             else nullcontext()
         ):
 
-            # Check if the message contains an image indicator (e.g., base64-encoded image data)
-            if request.image_data:
-                response = agent.invoke_api(
-                    conv, authorization, request.image_data)
-            else:
-                response = agent.invoke_api(
-                    conv, authorization, None)
+            response = agent.invoke_api(
+                conv, authorization, request.image_data
+            )
+
 
             try:
                 # Set the agent response from raw output
@@ -157,6 +154,7 @@ async def add_conversation_message_by_id(
                     detail=f"Error adding response to conversation history --- {e}",
                 ) from e
         conversation_result = await conv_manager.get_last_response(conv)
+        print(conversation_result)
     return {"conversation": conversation_result}
 
 

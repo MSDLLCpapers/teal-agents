@@ -23,7 +23,7 @@ class AgentInput(BaseModel):
     chat_history: list[ChatHistoryItem|ChatHistoryImageItem]
     user_context: dict[str, str]
 
-def _conversation_to_agent_input(conv: Conversation, 
+def _conversation_to_agent_input(conv: Conversation,
                                  image_data: list[str] | str | None) -> AgentInput:
     chat_history: list[ChatHistoryItem | ChatHistoryImageItem] = []
     for idx, item in enumerate(conv.history):
@@ -176,7 +176,6 @@ class FallbackAgent(BaseAgent):
         fallback_input = FallbackInput(
             chat_history=agent_input.chat_history,
             user_context=agent_input.user_context,
-            imageItems=agent_input.imageItems,
             agents=agents,
         )
         return fallback_input.model_dump_json()

@@ -120,7 +120,6 @@ class BaseAgent(ABC, BaseModel):
             "Content-Type": "application/json",
         }
 
-
         response = requests.post(self.endpoint_api, data=input_message, headers=headers)
 
 

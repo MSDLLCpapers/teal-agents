@@ -94,8 +94,12 @@ async def add_conversation_message_by_id(
                 ) from e
 
             if selected_agent.agent_name not in agent_catalog.agents:
-                agent = fallback_agent
-                sel_agent_name = fallback_agent.name
+                if request.image_data:
+                    agent = agent_catalog.agents["ImageAgent:0.1"]
+                    sel_agent_name = "ImageAgent:0.1"
+                else:
+                    agent = fallback_agent
+                    sel_agent_name = fallback_agent.name
             else:
                 agent = agent_catalog.agents[selected_agent.agent_name]
                 sel_agent_name = agent.name

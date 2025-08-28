@@ -1,0 +1,6 @@
+remote_plugins:
+  - plugin_name: api_weather
+    openapi_json_path: ./demos/04_remote_plugins/openapi_weather.json
+    server_url: https://api.open-meteo.com
+  - plugin_name: api_geonames
+    openapi_json_path: ./demos/04_remote_plugins/openapi_geonames.json

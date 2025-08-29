@@ -1,5 +1,7 @@
-import pytest
 from datetime import datetime, timedelta
+
+import pytest
+
 from src.sk_agents.auth_storage.models import OAuth2AuthData
 
 
@@ -16,6 +18,7 @@ def test_oauth2_auth_data_valid_model():
     assert "oauth2" == auth_data.auth_type
     assert isinstance(auth_data.expires_at, datetime)
 
+
 def test_oauth2_auth_data_missing_access_token():
     """Verify that the model raises a validation error for a missing access token."""
     invalid_data = {
@@ -25,6 +28,7 @@ def test_oauth2_auth_data_missing_access_token():
     }
     with pytest.raises(ValueError, match="access_token"):
         OAuth2AuthData(**invalid_data)
+
 
 def test_oauth2_auth_data_invalid_expires_at_type():
     """Verify that the model raises a validation error for an invalid expires_at type."""

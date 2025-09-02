@@ -181,10 +181,18 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
     def _rejected_task_item(task_id: str, request_id: str) -> AgentTaskItem:
         return AgentTaskItem(
             task_id=task_id,
-            role="assistant",
-            item=MultiModalItem(
-                content_type=ContentType.TEXT, content="tool execution rejected by user"
-            ),
+            role="user",
+            item=MultiModalItem(content_type=ContentType.TEXT, content="tool execution rejected"),
+            request_id=request_id,
+            updated=datetime.now(),
+        )
+
+    @staticmethod
+    def _approved_task_item(task_id: str, request_id: str) -> AgentTaskItem:
+        return AgentTaskItem(
+            task_id=task_id,
+            role="user",
+            item=MultiModalItem(content_type=ContentType.TEXT, content="tool execution approved"),
             request_id=request_id,
             updated=datetime.now(),
         )
@@ -322,16 +330,26 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             agent_task.status = "Canceled"
             agent_task.items.append(
                 TealAgentsV1Alpha1Handler._rejected_task_item(
-                    task_id=agent_task.task_id, request_id=request_id
+                    task_id=task_id, request_id=request_id
                 )
             )
+            agent_task.last_updated = datetime.now()
             await self.state.update(agent_task)
             return RejectedToolResponse(
-                task_id=agent_task.task_id, session_id=agent_task.session_id, request_id=request_id
+                task_id=task_id, session_id=agent_task.session_id, request_id=request_id
             )
+        # Record Approval state
+        agent_task.status = "Running"
+        agent_task.items.append(
+            TealAgentsV1Alpha1Handler._approved_task_item(
+                task_id=agent_task.task_id, request_id=request_id
+            )
+        )
+        agent_task.last_updated = datetime.now()
+        await self.state.update(agent_task)
 
-        # Retrieve the pending_tool_calls from the last AgentTaskItem
-        tool_calls_in_task_items = agent_task.items[-1].pending_tool_calls
+        # Retrieve the pending_tool_calls from the last AgentTaskItem before approval/rejection item
+        tool_calls_in_task_items = agent_task.items[-2].pending_tool_calls
         if tool_calls_in_task_items is None:
             raise AgentInvokeException(f"Pending tool calls no found for request ID: {request_id}")
         _pending_tools = list(tool_calls_in_task_items)  # [fc for fc in tool_calls_in_task_items]

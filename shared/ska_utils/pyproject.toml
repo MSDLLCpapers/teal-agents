@@ -3,7 +3,7 @@ name = "ska-utils"
 dynamic = ["version"]
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "opentelemetry-exporter-otlp-proto-grpc>=1.29.0",
     "pydantic>=2.9.2",
@@ -44,7 +44,7 @@ dev = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = [
@@ -55,6 +55,10 @@ select = [
     "B",  # flake8-bugbear
     "C4", # flake8-comprehensions
     "UP", # pyupgrade
+]
+ignore = [
+    "UP046", # Ignore Generic class `InvokeResponse` uses `Generic` subclass instead of type parameters
+    "UP047", # Ignore Generic function should use type parameters
 ]
 isort = { combine-as-imports = true }
 
@@ -68,7 +72,7 @@ disallow_untyped_defs = false
 disallow_untyped_calls = false
 files = ["src/ska_utils/", "tests/"]
 follow_imports = "skip"
-python_version = 3.11
+python_version = 3.12
 
 [tool.coverage.run]
 source = ["src/ska_utils"]

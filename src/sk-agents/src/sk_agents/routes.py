@@ -5,12 +5,22 @@ from a2a.server.apps.starlette_app import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
 from a2a.server.tasks.task_store import TaskStore
 from a2a.types import AgentCapabilities, AgentCard, AgentProvider, AgentSkill
-from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+    status,
+)
 from fastapi.responses import StreamingResponse
 from opentelemetry.propagate import extract
 from ska_utils import AppConfig, get_telemetry
 
 from sk_agents.a2a import A2AAgentExecutor
+from sk_agents.authorization.request_authorizer import RequestAuthorizer
 from sk_agents.configs import (
     TA_AGENT_BASE_URL,
     TA_PROVIDER_ORG,
@@ -25,7 +35,7 @@ from sk_agents.ska_types import (
 from sk_agents.skagents import handle as skagents_handle
 from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.state import StateManager
-from sk_agents.tealagents.v1alpha1.agent.handler import TealAgentsV1Alpha1Handler
+from sk_agents.tealagents.models import StateResponse, TaskStatus, UserMessage
 from sk_agents.utils import docstring_parameter, get_sse_event_for_response
 
 logger = logging.getLogger(__name__)
@@ -206,7 +216,9 @@ class Routes:
                             async for content in handler.invoke_stream(inputs=inv_inputs):
                                 yield get_sse_event_for_response(content)
                         case _:
-                            logger.exception(f"Unknown apiVersion: {config.apiVersion}")
+                            logger.exception(
+                                "Unknown apiVersion: %s", config.apiVersion, exc_info=True
+                            )
                             raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
 
             return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -241,21 +253,22 @@ class Routes:
                     if st.telemetry_enabled()
                     else nullcontext()
                 ):
-                    inputs: input_class = input_class(**data)
+                    inputs = input_class(**data)
                     inv_inputs = inputs.__dict__
                     match root_handler_name:
                         case "skagents":
                             handler: BaseHandler = skagents_handle(
                                 config, app_config, authorization
                             )
-                            # noinspection PyTypeChecker
                             async for content in handler.invoke_stream(inputs=inv_inputs):
                                 if isinstance(content, PartialResponse):
                                     await websocket.send_text(content.output_partial)
                             await websocket.close()
                         case _:
-                            logger.exception(f"Unknown apiVersion: {config.apiVersion}")
-                            raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
+                            logger.exception(
+                                "Unknown apiVersion: %s", config.apiVersion, exc_info=True
+                            )
+                            raise ValueError(f"Unknown apiVersion %s: {config.apiVersion}")
             except WebSocketDisconnect:
                 logger.exception("websocket disconnected")
                 print("websocket disconnected")
@@ -263,27 +276,70 @@ class Routes:
         return router
 
     @staticmethod
-    def get_resume_routes() -> APIRouter:
+    def get_stateful_routes(
+        name: str,
+        version: str,
+        description: str,
+        config: BaseConfig,
+        state_manager: StateManager,
+        authorizer: RequestAuthorizer,
+        input_class: type[UserMessage],
+    ) -> APIRouter:
+        """
+        Get the stateful API routes for the given configuration.
+        """
         router = APIRouter()
 
-        @router.post("/tealagents/v1alpha1/resume/{request_id}")
-        async def resume(request_id: str, request: Request, body: dict):
-            authorization = request.headers.get("authorization", None)
-            return await TealAgentsV1Alpha1Handler.resume_task(
-                request_id, authorization, body, stream=False
+        async def get_user_id(authorization: str = Header(None)):
+            user_id = await authorizer.authorize_request(authorization)
+            if not user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Authentication required"
+                )
+            return user_id
+
+        @router.post(
+            "/chat",
+            response_model=StateResponse,
+            summary="Send a message to the agent",
+            response_description="Agent response with state identifiers",
+            tags=["Agent"],
+        )
+        async def chat(
+            message: input_class,
+            user_id: str = Depends(get_user_id)
+        ) -> StateResponse:
+            # Handle new task creation or task retrieval
+            if message.task_id is None:
+                # New task
+                session_id, task_id = await state_manager.create_task(
+                    message.session_id,
+                    user_id
+                )
+                task_state = await state_manager.get_task(task_id)
+            else:
+                # Follow-on request
+                task_id = message.task_id
+                task_state = await state_manager.get_task(task_id)
+                # Verify user ownership
+                if task_state.user_id != user_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Not authorized to access this task"
+                    )
+                session_id = task_state.session_id
+
+            # Create a new request
+            request_id = await state_manager.create_request(task_id)
+
+            # Return response with state identifiers
+            return StateResponse(
+                session_id=session_id,
+                task_id=task_id,
+                request_id=request_id,
+                status=TaskStatus.COMPLETED,
+                content="Agent response"  # Replace with actual response
             )
-
-        @router.post("/tealagents/v1alpha1/resume/{request_id}/sse")
-        async def resume_sse(request_id: str, request: Request, body: dict):
-            authorization = request.headers.get("authorization", None)
-
-            async def event_generator():
-                # noinspection PyTypeChecker
-                async for content in TealAgentsV1Alpha1Handler.resume_task(
-                    request_id, authorization, body, stream=True
-                ):
-                    yield get_sse_event_for_response(content)
-
-            return StreamingResponse(event_generator(), media_type="text/event-stream")
 
         return router

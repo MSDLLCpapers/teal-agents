@@ -32,7 +32,7 @@ def _conversation_to_agent_input(conv: Conversation,
     chat_history: list[ChatHistoryItem | ChatHistoryMultiModalItem] = []
     for idx, item in enumerate(conv.history):
         if image_data:
-            if "jpeg;base64" in image_data:
+            if "jpeg;base64" in image_data or "string" not in image_data:
                 if idx ==len(conv.history)-1:
                     image_items = []
                     # Handle both string and list of strings for image_data
@@ -43,7 +43,8 @@ def _conversation_to_agent_input(conv: Conversation,
                         image_items.append(MultiModalItem(content_type="image",content=image_data))
                     chat_history.append(ChatHistoryMultiModalItem(
                         role="user",
-                        items=[MultiModalItem(content_type="text",content=item.content)]+ image_items
+                        items=[MultiModalItem(content_type="text",
+                                              content=item.content)]+ image_items
                     ))
             else:
                 chat_history.append(ChatHistoryMultiModalItem(

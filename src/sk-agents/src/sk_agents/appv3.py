@@ -115,6 +115,12 @@ class AppV3:
             prefix=f"/{name}/{version}",
         )
 
+        # Include the new resume routes
+        app.include_router(
+            Routes.get_resume_routes(),
+            prefix=f"/{name}/{version}",
+        )
+
         # Make config and other essentials available to request handlers
         app.state.config = config
         app.state.app_config = app_config

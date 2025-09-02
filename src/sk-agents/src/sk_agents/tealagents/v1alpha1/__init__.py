@@ -39,4 +39,3 @@ def _handle_chat(
     agent_builder = AgentBuilder(kernel_builder, authorization)
     chat_agents = TealAgentsV1Alpha1Handler(config, agent_builder)
     return chat_agents
- 

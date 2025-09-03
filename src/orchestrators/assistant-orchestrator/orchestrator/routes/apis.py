@@ -94,8 +94,12 @@ async def add_conversation_message_by_id(
                 ) from e
 
             if selected_agent.agent_name not in agent_catalog.agents:
-                agent = fallback_agent
-                sel_agent_name = fallback_agent.name
+                if request.image_data:
+                    agent = agent_catalog.agents["ImageAgent:0.1"]
+                    sel_agent_name = "ImageAgent:0.1"
+                else:
+                    agent = fallback_agent
+                    sel_agent_name = fallback_agent.name
             else:
                 agent = agent_catalog.agents[selected_agent.agent_name]
                 sel_agent_name = agent.name
@@ -118,7 +122,12 @@ async def add_conversation_message_by_id(
             if jt.telemetry_enabled()
             else nullcontext()
         ):
-            response = agent.invoke_api(conv, authorization)
+
+            response = agent.invoke_api(
+                conv, authorization, request.image_data
+            )
+
+
             try:
                 # Set the agent response from raw output
                 agent_response = response.get("output_raw", "No output available.")
@@ -149,6 +158,7 @@ async def add_conversation_message_by_id(
                     detail=f"Error adding response to conversation history --- {e}",
                 ) from e
         conversation_result = await conv_manager.get_last_response(conv)
+        print(conversation_result)
     return {"conversation": conversation_result}
 
 

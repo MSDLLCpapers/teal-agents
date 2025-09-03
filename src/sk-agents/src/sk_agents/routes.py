@@ -17,7 +17,6 @@ from fastapi import (
 )
 from fastapi.responses import StreamingResponse
 from opentelemetry.propagate import extract
-from pydantic import BaseModel
 from ska_utils import AppConfig, get_telemetry
 
 from sk_agents.a2a import A2AAgentExecutor
@@ -36,7 +35,7 @@ from sk_agents.ska_types import (
 from sk_agents.skagents import handle as skagents_handle
 from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.state import StateManager
-from sk_agents.tealagents.models import StateResponse, TaskStatus, UserMessage
+from sk_agents.tealagents.models import ResumeRequest, StateResponse, TaskStatus, UserMessage
 from sk_agents.tealagents.v1alpha1.agent.handler import TealAgentsV1Alpha1Handler
 from sk_agents.utils import docstring_parameter, get_sse_event_for_response
 
@@ -346,16 +345,12 @@ class Routes:
 
         return router
 
-    class ResumeRequest(BaseModel):
-        key: str
-        value: str
-
     @staticmethod
     def get_resume_routes() -> APIRouter:
         router = APIRouter()
 
         @router.post("/tealagents/v1alpha1/resume/{request_id}")
-        async def resume(request_id: str, request: Request, body: Routes.ResumeRequest):
+        async def resume(request_id: str, request: Request, body: ResumeRequest):
             authorization = request.headers.get("authorization", None)
             try:
                 return await TealAgentsV1Alpha1Handler.resume_task(
@@ -366,7 +361,7 @@ class Routes:
                 raise HTTPException(status_code=500, detail="Internal Server Error") from e
 
         @router.post("/tealagents/v1alpha1/resume/{request_id}/sse")
-        async def resume_sse(request_id: str, request: Request, body: Routes.ResumeRequest):
+        async def resume_sse(request_id: str, request: Request, body: ResumeRequest):
             authorization = request.headers.get("authorization", None)
 
             async def event_generator():

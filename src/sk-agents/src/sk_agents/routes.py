@@ -35,7 +35,8 @@ from sk_agents.ska_types import (
 from sk_agents.skagents import handle as skagents_handle
 from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.state import StateManager
-from sk_agents.tealagents.models import StateResponse, TaskStatus, UserMessage
+from sk_agents.tealagents.models import ResumeRequest, StateResponse, TaskStatus, UserMessage
+from sk_agents.tealagents.v1alpha1.agent.handler import TealAgentsV1Alpha1Handler
 from sk_agents.utils import docstring_parameter, get_sse_event_for_response
 
 logger = logging.getLogger(__name__)
@@ -341,5 +342,38 @@ class Routes:
                 status=TaskStatus.COMPLETED,
                 content="Agent response"  # Replace with actual response
             )
+
+        return router
+
+    @staticmethod
+    def get_resume_routes() -> APIRouter:
+        router = APIRouter()
+
+        @router.post("/tealagents/v1alpha1/resume/{request_id}")
+        async def resume(request_id: str, request: Request, body: ResumeRequest):
+            authorization = request.headers.get("authorization", None)
+            try:
+                return await TealAgentsV1Alpha1Handler.resume_task(
+                    request_id, authorization, body.model_dump(), stream=False
+                )
+            except Exception as e:
+                logger.exception(f"Error in resume: {e}")
+                raise HTTPException(status_code=500, detail="Internal Server Error") from e
+
+        @router.post("/tealagents/v1alpha1/resume/{request_id}/sse")
+        async def resume_sse(request_id: str, request: Request, body: ResumeRequest):
+            authorization = request.headers.get("authorization", None)
+
+            async def event_generator():
+                try:
+                    async for content in TealAgentsV1Alpha1Handler.resume_task(
+                        request_id, authorization, body.model_dump(), stream=True
+                    ):
+                        yield get_sse_event_for_response(content)
+                except Exception as e:
+                    logger.exception(f"Error in resume_sse: {e}")
+                    raise HTTPException(status_code=500, detail="Internal Server Error") from e
+
+            return StreamingResponse(event_generator(), media_type="text/event-stream")
 
         return router

@@ -86,3 +86,6 @@ class TaskStatus(Enum):
     PAUSED = "Paused"
     COMPLETED = "Completed"
     FAILED = "Failed"
+
+class ResumeRequest(BaseModel):
+    action: str  # e.g., "approve", "reject"

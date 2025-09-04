@@ -30,6 +30,7 @@ class AgentBuilder:
             agent_config.name,
             agent_config.plugins,
             agent_config.remote_plugins,
+            agent_config.mcp_servers,
             self.authorization,
             extra_data_collector,
         )

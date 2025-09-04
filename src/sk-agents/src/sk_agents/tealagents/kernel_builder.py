@@ -1,13 +1,16 @@
+import asyncio
 import logging
 
 from semantic_kernel.kernel import Kernel
 from ska_utils import AppConfig
 
 from sk_agents.extra_data_collector import ExtraDataCollector
+from sk_agents.mcp_client import get_mcp_client
 from sk_agents.plugin_loader import get_plugin_loader
 from sk_agents.ska_types import ModelType
 from sk_agents.tealagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.tealagents.remote_plugin_loader import RemotePluginLoader
+from sk_agents.tealagents.v1alpha1.config import McpServerConfig
 
 
 class KernelBuilder:
@@ -30,13 +33,16 @@ class KernelBuilder:
         service_id: str,
         plugins: list[str],
         remote_plugins: list[str],
+        mcp_servers: list[McpServerConfig] | None = None,
         authorization: str | None = None,
         extra_data_collector: ExtraDataCollector | None = None,
     ) -> Kernel:
         try:
             kernel = self._create_base_kernel(model_name, service_id)
             kernel = self._parse_plugins(plugins, kernel, authorization, extra_data_collector)
-            return self._load_remote_plugins(remote_plugins, kernel)
+            kernel = self._load_remote_plugins(remote_plugins, kernel)
+            kernel = asyncio.run(self._load_mcp_plugins(mcp_servers, kernel))
+            return kernel
         except Exception as e:
             self.logger.exception(f"Could build kernel with service ID {service_id}. - {e}")
             raise
@@ -74,6 +80,38 @@ class KernelBuilder:
             return kernel
         except Exception as e:
             self.logger.exception(f"Could not load remote plugings. -{e}")
+            raise
+
+    async def _load_mcp_plugins(self, mcp_servers: list[McpServerConfig] | None, kernel: Kernel) -> Kernel:
+        """Load MCP plugins by connecting to MCP servers and registering their tools."""
+        if mcp_servers is None or len(mcp_servers) < 1:
+            return kernel
+        
+        try:
+            mcp_client = get_mcp_client()
+            
+            for server_config in mcp_servers:
+                try:
+                    self.logger.info(f"Connecting to MCP server: {server_config.name}")
+                    await mcp_client.connect_server(server_config)
+                    
+                    # Get the plugin for this server and register it with the kernel
+                    plugin = mcp_client.get_plugin(server_config.name)
+                    if plugin:
+                        kernel.add_plugin(plugin, f"mcp_{server_config.name}")
+                        self.logger.info(f"Registered MCP plugin for server: {server_config.name}")
+                    else:
+                        self.logger.warning(f"No plugin created for MCP server: {server_config.name}")
+                        
+                except Exception as e:
+                    self.logger.error(f"Failed to load MCP server {server_config.name}: {e}")
+                    # Continue with other servers rather than failing completely
+                    continue
+            
+            return kernel
+            
+        except Exception as e:
+            self.logger.exception(f"Could not load MCP plugins. - {e}")
             raise
 
     @staticmethod

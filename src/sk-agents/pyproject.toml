@@ -21,6 +21,7 @@ dependencies = [
     "redis>=6.0.0",
     "google-generativeai>=0.8.5",
     "google-ai-generativelanguage>=0.6.15",
+    "mcp>=1.0.0",
 ]
 
 [project.urls]

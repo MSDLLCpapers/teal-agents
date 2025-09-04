@@ -1,0 +1,61 @@
+apiVersion: tealagents/v1alpha1
+name: mcp-demo-agent
+version: 1.0
+description: "Demo agent with MCP server integration"
+
+metadata:
+  description: "A demonstration agent that showcases MCP server integration"
+  skills:
+    - id: "mcp-tools"
+      name: "MCP Tools"
+      description: "Tools from connected MCP servers"
+      tags: ["mcp", "external-tools"]
+      examples:
+        - "Read a file from the filesystem"
+        - "Query a SQLite database" 
+        - "Execute git commands"
+
+spec:
+  name: mcp-demo-agent
+  model: gpt-4
+  system_prompt: |
+    You are a helpful assistant with access to external tools through MCP servers.
+    
+    You have access to:
+    - Filesystem operations for reading and writing files
+    - SQLite database operations for data queries
+    - Git operations for version control tasks
+    
+    Always confirm the specific action you plan to take before executing potentially destructive operations.
+  
+  temperature: 0.1
+  
+  # Example MCP server configurations
+  mcp_servers:
+    # Filesystem server - allows file operations in a safe directory
+    - name: filesystem
+      command: npx
+      args:
+        - "@modelcontextprotocol/server-filesystem"
+        - "/tmp/mcp-demo"  # Safe directory for demo
+      env:
+        NODE_ENV: production
+    
+    # SQLite server - provides database access
+    - name: sqlite
+      command: python
+      args:
+        - "-m"
+        - "mcp_server_sqlite"
+        - "--db-path"
+        - "/tmp/demo.db"
+      env:
+        PYTHONPATH: "/opt/mcp-servers"
+    
+    # Git server - provides git operations (commented out for safety)
+    # - name: git
+    #   command: npx
+    #   args:
+    #     - "@modelcontextprotocol/server-git"
+    #     - "--repository"
+    #     - "/path/to/safe/repo"

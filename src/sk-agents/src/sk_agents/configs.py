@@ -76,6 +76,17 @@ TA_PERSISTENCE_CLASS = Config(
     default_value="InMemoryPersistenceManager",
 )
 
+TA_AUTH_STORAGE_MANAGER_CLASS = Config(
+    env_name="TA_AUTH_STORAGE_MANAGER_CLASS",
+    is_required=False,
+    default_value=None,
+)
+TA_AUTH_STORAGE_MANAGER_MODULE = Config(
+    env_name="TA_AUTH_STORAGE_MANAGER_MODULE",
+    is_required=False,
+    default_value=None,
+)
+
 configs: list[Config] = [
     TA_API_KEY,
     TA_SERVICE_CONFIG,
@@ -101,4 +112,6 @@ configs: list[Config] = [
     TA_PERSISTENCE_CLASS,
     TA_AUTHORIZER_CLASS,
     TA_AUTHORIZER_MODULE,
+    TA_AUTH_STORAGE_MANAGER_CLASS,
+    TA_AUTH_STORAGE_MANAGER_MODULE,
 ]

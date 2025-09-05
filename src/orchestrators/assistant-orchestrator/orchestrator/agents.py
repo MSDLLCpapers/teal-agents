@@ -70,6 +70,7 @@ class BaseAgent(ABC, BaseModel):
             "Authorization": authorization,
             "Content-Type": "application/json",
         }
+        inject(headers)
         response = requests.post(self.endpoint_api, data=input_message, headers=headers)
 
         if response.status_code != 200:
@@ -87,6 +88,7 @@ class BaseAgent(ABC, BaseModel):
             "Authorization": authorization,
             "Content-Type": "application/json",
         }
+        inject(headers)
         response = requests.post(f"{self.endpoint_api}/sse", data=input_message, headers=headers)
 
         if response.status_code != 200:

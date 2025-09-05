@@ -1,0 +1,79 @@
+apiVersion: tealagents/v1alpha1
+name: http-mcp-agent
+version: 1.0
+description: "Agent using HTTP REST MCP servers"
+
+metadata:
+  description: "Agent specialized for HTTP/REST MCP server integrations"
+  skills:
+    - id: "http-mcp-tools"
+      name: "HTTP MCP Tools" 
+      description: "REST API tools from HTTP MCP servers"
+      tags: ["mcp", "http", "rest", "api"]
+
+spec:
+  name: http-mcp-agent
+  model: gpt-4
+  system_prompt: |
+    You are an assistant with access to various REST APIs through HTTP MCP servers.
+    
+    Available services:
+    - User management and authentication services
+    - Content management systems
+    - Analytics and reporting APIs  
+    - Third-party service integrations
+    
+    Always mention which service/API you're calling for transparency.
+  
+  temperature: 0.1
+  
+  mcp_servers:
+    # User management service
+    - name: user-management
+      transport: http
+      base_url: "https://auth.example.com/api/v2"
+      api_key: "${USER_MGMT_API_KEY}"
+      timeout: 30
+      headers:
+        X-Service: "mcp-agent"
+        Accept: "application/json"
+        
+    # Content management system
+    - name: cms-api
+      transport: http
+      base_url: "https://cms.example.com/api/v1"
+      timeout: 45
+      headers:
+        Authorization: "Bearer ${CMS_TOKEN}"
+        Content-Type: "application/json"
+        X-Client-ID: "mcp-integration"
+        
+    # Analytics service
+    - name: analytics
+      transport: http
+      base_url: "https://analytics-api.example.com/v3"
+      api_key: "${ANALYTICS_API_KEY}"
+      timeout: 60
+      headers:
+        X-Analytics-Version: "v3.2"
+        Accept: "application/json"
+        
+    # Third-party integrations
+    - name: external-service
+      transport: http
+      base_url: "https://external-api.partner.com/mcp/v1"
+      timeout: 120  # Longer timeout for external services
+      headers:
+        Authorization: "Bearer ${PARTNER_API_TOKEN}"
+        X-Integration-Type: "mcp"
+        User-Agent: "TealAgents-MCP/1.0"
+        
+    # Internal microservice
+    - name: internal-service
+      transport: http
+      base_url: "https://internal.example.com/mcp-api/v1"
+      api_key: "${INTERNAL_SERVICE_KEY}"
+      timeout: 15  # Fast internal network
+      headers:
+        X-Internal-Client: "mcp-agent"
+        X-Request-Priority: "high"

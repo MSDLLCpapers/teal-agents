@@ -1,0 +1,85 @@
+apiVersion: tealagents/v1alpha1
+name: multi-transport-mcp-agent
+version: 1.0
+description: "Agent demonstrating multiple MCP transport types"
+
+metadata:
+  description: "Agent that showcases stdio, WebSocket, and HTTP MCP server integrations"
+  skills:
+    - id: "mcp-tools-multi"
+      name: "Multi-Transport MCP Tools"
+      description: "Tools from MCP servers using different transport protocols"
+      tags: ["mcp", "stdio", "websocket", "http", "multi-transport"]
+      examples:
+        - "Read files using stdio filesystem server"
+        - "Query remote database via WebSocket MCP server" 
+        - "Call REST API through HTTP MCP server"
+
+spec:
+  name: multi-transport-mcp-agent
+  model: gpt-4
+  system_prompt: |
+    You are a helpful assistant with access to tools from multiple MCP servers 
+    using different transport protocols.
+    
+    Available transports:
+    - Stdio: Local filesystem and database operations
+    - WebSocket: Real-time remote API access
+    - HTTP: REST API integrations
+    
+    Always describe which transport/server you're using for each operation.
+  
+  temperature: 0.1
+  
+  mcp_servers:
+    # Stdio Transport (subprocess execution)
+    - name: filesystem
+      transport: stdio
+      command: npx
+      args:
+        - "@modelcontextprotocol/server-filesystem"
+        - "/tmp/mcp-demo"
+      env:
+        NODE_ENV: production
+        
+    - name: sqlite-local
+      transport: stdio  
+      command: python
+      args:
+        - "-m"
+        - "mcp_server_sqlite"
+        - "--db-path"
+        - "/tmp/demo.db"
+      env:
+        PYTHONPATH: "/opt/mcp-servers"
+    
+    # WebSocket Transport (real-time connections)
+    - name: remote-database
+      transport: websocket
+      url: "wss://mcp-api.example.com/database"
+      headers:
+        Authorization: "Bearer ${DATABASE_TOKEN}"
+        X-Client-Version: "1.0"
+        
+    - name: live-data-feed
+      transport: websocket
+      url: "wss://data-stream.example.com/mcp"
+      headers:
+        X-API-Key: "${STREAM_API_KEY}"
+    
+    # HTTP Transport (REST API access)
+    - name: user-service
+      transport: http
+      base_url: "https://api.example.com/users/v1"
+      api_key: "${USER_SERVICE_API_KEY}"
+      timeout: 30
+      headers:
+        X-Service-Version: "v1"
+        
+    - name: analytics-api
+      transport: http
+      base_url: "https://analytics.example.com/api/v2"
+      timeout: 60
+      headers:
+        Authorization: "Bearer ${ANALYTICS_TOKEN}"
+        Content-Type: "application/json"

@@ -1,16 +1,20 @@
 import asyncio
 import logging
+from typing import TYPE_CHECKING
 
 from semantic_kernel.kernel import Kernel
 from ska_utils import AppConfig
 
 from sk_agents.extra_data_collector import ExtraDataCollector
-from sk_agents.mcp_client import get_mcp_client
 from sk_agents.plugin_loader import get_plugin_loader
 from sk_agents.ska_types import ModelType
 from sk_agents.tealagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.tealagents.remote_plugin_loader import RemotePluginLoader
 from sk_agents.tealagents.v1alpha1.config import McpServerConfig
+
+# Import MCP client lazily to avoid circular imports
+if TYPE_CHECKING:
+    from sk_agents.mcp_client import McpClient
 
 
 class KernelBuilder:
@@ -41,7 +45,22 @@ class KernelBuilder:
             kernel = self._create_base_kernel(model_name, service_id)
             kernel = self._parse_plugins(plugins, kernel, authorization, extra_data_collector)
             kernel = self._load_remote_plugins(remote_plugins, kernel)
-            kernel = asyncio.run(self._load_mcp_plugins(mcp_servers, kernel))
+            
+            # Handle MCP plugins - check if we're in an async context
+            if mcp_servers:
+                try:
+                    # Try to get the current event loop
+                    loop = asyncio.get_running_loop()
+                    # We're in an async context, need to handle this differently
+                    # For now, log a warning and skip MCP plugins
+                    self.logger.warning(
+                        "MCP plugins cannot be loaded in sync context when event loop is already running. "
+                        "Consider using async agent initialization."
+                    )
+                except RuntimeError:
+                    # No event loop running, safe to use asyncio.run()
+                    kernel = asyncio.run(self._load_mcp_plugins(mcp_servers, kernel))
+            
             return kernel
         except Exception as e:
             self.logger.exception(f"Could build kernel with service ID {service_id}. - {e}")
@@ -88,30 +107,48 @@ class KernelBuilder:
             return kernel
         
         try:
+            # Lazy import to avoid circular imports
+            from sk_agents.mcp_client import get_mcp_client
             mcp_client = get_mcp_client()
             
+            # Connect to all servers concurrently for better performance
+            connection_tasks = []
             for server_config in mcp_servers:
-                try:
-                    self.logger.info(f"Connecting to MCP server: {server_config.name}")
-                    await mcp_client.connect_server(server_config)
-                    
-                    # Get the plugin for this server and register it with the kernel
-                    plugin = mcp_client.get_plugin(server_config.name)
-                    if plugin:
-                        kernel.add_plugin(plugin, f"mcp_{server_config.name}")
-                        self.logger.info(f"Registered MCP plugin for server: {server_config.name}")
-                    else:
-                        self.logger.warning(f"No plugin created for MCP server: {server_config.name}")
-                        
-                except Exception as e:
-                    self.logger.error(f"Failed to load MCP server {server_config.name}: {e}")
-                    # Continue with other servers rather than failing completely
-                    continue
+                task = self._connect_single_mcp_server(mcp_client, server_config, kernel)
+                connection_tasks.append(task)
+            
+            if connection_tasks:
+                # Wait for all connections, but don't fail if some servers fail
+                results = await asyncio.gather(*connection_tasks, return_exceptions=True)
+                
+                # Log any connection failures
+                for i, result in enumerate(results):
+                    if isinstance(result, Exception):
+                        server_name = mcp_servers[i].name
+                        self.logger.error(f"Failed to connect to MCP server {server_name}: {result}")
             
             return kernel
             
         except Exception as e:
             self.logger.exception(f"Could not load MCP plugins. - {e}")
+            raise
+            
+    async def _connect_single_mcp_server(self, mcp_client, server_config: McpServerConfig, kernel: Kernel) -> None:
+        """Connect to a single MCP server and register its plugin."""
+        try:
+            self.logger.info(f"Connecting to MCP server: {server_config.name}")
+            await mcp_client.connect_server(server_config)
+            
+            # Get the plugin for this server and register it with the kernel
+            plugin = mcp_client.get_plugin(server_config.name)
+            if plugin:
+                kernel.add_plugin(plugin, f"mcp_{server_config.name}")
+                self.logger.info(f"Registered MCP plugin for server: {server_config.name}")
+            else:
+                self.logger.warning(f"No plugin created for MCP server: {server_config.name}")
+                
+        except Exception as e:
+            self.logger.error(f"Failed to load MCP server {server_config.name}: {e}")
             raise
 
     @staticmethod

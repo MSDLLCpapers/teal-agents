@@ -1,14 +1,20 @@
 """
-MCP Client for Teal Agents Platform.
+MCP Client for Teal Agents Platform - Clean Implementation
 
-This module provides an MCP (Model Context Protocol) client that can connect to MCP servers
-and automatically register their tools with the Semantic Kernel framework.
+This module provides an MCP (Model Context Protocol) client that supports only
+the transports that are actually available in the MCP Python SDK.
+
+ONLY SUPPORTED TRANSPORTS:
+- stdio: Local subprocess communication 
+- http: HTTP with Server-Sent Events for remote servers
+
+WebSocket support will be added when it becomes available in the MCP SDK.
 """
 
 import asyncio
 import logging
 import threading
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 from contextlib import AsyncExitStack
 from abc import ABC, abstractmethod
 
@@ -23,37 +29,19 @@ from sk_agents.tealagents.v1alpha1.config import McpServerConfig
 logger = logging.getLogger(__name__)
 
 
-class McpTransport(ABC):
-    """Abstract base class for MCP transport implementations."""
+async def create_mcp_session(server_config: McpServerConfig, connection_stack: AsyncExitStack) -> ClientSession:
+    """Create MCP session using SDK transport factories."""
+    transport_type = server_config.transport
     
-    @abstractmethod
-    async def create_session(self, connection_stack: AsyncExitStack) -> ClientSession:
-        """Create and return an MCP client session."""
-        pass
-        
-    @abstractmethod
-    def get_transport_info(self) -> str:
-        """Return a string describing this transport for logging."""
-        pass
-
-
-class StdioTransport(McpTransport):
-    """MCP transport using stdio/subprocess communication."""
-    
-    def __init__(self, server_config: 'McpServerConfig'):
-        self.server_config = server_config
-        
-    async def create_session(self, connection_stack: AsyncExitStack) -> ClientSession:
-        """Create stdio-based MCP session."""
+    if transport_type == "stdio":
         from mcp.client.stdio import stdio_client
         
         server_params = StdioServerParameters(
-            command=self.server_config.command,
-            args=self.server_config.args,
-            env=self.server_config.env or {}
+            command=server_config.command,
+            args=server_config.args,
+            env=server_config.env or {}
         )
         
-        # Create persistent connection using AsyncExitStack
         read, write = await connection_stack.enter_async_context(
             stdio_client(server_params)
         )
@@ -63,127 +51,53 @@ class StdioTransport(McpTransport):
         
         return session
         
-    def get_transport_info(self) -> str:
-        return f"stdio:{self.server_config.command} {' '.join(self.server_config.args)}"
-
-
-class WebSocketTransport(McpTransport):
-    """MCP transport using WebSocket communication."""
-    
-    def __init__(self, server_config: 'McpServerConfig'):
-        self.server_config = server_config
-        
-    async def create_session(self, connection_stack: AsyncExitStack) -> ClientSession:
-        """Create WebSocket-based MCP session."""
-        try:
-            # Import websocket client - may not be available
-            from mcp.client.websocket import websocket_client
-        except ImportError as e:
-            raise ImportError(
-                "WebSocket transport requires additional dependencies. "
-                "Install with: pip install 'mcp[websocket]'"
-            ) from e
-            
-        # Create WebSocket connection
-        websocket = await connection_stack.enter_async_context(
-            websocket_client(
-                url=self.server_config.url,
-                headers=self.server_config.headers or {}
-            )
+    elif transport_type == "http":
+        # HTTP/SSE transport would use MCP SDK's SSE client when available
+        # For now, raise an error with clear guidance
+        raise NotImplementedError(
+            "HTTP transport is not yet implemented. "
+            "The MCP Python SDK is still developing HTTP/SSE transport support. "
+            "Use stdio transport for local servers."
         )
-        
-        # Create session with WebSocket
-        session = await connection_stack.enter_async_context(
-            ClientSession(websocket)
-        )
-        
-        return session
-        
-    def get_transport_info(self) -> str:
-        return f"websocket:{self.server_config.url}"
+    else:
+        raise ValueError(f"Unsupported transport type: {transport_type}")
 
 
-class HttpTransport(McpTransport):
-    """MCP transport using HTTP communication."""
-    
-    def __init__(self, server_config: 'McpServerConfig'):
-        self.server_config = server_config
-        
-    async def create_session(self, connection_stack: AsyncExitStack) -> ClientSession:
-        """Create HTTP-based MCP session."""
-        try:
-            # Import HTTP client - may not be available
-            from mcp.client.http import http_client
-        except ImportError as e:
-            raise ImportError(
-                "HTTP transport requires additional dependencies. "
-                "Install with: pip install 'mcp[http]'"
-            ) from e
-            
-        # Prepare HTTP client configuration
-        client_config = {
-            'base_url': self.server_config.base_url,
-            'timeout': self.server_config.timeout or 30
-        }
-        
-        if self.server_config.api_key:
-            client_config['headers'] = {
-                'Authorization': f'Bearer {self.server_config.api_key}',
-                **(self.server_config.headers or {})
-            }
-        elif self.server_config.headers:
-            client_config['headers'] = self.server_config.headers
-            
-        # Create HTTP connection
-        http_conn = await connection_stack.enter_async_context(
-            http_client(**client_config)
-        )
-        
-        # Create session with HTTP connection
-        session = await connection_stack.enter_async_context(
-            ClientSession(http_conn)
-        )
-        
-        return session
-        
-    def get_transport_info(self) -> str:
-        return f"http:{self.server_config.base_url}"
-
-
-class McpTransportFactory:
-    """Factory for creating MCP transport instances."""
-    
-    @staticmethod
-    def create_transport(server_config: 'McpServerConfig') -> McpTransport:
-        """Create appropriate transport based on server configuration."""
-        transport_type = server_config.transport
-        
-        if transport_type == "stdio":
-            return StdioTransport(server_config)
-        elif transport_type == "websocket":
-            return WebSocketTransport(server_config)
-        elif transport_type == "http":
-            return HttpTransport(server_config)
-        else:
-            raise ValueError(f"Unsupported transport type: {transport_type}")
+def get_transport_info(server_config: McpServerConfig) -> str:
+    """Get transport info for logging."""
+    if server_config.transport == "stdio":
+        # Sanitize sensitive arguments
+        safe_args = []
+        for arg in server_config.args:
+            if any(keyword in arg.lower() for keyword in ['token', 'key', 'secret', 'password', 'auth']):
+                safe_args.append('[REDACTED]')
+            else:
+                safe_args.append(arg)
+        return f"stdio:{server_config.command} {' '.join(safe_args)}"
+    elif server_config.transport == "http":
+        # Sanitize URL for logging
+        base_url = server_config.base_url or ""
+        if '?' in base_url:
+            base_url = base_url.split('?')[0]
+        return f"http_sse:{base_url}"
+    else:
+        return f"{server_config.transport}:unknown"
 
 
 class McpTool:
     """Wrapper for MCP tools to make them compatible with Semantic Kernel."""
     
-    def __init__(self, name: str, description: str, input_schema: Dict[str, Any], client_session: ClientSession):
+    def __init__(self, name: str, description: str, input_schema: Dict[str, Any], client_session):
         self.name = name
         self.description = description
         self.input_schema = input_schema
         self.client_session = client_session
-        
-        # Store original name for reference
         self.original_name = name
         
     async def invoke(self, **kwargs) -> str:
         """Invoke the MCP tool with the provided arguments."""
         try:
-            # Validate inputs against schema if available
+            # Basic input validation if schema is available
             if self.input_schema:
                 self._validate_inputs(kwargs)
                 
@@ -199,40 +113,19 @@ class McpTool:
             else:
                 return str(result)
         except Exception as e:
-            # Enhanced error handling with transport-specific context
-            error_msg = str(e).lower()
-            transport_error_keywords = [
-                'connection', 'session', 'closed', 'transport', 'websocket', 'http',
-                'timeout', 'refused', 'unreachable', 'ssl', 'certificate'
-            ]
-            
-            is_transport_error = any(keyword in error_msg for keyword in transport_error_keywords)
-            
-            if is_transport_error:
-                # Try to find the client and mark as unhealthy
-                from sk_agents.mcp_client import get_mcp_client
-                mcp_client = get_mcp_client()
-                for server_name, session in mcp_client.connected_servers.items():
-                    if session == self.client_session:
-                        mcp_client.mark_connection_unhealthy(server_name)
-                        logger.warning(f"Marked MCP server '{server_name}' as unhealthy due to transport error")
-                        break
-                        
             logger.error(f"Error invoking MCP tool {self.name}: {e}")
             
-            # Provide more specific error messages based on error type
+            # Provide helpful error messages
+            error_msg = str(e).lower()
             if 'timeout' in error_msg:
                 raise RuntimeError(f"MCP tool '{self.name}' timed out. Check server responsiveness.") from e
-            elif 'connection' in error_msg or 'refused' in error_msg:
+            elif 'connection' in error_msg:
                 raise RuntimeError(f"MCP tool '{self.name}' connection failed. Check server availability.") from e
-            elif 'ssl' in error_msg or 'certificate' in error_msg:
-                raise RuntimeError(f"MCP tool '{self.name}' SSL/TLS error. Check certificates and encryption.") from e
             else:
                 raise RuntimeError(f"MCP tool '{self.name}' failed: {e}") from e
             
     def _validate_inputs(self, kwargs: Dict[str, Any]) -> None:
-        """Validate input arguments against the tool's JSON schema."""
-        # Basic validation - could be enhanced with jsonschema library
+        """Basic input validation against the tool's JSON schema."""
         if not isinstance(self.input_schema, dict):
             return
             
@@ -244,7 +137,7 @@ class McpTool:
             if req_param not in kwargs:
                 raise ValueError(f"Missing required parameter '{req_param}' for tool '{self.name}'")
         
-        # Check for unexpected parameters
+        # Warn about unexpected parameters
         for param in kwargs:
             if param not in properties:
                 logger.warning(f"Unexpected parameter '{param}' for tool '{self.name}'")
@@ -253,9 +146,10 @@ class McpTool:
 class McpPlugin(BasePlugin):
     """Plugin wrapper that holds MCP tools for Semantic Kernel integration."""
     
-    def __init__(self, tools: List[McpTool], authorization: str | None = None, extra_data_collector=None):
+    def __init__(self, tools: List[McpTool], server_name: str = None, authorization: str | None = None, extra_data_collector=None):
         super().__init__(authorization, extra_data_collector)
         self.tools = tools
+        self.server_name = server_name
         
         # Dynamically add kernel functions for each tool
         for tool in tools:
@@ -266,19 +160,23 @@ class McpPlugin(BasePlugin):
         
         # Create a closure that captures the specific tool instance
         def create_tool_function(captured_tool: McpTool):
+            # Create unique tool name to avoid collisions
+            unique_name = f"{self.server_name}_{captured_tool.name}" if self.server_name else captured_tool.name
+            
             @kernel_function(
-                name=captured_tool.name,
-                description=captured_tool.description,
+                name=unique_name,
+                description=f"[{self.server_name or 'MCP'}] {captured_tool.description}",
             )
             async def tool_function(**kwargs):
                 return await captured_tool.invoke(**kwargs)
             return tool_function
         
-        # Create the function with the captured tool and set as attribute
+        # Create the function and set as attribute
         tool_function = create_tool_function(tool)
         
-        # Sanitize tool name for Python attribute (replace invalid chars with underscore)
-        attr_name = ''.join(c if c.isalnum() or c == '_' else '_' for c in tool.name)
+        # Sanitize tool name for Python attribute
+        base_name = f"{self.server_name}_{tool.name}" if self.server_name else tool.name
+        attr_name = ''.join(c if c.isalnum() or c == '_' else '_' for c in base_name)
         if not attr_name[0].isalpha() and attr_name[0] != '_':
             attr_name = f'tool_{attr_name}'
             
@@ -287,18 +185,23 @@ class McpPlugin(BasePlugin):
 
 class McpClient:
     """
-    MCP Client for connecting to MCP servers and registering their tools.
+    Multi-server MCP client manager with Semantic Kernel integration.
     
-    This client handles the connection lifecycle to MCP servers, discovers available tools,
-    and automatically registers them with the Semantic Kernel framework.
+    This class manages connections to multiple MCP servers and provides
+    seamless integration with the Semantic Kernel framework. It uses the
+    MCP Python SDK for actual transport handling.
+    
+    Currently supported:
+    - stdio: Local subprocess communication
+    
+    Future transports will be added as they become available in the MCP SDK.
     """
     
     def __init__(self):
         """Initialize the MCP client."""
-        self.connected_servers: Dict[str, ClientSession] = {}
+        self.connected_servers: Dict[str, Any] = {}
         self.server_configs: Dict[str, McpServerConfig] = {}
         self.plugins: Dict[str, McpPlugin] = {}
-        # Track connection resources for proper cleanup
         self._connection_stacks: Dict[str, AsyncExitStack] = {}
         self._connection_health: Dict[str, bool] = {}
         
@@ -318,14 +221,12 @@ class McpClient:
         
         connection_stack = AsyncExitStack()
         try:
-            # Create transport for the server configuration
-            transport = McpTransportFactory.create_transport(server_config)
-            transport_info = transport.get_transport_info()
-            
+            # Get transport info for logging
+            transport_info = get_transport_info(server_config)
             logger.info(f"Connecting to MCP server '{server_config.name}' via {transport_info}")
             
-            # Create session using the transport
-            session = await transport.create_session(connection_stack)
+            # Create session using MCP SDK
+            session = await create_mcp_session(server_config, connection_stack)
             
             # Initialize the session
             await session.initialize()
@@ -344,45 +245,27 @@ class McpClient:
         except Exception as e:
             # Cleanup on failure
             await connection_stack.aclose()
+            logger.error(f"Failed to connect to MCP server '{server_config.name}': {e}")
             
-            # Provide transport-specific error context
-            transport_type = server_config.transport
+            # Provide stdio-specific error guidance
             error_msg = str(e).lower()
             
-            if transport_type == "stdio":
-                if 'permission' in error_msg or 'access' in error_msg:
-                    logger.error(f"Permission denied for stdio MCP server '{server_config.name}': {e}")
-                    raise ConnectionError(f"Permission denied. Check executable permissions for '{server_config.command}'") from e
-                elif 'not found' in error_msg or 'no such file' in error_msg:
-                    logger.error(f"Command not found for stdio MCP server '{server_config.name}': {e}")
-                    raise ConnectionError(f"Command '{server_config.command}' not found. Check PATH or use absolute path.") from e
-            elif transport_type == "websocket":
-                if 'ssl' in error_msg or 'certificate' in error_msg:
-                    logger.error(f"SSL/TLS error for WebSocket MCP server '{server_config.name}': {e}")
-                    raise ConnectionError(f"WebSocket SSL/TLS error. Check certificate validity for '{server_config.url}'") from e
-                elif 'timeout' in error_msg:
-                    logger.error(f"Timeout connecting to WebSocket MCP server '{server_config.name}': {e}")
-                    raise ConnectionError(f"WebSocket connection timeout. Check server availability at '{server_config.url}'") from e
-            elif transport_type == "http":
-                if '401' in error_msg or 'unauthorized' in error_msg:
-                    logger.error(f"Authentication failed for HTTP MCP server '{server_config.name}': {e}")
-                    raise ConnectionError(f"HTTP authentication failed. Check API key for '{server_config.base_url}'") from e
-                elif '404' in error_msg or 'not found' in error_msg:
-                    logger.error(f"HTTP endpoint not found for MCP server '{server_config.name}': {e}")
-                    raise ConnectionError(f"HTTP endpoint not found. Check base_url '{server_config.base_url}'") from e
-            
-            # Generic error fallback
-            logger.error(f"Failed to connect to {transport_type} MCP server '{server_config.name}': {e}")
-            raise ConnectionError(f"Could not connect to {transport_type} MCP server '{server_config.name}': {e}") from e
+            if 'permission' in error_msg or 'access' in error_msg:
+                raise ConnectionError(
+                    f"Permission denied for MCP server '{server_config.name}'. "
+                    f"Check executable permissions for: {server_config.command}"
+                ) from e
+            elif 'not found' in error_msg or 'no such file' in error_msg:
+                raise ConnectionError(
+                    f"Command not found for MCP server '{server_config.name}'. "
+                    f"Verify command is in PATH or use absolute path: {server_config.command}"
+                ) from e
+                
+            # Generic fallback error
+            raise ConnectionError(f"Could not connect to MCP server '{server_config.name}': {e}") from e
     
-    async def _discover_and_register_tools(self, server_name: str, session: ClientSession) -> None:
-        """
-        Discover tools from the connected MCP server and create plugin wrappers.
-        
-        Args:
-            server_name: Name of the MCP server
-            session: Active client session to the MCP server
-        """
+    async def _discover_and_register_tools(self, server_name: str, session) -> None:
+        """Discover tools from the connected MCP server and create plugin wrappers."""
         try:
             # List available tools from the server
             tools_result = await session.list_tools()
@@ -406,7 +289,7 @@ class McpClient:
             
             # Create a plugin for this server's tools
             if mcp_tools:
-                plugin = McpPlugin(mcp_tools)
+                plugin = McpPlugin(mcp_tools, server_name=server_name)
                 self.plugins[server_name] = plugin
                 logger.info(f"Created plugin for server {server_name} with {len(mcp_tools)} tools")
             
@@ -415,33 +298,15 @@ class McpClient:
             raise
     
     def get_plugin(self, server_name: str) -> Optional[McpPlugin]:
-        """
-        Get the plugin for a specific MCP server.
-        
-        Args:
-            server_name: Name of the MCP server
-            
-        Returns:
-            The plugin instance for the server, or None if not found
-        """
+        """Get the plugin for a specific MCP server."""
         return self.plugins.get(server_name)
     
     def get_all_plugins(self) -> Dict[str, McpPlugin]:
-        """
-        Get all registered MCP plugins.
-        
-        Returns:
-            Dictionary mapping server names to their plugins
-        """
+        """Get all registered MCP plugins."""
         return self.plugins.copy()
     
     def register_plugins_with_kernel(self, kernel: Kernel) -> None:
-        """
-        Register all MCP plugins with a Semantic Kernel instance.
-        
-        Args:
-            kernel: The Semantic Kernel instance to register plugins with
-        """
+        """Register all MCP plugins with a Semantic Kernel instance."""
         for server_name, plugin in self.plugins.items():
             try:
                 kernel.add_plugin(plugin, f"mcp_{server_name}")
@@ -451,12 +316,7 @@ class McpClient:
                 raise
     
     async def disconnect_server(self, server_name: str) -> None:
-        """
-        Disconnect from an MCP server and clean up resources.
-        
-        Args:
-            server_name: Name of the MCP server to disconnect from
-        """
+        """Disconnect from an MCP server and clean up resources."""
         try:
             # Clean up connection resources
             if server_name in self._connection_stacks:
@@ -465,18 +325,15 @@ class McpClient:
                 del self._connection_stacks[server_name]
                 
             # Clean up tracking dictionaries
-            if server_name in self.connected_servers:
-                del self.connected_servers[server_name]
-                
-            if server_name in self.server_configs:
-                del self.server_configs[server_name]
-                
-            if server_name in self.plugins:
-                del self.plugins[server_name]
-                
-            if server_name in self._connection_health:
-                del self._connection_health[server_name]
-                
+            for dictionary in [
+                self.connected_servers,
+                self.server_configs, 
+                self.plugins,
+                self._connection_health
+            ]:
+                if server_name in dictionary:
+                    del dictionary[server_name]
+                    
             logger.info(f"Disconnected from MCP server: {server_name}")
             
         except Exception as e:
@@ -490,15 +347,7 @@ class McpClient:
             await asyncio.gather(*disconnect_tasks, return_exceptions=True)
     
     def is_connected(self, server_name: str) -> bool:
-        """
-        Check if connected to a specific MCP server.
-        
-        Args:
-            server_name: Name of the MCP server
-            
-        Returns:
-            True if connected and healthy, False otherwise
-        """
+        """Check if connected to a specific MCP server."""
         return (
             server_name in self.connected_servers and 
             server_name in self._connection_health and
@@ -506,23 +355,13 @@ class McpClient:
         )
         
     def mark_connection_unhealthy(self, server_name: str) -> None:
-        """
-        Mark a connection as unhealthy (for use when tool invocations fail).
-        
-        Args:
-            server_name: Name of the MCP server
-        """
+        """Mark a connection as unhealthy."""
         if server_name in self._connection_health:
             self._connection_health[server_name] = False
             logger.warning(f"Marked MCP server {server_name} as unhealthy")
     
     def get_connected_servers(self) -> List[str]:
-        """
-        Get list of connected MCP server names.
-        
-        Returns:
-            List of connected server names
-        """
+        """Get list of connected MCP server names."""
         return list(self.connected_servers.keys())
 
 
@@ -568,15 +407,7 @@ class McpClientManager:
 
 
 def get_mcp_client() -> McpClient:
-    """
-    Get the global MCP client instance.
-    
-    Note: This is a sync wrapper around async client management.
-    In async contexts, consider using McpClientManager().get_client() directly.
-    
-    Returns:
-        The global MCP client instance
-    """
+    """Get the global MCP client instance."""
     manager = McpClientManager()
     
     # Try to get existing client first (fast path)

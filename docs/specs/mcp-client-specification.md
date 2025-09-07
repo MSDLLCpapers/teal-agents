@@ -1,12 +1,14 @@
 # MCP Client Integration - Design & Implementation Specification
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Date:** 2025-01-09  
-**Status:** Implemented  
+**Status:** Implemented (HTTP Transport Support Complete)  
 
 ## 1. Overview
 
-This specification describes the design and implementation of Model Context Protocol (MCP) client integration for the Teal Agents platform. The integration supports multiple transport protocols (stdio, WebSocket, HTTP) and allows agents to automatically connect to MCP servers, discover their tools, and register them as Semantic Kernel plugins.
+This specification describes the design and implementation of Model Context Protocol (MCP) client integration for the Teal Agents platform. The integration supports multiple transport protocols (stdio and HTTP) and allows agents to automatically connect to MCP servers, discover their tools, and register them as Semantic Kernel plugins.
+
+**Latest Update:** Added full HTTP transport support with both Streamable HTTP and SSE (Server-Sent Events) fallback capabilities.
 
 ### 1.1 Goals
 
@@ -90,21 +92,18 @@ class McpServerConfig(BaseModel):
     
     # Universal fields
     name: str                                    # Unique server identifier
-    transport: Literal["stdio", "websocket", "http"] = "stdio"  # Transport protocol
+    transport: Literal["stdio", "http"] = "stdio"  # Transport protocol
     
     # Stdio transport fields
     command: Optional[str] = None               # Command to start server
     args: List[str] = []                       # Command arguments  
     env: Optional[Dict[str, str]] = None       # Environment variables
     
-    # WebSocket transport fields
-    url: Optional[str] = None                  # WebSocket URL
-    headers: Optional[Dict[str, str]] = None   # WebSocket headers
-    
-    # HTTP transport fields
-    base_url: Optional[str] = None             # HTTP base URL
-    api_key: Optional[str] = None              # API key for authentication
-    timeout: Optional[int] = 30                # Request timeout
+    # HTTP transport fields (supports both Streamable HTTP and SSE)
+    url: Optional[str] = None                  # HTTP/SSE endpoint URL
+    headers: Optional[Dict[str, str]] = None   # HTTP headers (for auth, etc.)
+    timeout: Optional[float] = 30.0            # Connection timeout in seconds
+    sse_read_timeout: Optional[float] = 300.0  # SSE read timeout in seconds
 ```
 
 #### 3.2.2 McpClient
@@ -199,9 +198,9 @@ spec:
   plugins: ["plugin1", "plugin2"]
   remote_plugins: ["https://example.com/api"]
   
-  # New: MCP server configurations with multiple transports
+  # MCP server configurations with multiple transports
   mcp_servers:
-    # Stdio transport
+    # Stdio transport (local servers)
     - name: local-server
       transport: stdio               # Optional, defaults to stdio
       command: executable-path       # Required for stdio
@@ -209,20 +208,15 @@ spec:
       env:                          # Optional: environment variables
         VAR_NAME: "value"
         
-    # WebSocket transport
-    - name: websocket-server
-      transport: websocket
-      url: "wss://example.com/mcp"   # Required for websocket
-      headers:                      # Optional: WebSocket headers
-        Authorization: "Bearer TOKEN"
-        
-    # HTTP transport
+    # HTTP transport (remote servers)
     - name: http-server
       transport: http
-      base_url: "https://api.example.com/v1"  # Required for http
-      api_key: "${API_KEY}"         # Optional: API key
-      timeout: 30                   # Optional: timeout in seconds
-      headers:                      # Optional: custom headers
+      url: "https://api.example.com/mcp"      # Required: HTTP/SSE endpoint URL
+      timeout: 30.0                 # Optional: connection timeout (seconds)
+      sse_read_timeout: 300.0       # Optional: SSE read timeout (seconds)
+      headers:                      # Optional: HTTP headers for auth/config
+        Authorization: "Bearer ${API_KEY}"
+        User-Agent: "TealAgents-MCP/1.1"
         X-Client-Version: "1.0"
 ```
 
@@ -270,34 +264,41 @@ mcp_servers:
 **Base Dependency:**
 - `mcp>=1.0.0` - Model Context Protocol client library with stdio support
 
-**Optional Transport Dependencies:**
-- `mcp[websocket]>=1.0.0` - For WebSocket transport support
-- `mcp[http]>=1.0.0` - For HTTP transport support
-- `mcp[websocket,http]>=1.0.0` - For all transport types
+**HTTP Transport Dependencies:**
+- `mcp>=1.13.1` - Base MCP SDK with HTTP transport support
+- Automatic transport selection: Streamable HTTP → SSE fallback
+- No additional transport-specific packages required
 
 **Installation:**
 ```bash
-# Base installation (stdio only)
-uv add "mcp>=1.0.0"
+# Complete installation (stdio + HTTP transports)
+pip install "mcp>=1.13.1"
 
-# With WebSocket support
-uv add "mcp[websocket]>=1.0.0"
+# For development/testing
+pip install "mcp[sse]>=1.13.1"
 
-# With HTTP support
-uv add "mcp[http]>=1.0.0"
-
-# With all transports
-uv add "mcp[websocket,http]>=1.0.0"
 ```
 
-### 5.2 Runtime Requirements
+### 5.2 HTTP Transport Features
 
-1. **Python Version**: 3.12+ (existing requirement)
-2. **MCP Server Executables**: Must be available in the environment
-3. **Permissions**: File system access for MCP server executables
-4. **Network**: If MCP servers require network access
+**Implemented Transport Options:**
+1. **Streamable HTTP** (preferred): `/mcp` endpoints for production deployments
+2. **Server-Sent Events (SSE)** (fallback): `/sse` endpoints for broad compatibility
+3. **Automatic Selection**: Client tries streamable HTTP first, falls back to SSE
 
-### 5.3 Environment Variables
+**Connection Patterns:**
+- URLs ending in `/mcp` use streamable HTTP transport
+- URLs ending in `/sse` use SSE transport
+- Client automatically handles transport negotiation
+
+### 5.3 Runtime Requirements
+
+1. **Python Version**: 3.10+ (MCP SDK requirement)
+2. **MCP Server Executables**: Must be available for stdio transport
+3. **Network Access**: Required for HTTP transport servers
+4. **Permissions**: File system access for stdio servers
+
+### 5.4 Environment Variables
 
 MCP servers may require environment variables. These can be:
 - Specified in the `env` field of `McpServerConfig`
@@ -310,7 +311,9 @@ MCP servers may require environment variables. These can be:
 
 - **Behavior**: Log transport-specific error, continue with other servers
 - **Agent Impact**: Agent starts successfully without failed server's tools
-- **Error Context**: Transport-specific error messages (stdio: command issues, websocket: SSL/connection, http: authentication/endpoints)
+- **Error Context**: Transport-specific error messages:
+  - **Stdio**: Command not found, permission denied, executable issues
+  - **HTTP**: Timeout, connection refused, 401/404/503 responses, authentication failures
 - **Retry**: No automatic retry (future enhancement)
 
 ### 6.2 Tool Discovery Failures
@@ -506,18 +509,18 @@ spec:
 - ✅ McpClient class with multi-transport connection management
 - ✅ McpTool wrapper for Semantic Kernel compatibility  
 - ✅ McpPlugin container for tool registration
-- ✅ McpServerConfig configuration model with transport support
-- ✅ Transport factory pattern (McpTransportFactory)
-- ✅ Stdio, WebSocket, and HTTP transport implementations
+- ✅ McpServerConfig configuration model with HTTP transport support
+- ✅ Transport factory pattern with HTTP transport selection
+- ✅ Stdio and HTTP transport implementations (Streamable HTTP + SSE)
 - ✅ KernelBuilder integration for MCP loading
 - ✅ AgentBuilder updates to pass MCP configuration
 
 ### Configuration & Examples
 - ✅ Extended AgentConfig with mcp_servers field
-- ✅ Multi-transport example configurations
-- ✅ Stdio, WebSocket, and HTTP specific examples
-- ✅ Documentation and integration guide with transport details
-- ✅ Added mcp dependency with transport options to pyproject.toml
+- ✅ Multi-transport example configurations (stdio + HTTP)
+- ✅ Stdio and HTTP specific examples with real-world scenarios
+- ✅ Documentation and integration guide with HTTP transport details
+- ✅ Updated mcp dependency to support HTTP transports
 
 ### Error Handling
 - ✅ Transport-specific connection failure handling

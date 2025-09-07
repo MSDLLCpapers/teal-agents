@@ -1,19 +1,19 @@
 apiVersion: tealagents/v1alpha1
 name: multi-transport-mcp-agent
 version: 1.0
-description: "Agent demonstrating multiple MCP transport types"
+description: "Agent demonstrating stdio and HTTP MCP transport types"
 
 metadata:
-  description: "Agent that showcases stdio, WebSocket, and HTTP MCP server integrations"
+  description: "Agent that showcases local stdio and remote HTTP MCP server integrations"
   skills:
     - id: "mcp-tools-multi"
       name: "Multi-Transport MCP Tools"
       description: "Tools from MCP servers using different transport protocols"
-      tags: ["mcp", "stdio", "websocket", "http", "multi-transport"]
+      tags: ["mcp", "stdio", "http", "multi-transport"]
       examples:
-        - "Read files using stdio filesystem server"
-        - "Query remote database via WebSocket MCP server" 
-        - "Call REST API through HTTP MCP server"
+        - "Read files using local stdio filesystem server"
+        - "Query databases via local stdio server" 
+        - "Call remote APIs through HTTP MCP servers"
 
 spec:
   name: multi-transport-mcp-agent
@@ -23,16 +23,15 @@ spec:
     using different transport protocols.
     
     Available transports:
-    - Stdio: Local filesystem and database operations
-    - WebSocket: Real-time remote API access
-    - HTTP: REST API integrations
+    - Stdio: Local filesystem and database operations (subprocess execution)
+    - HTTP: Remote API integrations (streamable HTTP and SSE)
     
     Always describe which transport/server you're using for each operation.
   
   temperature: 0.1
   
   mcp_servers:
-    # Stdio Transport (subprocess execution)
+    # Stdio Transport (local subprocess execution)
     - name: filesystem
       transport: stdio
       command: npx
@@ -53,33 +52,39 @@ spec:
       env:
         PYTHONPATH: "/opt/mcp-servers"
     
-    # WebSocket Transport (real-time connections)
+    # HTTP Transport (remote server connections)
     - name: remote-database
-      transport: websocket
-      url: "wss://mcp-api.example.com/database"
+      transport: http
+      url: "https://mcp-api.example.com/database/mcp"
+      timeout: 45.0
       headers:
         Authorization: "Bearer ${DATABASE_TOKEN}"
         X-Client-Version: "1.0"
         
     - name: live-data-feed
-      transport: websocket
-      url: "wss://data-stream.example.com/mcp"
+      transport: http
+      url: "https://data-stream.example.com/sse"
+      timeout: 30.0
+      sse_read_timeout: 600.0  # Longer timeout for data streams
       headers:
-        X-API-Key: "${STREAM_API_KEY}"
+        Authorization: "Bearer ${STREAM_API_KEY}"
     
-    # HTTP Transport (REST API access)
+    # HTTP Transport (REST API integrations)
     - name: user-service
       transport: http
-      base_url: "https://api.example.com/users/v1"
-      api_key: "${USER_SERVICE_API_KEY}"
-      timeout: 30
+      url: "https://api.example.com/users/v1/mcp"
+      timeout: 30.0
       headers:
+        Authorization: "Bearer ${USER_SERVICE_API_KEY}"
         X-Service-Version: "v1"
+        User-Agent: "TealAgents-MCP/1.1"
         
     - name: analytics-api
       transport: http
-      base_url: "https://analytics.example.com/api/v2"
-      timeout: 60
+      url: "https://analytics.example.com/api/v2/sse"
+      timeout: 60.0
+      sse_read_timeout: 300.0
       headers:
         Authorization: "Bearer ${ANALYTICS_TOKEN}"
         Content-Type: "application/json"
+        X-Client-ID: "multi-transport-agent"

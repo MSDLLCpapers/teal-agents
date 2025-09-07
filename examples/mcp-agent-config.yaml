@@ -30,10 +30,12 @@ spec:
   
   temperature: 0.1
   
-  # Example MCP server configurations
+  # Example MCP server configurations showing both stdio and HTTP transports
   mcp_servers:
+    # Local stdio servers
     # Filesystem server - allows file operations in a safe directory
     - name: filesystem
+      transport: stdio  # Local server via stdio (default)
       command: npx
       args:
         - "@modelcontextprotocol/server-filesystem"
@@ -43,6 +45,7 @@ spec:
     
     # SQLite server - provides database access
     - name: sqlite
+      transport: stdio
       command: python
       args:
         - "-m"
@@ -52,8 +55,29 @@ spec:
       env:
         PYTHONPATH: "/opt/mcp-servers"
     
+    # Remote HTTP servers
+    # Weather service - remote HTTP MCP server
+    - name: weather-service
+      transport: http
+      url: "https://weather-mcp.example.com/mcp"
+      timeout: 30
+      headers:
+        Authorization: "Bearer ${WEATHER_API_KEY}"
+        User-Agent: "TealAgents-MCP/1.0"
+    
+    # Analytics API - remote service with SSE endpoint
+    - name: analytics-api
+      transport: http
+      url: "https://analytics.example.com/sse"
+      timeout: 45
+      sse_read_timeout: 300
+      headers:
+        Authorization: "Bearer ${ANALYTICS_TOKEN}"
+        X-Client-ID: "mcp-demo-agent"
+    
     # Git server - provides git operations (commented out for safety)
     # - name: git
+    #   transport: stdio
     #   command: npx
     #   args:
     #     - "@modelcontextprotocol/server-git"

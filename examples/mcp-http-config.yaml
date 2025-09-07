@@ -31,18 +31,19 @@ spec:
     # User management service
     - name: user-management
       transport: http
-      base_url: "https://auth.example.com/api/v2"
-      api_key: "${USER_MGMT_API_KEY}"
+      url: "https://auth.example.com/api/v2/mcp"
       timeout: 30
       headers:
+        Authorization: "Bearer ${USER_MGMT_API_KEY}"
         X-Service: "mcp-agent"
         Accept: "application/json"
         
     # Content management system
     - name: cms-api
       transport: http
-      base_url: "https://cms.example.com/api/v1"
+      url: "https://cms.example.com/api/v1/sse"
       timeout: 45
+      sse_read_timeout: 300
       headers:
         Authorization: "Bearer ${CMS_TOKEN}"
         Content-Type: "application/json"
@@ -51,18 +52,19 @@ spec:
     # Analytics service
     - name: analytics
       transport: http
-      base_url: "https://analytics-api.example.com/v3"
-      api_key: "${ANALYTICS_API_KEY}"
+      url: "https://analytics-api.example.com/v3/mcp"
       timeout: 60
       headers:
+        Authorization: "Bearer ${ANALYTICS_API_KEY}"
         X-Analytics-Version: "v3.2"
         Accept: "application/json"
         
     # Third-party integrations
     - name: external-service
       transport: http
-      base_url: "https://external-api.partner.com/mcp/v1"
+      url: "https://external-api.partner.com/mcp/v1/sse"
       timeout: 120  # Longer timeout for external services
+      sse_read_timeout: 600
       headers:
         Authorization: "Bearer ${PARTNER_API_TOKEN}"
         X-Integration-Type: "mcp"
@@ -71,9 +73,9 @@ spec:
     # Internal microservice
     - name: internal-service
       transport: http
-      base_url: "https://internal.example.com/mcp-api/v1"
-      api_key: "${INTERNAL_SERVICE_KEY}"
+      url: "https://internal.example.com/mcp-api/v1"
       timeout: 15  # Fast internal network
       headers:
+        Authorization: "Bearer ${INTERNAL_SERVICE_KEY}"
         X-Internal-Client: "mcp-agent"
         X-Request-Priority: "high"

@@ -52,13 +52,49 @@ async def create_mcp_session(server_config: McpServerConfig, connection_stack: A
         return session
         
     elif transport_type == "http":
-        # HTTP/SSE transport would use MCP SDK's SSE client when available
-        # For now, raise an error with clear guidance
-        raise NotImplementedError(
-            "HTTP transport is not yet implemented. "
-            "The MCP Python SDK is still developing HTTP/SSE transport support. "
-            "Use stdio transport for local servers."
-        )
+        # Try streamable HTTP first (preferred), fall back to SSE
+        try:
+            from mcp.client.streamable_http import streamablehttp_client
+            
+            # Use streamable HTTP transport
+            read, write, _ = await connection_stack.enter_async_context(
+                streamablehttp_client(
+                    url=server_config.url,
+                    headers=server_config.headers,
+                    timeout=server_config.timeout or 30.0
+                )
+            )
+            session = await connection_stack.enter_async_context(
+                ClientSession(read, write)
+            )
+            
+            return session
+            
+        except ImportError:
+            # Fall back to SSE transport if streamable HTTP not available
+            try:
+                from mcp.client.sse import sse_client
+                
+                read, write = await connection_stack.enter_async_context(
+                    sse_client(
+                        url=server_config.url,
+                        headers=server_config.headers,
+                        timeout=server_config.timeout or 30.0,
+                        sse_read_timeout=server_config.sse_read_timeout or 300.0
+                    )
+                )
+                session = await connection_stack.enter_async_context(
+                    ClientSession(read, write)
+                )
+                
+                return session
+                
+            except ImportError:
+                raise NotImplementedError(
+                    "HTTP transport is not available. "
+                    "Please install the MCP SDK with HTTP support: "
+                    "pip install 'mcp[http]' or 'mcp[sse]'"
+                )
     else:
         raise ValueError(f"Unsupported transport type: {transport_type}")
 
@@ -76,10 +112,10 @@ def get_transport_info(server_config: McpServerConfig) -> str:
         return f"stdio:{server_config.command} {' '.join(safe_args)}"
     elif server_config.transport == "http":
         # Sanitize URL for logging
-        base_url = server_config.base_url or ""
-        if '?' in base_url:
-            base_url = base_url.split('?')[0]
-        return f"http_sse:{base_url}"
+        url = server_config.url or ""
+        if '?' in url:
+            url = url.split('?')[0]
+        return f"http:{url}"
     else:
         return f"{server_config.transport}:unknown"
 
@@ -247,19 +283,48 @@ class McpClient:
             await connection_stack.aclose()
             logger.error(f"Failed to connect to MCP server '{server_config.name}': {e}")
             
-            # Provide stdio-specific error guidance
+            # Provide transport-specific error guidance
             error_msg = str(e).lower()
             
-            if 'permission' in error_msg or 'access' in error_msg:
-                raise ConnectionError(
-                    f"Permission denied for MCP server '{server_config.name}'. "
-                    f"Check executable permissions for: {server_config.command}"
-                ) from e
-            elif 'not found' in error_msg or 'no such file' in error_msg:
-                raise ConnectionError(
-                    f"Command not found for MCP server '{server_config.name}'. "
-                    f"Verify command is in PATH or use absolute path: {server_config.command}"
-                ) from e
+            if server_config.transport == "stdio":
+                # Stdio-specific errors
+                if 'permission' in error_msg or 'access' in error_msg:
+                    raise ConnectionError(
+                        f"Permission denied for MCP server '{server_config.name}'. "
+                        f"Check executable permissions for: {server_config.command}"
+                    ) from e
+                elif 'not found' in error_msg or 'no such file' in error_msg:
+                    raise ConnectionError(
+                        f"Command not found for MCP server '{server_config.name}'. "
+                        f"Verify command is in PATH or use absolute path: {server_config.command}"
+                    ) from e
+            elif server_config.transport == "http":
+                # HTTP-specific errors
+                if 'timeout' in error_msg or 'timed out' in error_msg:
+                    raise ConnectionError(
+                        f"Timeout connecting to MCP server '{server_config.name}' at {server_config.url}. "
+                        f"Check server availability and network connectivity."
+                    ) from e
+                elif 'connection' in error_msg or 'unreachable' in error_msg:
+                    raise ConnectionError(
+                        f"Cannot reach MCP server '{server_config.name}' at {server_config.url}. "
+                        f"Verify the URL is correct and the server is running."
+                    ) from e
+                elif '401' in error_msg or 'unauthorized' in error_msg:
+                    raise ConnectionError(
+                        f"Authentication failed for MCP server '{server_config.name}'. "
+                        f"Check your credentials and authorization headers."
+                    ) from e
+                elif '404' in error_msg or 'not found' in error_msg:
+                    raise ConnectionError(
+                        f"MCP server endpoint not found: {server_config.url}. "
+                        f"Verify the URL path is correct (typically ends with /sse or /mcp)."
+                    ) from e
+                elif '503' in error_msg or 'unavailable' in error_msg:
+                    raise ConnectionError(
+                        f"MCP server '{server_config.name}' is temporarily unavailable. "
+                        f"Try again later or contact the server administrator."
+                    ) from e
                 
             # Generic fallback error
             raise ConnectionError(f"Could not connect to MCP server '{server_config.name}': {e}") from e

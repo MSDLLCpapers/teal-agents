@@ -7,7 +7,10 @@ from configs import configs, TA_PLUGIN_CATALOG_MODULE, TA_PLUGIN_CATALOG_CLASS
 
 
 class PluginCatalogFactory(Singleton):
-    """Singleton factory for creating PluginCatalog instances based on environment variables."""
+    """
+        Singleton factory for creating PluginCatalog
+        instances based on environment variables.
+    """
 
     def __init__(self):
         super().__init__()
@@ -17,15 +20,25 @@ class PluginCatalogFactory(Singleton):
         self._catalog_instance: PluginCatalog | None = None
 
     def get_catalog(self) -> PluginCatalog:
-        """Get the plugin catalog instance, creating it if it doesn't exist."""
+        """
+            Get the plugin catalog instance,
+            creating it if it doesn't exist.
+        """
         if self._catalog_instance is None:
             self._catalog_instance = self._create_catalog()
         return self._catalog_instance
 
     def _create_catalog(self) -> PluginCatalog:
-        """Create a new plugin catalog instance based on environment variables."""
-        module_name = self.app_config.get(TA_PLUGIN_CATALOG_MODULE.env_name)
-        class_name = self.app_config.get(TA_PLUGIN_CATALOG_CLASS.env_name)
+        """
+            Create a new plugin catalog instance
+            based on environment variables.
+        """
+        module_name = self.app_config.get(
+            TA_PLUGIN_CATALOG_MODULE.env_name
+        )
+        class_name = self.app_config.get(
+            TA_PLUGIN_CATALOG_CLASS.env_name
+        )
 
         if not module_name or not class_name:
             raise ValueError(
@@ -38,7 +51,10 @@ class PluginCatalogFactory(Singleton):
             module = ModuleLoader.load_module(module_name)
 
             # Get the class from the module
-            catalog_class: Type[PluginCatalog] = getattr(module, class_name)
+            catalog_class: Type[PluginCatalog] = getattr(
+                module,
+                class_name
+            )
 
             # Verify it's a subclass of PluginCatalog
             if not issubclass(catalog_class, PluginCatalog):
@@ -56,5 +72,6 @@ class PluginCatalogFactory(Singleton):
             ) from e
         except AttributeError as e:
             raise AttributeError(
-                f"Class '{class_name}' not found in module '{module_name}': {e}"
+                f"Class '{class_name}' not found in"
+                f"module '{module_name}': {e}"
             ) from e

@@ -97,7 +97,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             fc_content.to_kernel_arguments()
         )
         return FunctionResultContent.from_function_call_content_and_result(
-            fc_content, function_result
+            fc_content,
+            function_result
         )
 
     @staticmethod
@@ -238,7 +239,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         except AssertionError as e:
             raise AgentInvokeException(
                 message=(
-                    f"Invalid user ID {user_id}" 
+                    f"Invalid user ID {user_id}"
                     f"and task ID {task_id} provided. {e}"
                 )
             ) from e
@@ -467,7 +468,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         agent_task.last_updated = datetime.now()
         await self.state.update(agent_task)
 
-        # Retrieve the pending_tool_calls from the last 
+        # Retrieve the pending_tool_calls from the last
         # AgentTaskItem before approval/rejection item
         tool_calls_in_task_items = agent_task.items[-2].pending_tool_calls
         if tool_calls_in_task_items is None:

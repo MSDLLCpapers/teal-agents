@@ -15,7 +15,11 @@ class FileBasedPluginCatalog(PluginCatalog):
 
     def __init__(self, app_config: AppConfig):
         self.app_config = app_config
-        self.catalog_path = Path(self.app_config.get(TA_PLUGIN_CATALOG_FILE.env_name))
+        self.catalog_path = Path(
+            self.app_config.get(
+                TA_PLUGIN_CATALOG_FILE.env_name
+            )
+        )
         self._plugins: dict[str, Plugin] = {}
         self._tools: dict[str, PluginTool] = {}
         self._load_plugins()
@@ -39,7 +43,9 @@ class FileBasedPluginCatalog(PluginCatalog):
 
             # Validate and convert to PluginCatalogDefinition
             try:
-                catalog_definition = PluginCatalogDefinition.model_validate(catalog_data)
+                catalog_definition = PluginCatalogDefinition.model_validate(
+                    catalog_data
+                )
             except Exception as validation_error:
                 raise PluginCatalogDefinitionException(
                     message="Plugin catalog definition validation failed"
@@ -52,11 +58,14 @@ class FileBasedPluginCatalog(PluginCatalog):
                 # Index tools for quick lookup
                 for tool in plugin.tools:
                     self._tools[tool.id] = tool
-        
+ 
         except PluginCatalogDefinitionException:
             # Re-raise our custom exception
             raise
         except Exception as e:
             raise PluginFileReadException(
-                message="Catalog encountered an error when attempting to read file"
+                message="""
+                Catalog encountered an error 
+                when attempting to read file
+                """
             ) from e

@@ -18,7 +18,9 @@ class KernelBuilder:
         app_config: AppConfig,
         authorization: str | None = None,
     ):
-        self.chat_completion_builder: ChatCompletionBuilder = chat_completion_builder
+        self.chat_completion_builder: ChatCompletionBuilder = (
+            chat_completion_builder
+        )
         self.remote_plugin_loader = remote_plugin_loader
         self.app_config: AppConfig = app_config
         self.authorization = authorization
@@ -35,27 +37,46 @@ class KernelBuilder:
     ) -> Kernel:
         try:
             kernel = self._create_base_kernel(model_name, service_id)
-            kernel = self._parse_plugins(plugins, kernel, authorization, extra_data_collector)
+            kernel = self._parse_plugins(
+                plugins,
+                kernel,
+                authorization,
+                extra_data_collector
+            )
             return self._load_remote_plugins(remote_plugins, kernel)
         except Exception as e:
-            self.logger.exception(f"Could build kernel with service ID {service_id}. - {e}")
+            self.logger.exception(
+                f"Could build kernel with service ID {service_id}. - {e}"
+            )
             raise
 
     def get_model_type_for_name(self, model_name: str) -> ModelType:
         try:
-            return self.chat_completion_builder.get_model_type_for_name(model_name)
+            return (
+                self.chat_completion_builder.get_model_type_for_name(
+                    model_name
+                )
+            )
         except Exception as e:
-            self.logger.exception(f"Could not get model type for {model_name}. - {e}")
+            self.logger.exception(
+                f"Could not get model type for {model_name}. - {e}"
+            )
             raise
 
     def model_supports_structured_output(self, model_name: str) -> bool:
-        return self.chat_completion_builder.model_supports_structured_output(model_name)
+        return (
+            self.chat_completion_builder.model_supports_structured_output(
+                model_name
+            )
+        )
 
     def _create_base_kernel(self, model_name: str, service_id: str) -> Kernel:
         try:
-            chat_completion = self.chat_completion_builder.get_chat_completion_for_model(
-                service_id=service_id,
-                model_name=model_name,
+            chat_completion = (
+                self.chat_completion_builder.get_chat_completion_for_model(
+                    service_id=service_id,
+                    model_name=model_name,
+                )
             )
 
             kernel = Kernel()
@@ -63,17 +84,29 @@ class KernelBuilder:
 
             return kernel
         except Exception as e:
-            self.logger.exception(f"Could not create base kernel with service id {service_id}.-{e}")
+            self.logger.exception(
+                f"Could not create base kernel"
+                f"with service id {service_id}.-{e}"
+            )
             raise
 
-    def _load_remote_plugins(self, remote_plugins: list[str], kernel: Kernel) -> Kernel:
+    def _load_remote_plugins(
+            self,
+            remote_plugins: list[str],
+            kernel: Kernel
+    ) -> Kernel:
         if remote_plugins is None or len(remote_plugins) < 1:
             return kernel
         try:
-            self.remote_plugin_loader.load_remote_plugins(kernel, remote_plugins)
+            self.remote_plugin_loader.load_remote_plugins(
+                kernel,
+                remote_plugins
+            )
             return kernel
         except Exception as e:
-            self.logger.exception(f"Could not load remote plugings. -{e}")
+            self.logger.exception(
+                f"Could not load remote plugings. -{e}"
+            )
             raise
 
     @staticmethod
@@ -89,5 +122,11 @@ class KernelBuilder:
         plugin_loader = get_plugin_loader()
         plugins = plugin_loader.get_plugins(plugin_names)
         for k, v in plugins.items():
-            kernel.add_plugin(v(authorization, extra_data_collector), k)
+            kernel.add_plugin(
+                v(
+                    authorization,
+                    extra_data_collector
+                ),
+                k
+            )
         return kernel

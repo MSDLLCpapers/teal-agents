@@ -3,15 +3,6 @@ from semantic_kernel.contents.function_call_content import (
 )
 from sk_agents.plugincatalog import plugin_catalog_factory
 
-# Placeholder for high-risk tools that require human intervention
-HIGH_RISK_TOOLS = {
-    ("sensitive_plugin", "delete_user_data"),
-    ("finance_plugin", "initiate_transfer"),
-    ("admin_tools", "shutdown_service"),
-    ("utility_plugin", "ShellCommand"),
-    # Add more (plugin_name, function_name) as needed
-}
-
 
 def check_for_intervention(tool_call: FunctionCallContent) -> bool:
     """

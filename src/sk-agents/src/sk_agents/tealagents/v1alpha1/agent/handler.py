@@ -26,6 +26,7 @@ from sk_agents.tealagents.models import (
     HitlResponse,
     MultiModalItem,
     RejectedToolResponse,
+    ResumeRequest,
     TealAgentsPartialResponse,
     TealAgentsResponse,
     UserMessage,
@@ -303,7 +304,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         return agent_response
 
     async def resume_task(
-        self, auth_token: str, request_id: str, action_status: dict[str, str], stream: bool
+        self, auth_token: str, request_id: str, action_status: ResumeRequest, stream: bool
     ) -> (
         TealAgentsResponse
         | RejectedToolResponse
@@ -326,7 +327,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         except Exception as e:
             raise Exception(f"Agent in resume request is not in Paused state: {e}") from e
 
-        if action_status.get("action") == "reject":
+        if action_status.action == "reject":
             agent_task.status = "Canceled"
             agent_task.items.append(
                 TealAgentsV1Alpha1Handler._rejected_task_item(

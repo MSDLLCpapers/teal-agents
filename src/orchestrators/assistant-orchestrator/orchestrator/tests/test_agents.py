@@ -101,8 +101,7 @@ def agent_instance():
 
 @pytest.fixture
 def conversation_for_testing():
-    return Conversation(conversation_id="test-id", user_id="test-iser",
-                        history=[], user_context={},)
+    return Conversation(conversation_id="test-id", user_id="test-user", history=[], user_context={})
 
 
 @pytest.fixture
@@ -160,7 +159,7 @@ def test_invoke_api_success(mocker, agent_instance, conversation_for_testing):
 
     response = agent_instance.invoke_api(conversation_for_testing, authorization="xyz")
 
-    _conversation_to_agent_input.assert_called_once_with(conversation_for_testing,None)
+    _conversation_to_agent_input.assert_called_once_with(conversation_for_testing, None)
 
     expected_headers = {
         "taAgwKey": agent_instance.api_key,

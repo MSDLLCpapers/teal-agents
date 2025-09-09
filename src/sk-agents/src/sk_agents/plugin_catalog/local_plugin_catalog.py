@@ -1,17 +1,12 @@
 import json
-from sk_agents.configs import TA_PLUGIN_CATALOG_FILE
 from pathlib import Path
-from sk_agents.plugin_catalog.plugin_catalog import PluginCatalog
-from sk_agents.plugin_catalog.models import (
-    Plugin,
-    PluginTool,
-    PluginCatalogDefinition
-)
-from sk_agents.exceptions import (
-    PluginCatalogDefinitionException,
-    PluginFileReadException
-)
+
 from ska_utils import AppConfig
+
+from sk_agents.configs import TA_PLUGIN_CATALOG_FILE
+from sk_agents.exceptions import PluginCatalogDefinitionException, PluginFileReadException
+from sk_agents.plugin_catalog.models import Plugin, PluginCatalogDefinition, PluginTool
+from sk_agents.plugin_catalog.plugin_catalog import PluginCatalog
 
 
 class FileBasedPluginCatalog(PluginCatalog):
@@ -19,11 +14,7 @@ class FileBasedPluginCatalog(PluginCatalog):
 
     def __init__(self, app_config: AppConfig):
         self.app_config = app_config
-        self.catalog_path = Path(
-            self.app_config.get(
-                TA_PLUGIN_CATALOG_FILE.env_name
-            )
-        )
+        self.catalog_path = Path(self.app_config.get(TA_PLUGIN_CATALOG_FILE.env_name))
         self._plugins: dict[str, Plugin] = {}
         self._tools: dict[str, PluginTool] = {}
         self._load_plugins()
@@ -42,14 +33,12 @@ class FileBasedPluginCatalog(PluginCatalog):
             return
 
         try:
-            with open(self.catalog_path, 'r') as local_plugin_json:
+            with open(self.catalog_path) as local_plugin_json:
                 catalog_data = json.load(local_plugin_json)
 
             # Validate and convert to PluginCatalogDefinition
             try:
-                catalog_definition = PluginCatalogDefinition.model_validate(
-                    catalog_data
-                )
+                catalog_definition = PluginCatalogDefinition.model_validate(catalog_data)
             except Exception as validation_error:
                 raise PluginCatalogDefinitionException(
                     message="Plugin catalog definition validation failed"
@@ -69,7 +58,7 @@ class FileBasedPluginCatalog(PluginCatalog):
         except Exception as e:
             raise PluginFileReadException(
                 message="""
-                Catalog encountered an error 
+                Catalog encountered an error
                 when attempting to read file
                 """
             ) from e

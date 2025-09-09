@@ -18,15 +18,8 @@ from sk_agents.hitl.hitl_manager import (
         ("finance_plugin", "get_balance", False),
     ],
 )
-def test_check_for_intervention(
-    plugin_name,
-    function_name,
-    expected
-):
-    tool_call = FunctionCallContent(
-        plugin_name=plugin_name,
-        function_name=function_name
-    )
+def test_check_for_intervention(plugin_name, function_name, expected):
+    tool_call = FunctionCallContent(plugin_name=plugin_name, function_name=function_name)
     result = check_for_intervention(tool_call)
     print(result)
     assert check_for_intervention(tool_call) == expected
@@ -35,35 +28,22 @@ def test_check_for_intervention(
 def test_hitl_intervention_required_exception_single():
     plugin_name = "sensitive_plugin"
     function_name = "delete_user_data"
-    fc = FunctionCallContent(
-        plugin_name=plugin_name,
-        function_name=function_name
-    )
+    fc = FunctionCallContent(plugin_name=plugin_name, function_name=function_name)
 
     with pytest.raises(HitlInterventionRequired) as exc_info:
         raise HitlInterventionRequired([fc])
 
     exc = exc_info.value
-    assert str(exc) == (
-        f"HITL intervention required for {plugin_name}.{function_name}"
-    )
+    assert str(exc) == (f"HITL intervention required for {plugin_name}.{function_name}")
     assert exc.plugin_name == plugin_name
     assert exc.function_name == function_name
     assert fc in exc.function_calls
 
 
 def test_hitl_intervention_required_exception_multiple():
-    fc1 = FunctionCallContent(
-        plugin_name="sensitive_plugin",
-        function_name="delete_user_data"
-    )
-    fc2 = FunctionCallContent(
-        plugin_name="finance_plugin",
-        function_name="initiate_transfer"
-    )
-    exc = HitlInterventionRequired(
-        [fc1, fc2]
-    )
+    fc1 = FunctionCallContent(plugin_name="sensitive_plugin", function_name="delete_user_data")
+    fc2 = FunctionCallContent(plugin_name="finance_plugin", function_name="initiate_transfer")
+    exc = HitlInterventionRequired([fc1, fc2])
 
     assert fc1 in exc.function_calls
     assert fc2 in exc.function_calls

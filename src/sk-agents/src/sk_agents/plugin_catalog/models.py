@@ -1,4 +1,5 @@
-from typing import List, Literal, Union
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -12,29 +13,24 @@ class McpPluginType(BaseModel):
     # Future metadata for MCP plugins will go here
 
 
-PluginType = Union[CodePluginType, McpPluginType]
+PluginType = CodePluginType | McpPluginType
 
 
 # Governance Model
 class Governance(BaseModel):
     requires_hitl: bool = False
     cost: Literal["low", "medium", "high"]
-    data_sensitivity: Literal[
-        "public",
-        "proprietary",
-        "confidential",
-        "sensitive"
-    ]
+    data_sensitivity: Literal["public", "proprietary", "confidential", "sensitive"]
 
 
 # PluginAuth Models
 class Oauth2PluginAuth(BaseModel):
     auth_type: Literal["oauth2"] = "oauth2"
     auth_server: str
-    scopes: List[str]
+    scopes: list[str]
 
 
-PluginAuth = Union[Oauth2PluginAuth]
+PluginAuth = Oauth2PluginAuth
 
 
 # Core Plugin Models
@@ -53,8 +49,8 @@ class Plugin(BaseModel):
     version: str
     owner: str
     plugin_type: PluginType = Field(..., discriminator="type_name")
-    tools: List[PluginTool]
+    tools: list[PluginTool]
 
 
 class PluginCatalogDefinition(BaseModel):
-    plugins: List[Plugin]
+    plugins: list[Plugin]

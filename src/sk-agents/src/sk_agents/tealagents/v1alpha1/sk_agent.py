@@ -34,8 +34,6 @@ class SKAgent:
         async for result in self.agent.invoke_stream(messages=history):
             yield result.content
 
-    async def invoke(self, history: ChatHistory) -> AsyncIterable[
-        ChatMessageContent
-    ]:
+    async def invoke(self, history: ChatHistory) -> AsyncIterable[ChatMessageContent]:
         async for result in self.agent.invoke(messages=history):
             yield result.content

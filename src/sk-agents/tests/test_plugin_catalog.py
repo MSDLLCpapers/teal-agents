@@ -1,18 +1,14 @@
 import json
+from unittest.mock import Mock, mock_open, patch
+
 import pytest
-from unittest.mock import Mock, patch, mock_open
-from sk_agents.plugin_catalog.local_plugin_catalog import (
-    FileBasedPluginCatalog
-)
-from sk_agents.exceptions import (
-    PluginCatalogDefinitionException,
-    PluginFileReadException
-)
 from ska_utils import AppConfig
+
+from sk_agents.exceptions import PluginCatalogDefinitionException, PluginFileReadException
+from sk_agents.plugin_catalog.local_plugin_catalog import FileBasedPluginCatalog
 
 
 class TestFileBasedPluginCatalog:
-
     @pytest.fixture
     def mock_app_config(self):
         config = Mock(spec=AppConfig)
@@ -29,9 +25,7 @@ class TestFileBasedPluginCatalog:
                     "description": "A test plugin",
                     "version": "1.0.0",
                     "owner": "test_owner_1",
-                    "plugin_type": {
-                        "type_name": "code"
-                    },
+                    "plugin_type": {"type_name": "code"},
                     "tools": [
                         {
                             "tool_id": "tool_1",
@@ -40,11 +34,11 @@ class TestFileBasedPluginCatalog:
                             "governance": {
                                 "requires_hitl": False,
                                 "cost": "low",
-                                "data_sensitivity": "public"
+                                "data_sensitivity": "public",
                             },
-                            "auth": None
+                            "auth": None,
                         }
-                    ]
+                    ],
                 },
                 {
                     "plugin_id": "test_plugin_2",
@@ -52,9 +46,7 @@ class TestFileBasedPluginCatalog:
                     "description": "Another test plugin",
                     "version": "1.0.0",
                     "owner": "test_owner_2",
-                    "plugin_type": {
-                        "type_name": "code"
-                    },
+                    "plugin_type": {"type_name": "code"},
                     "tools": [
                         {
                             "tool_id": "tool_2",
@@ -63,30 +55,25 @@ class TestFileBasedPluginCatalog:
                             "governance": {
                                 "requires_hitl": False,
                                 "cost": "medium",
-                                "data_sensitivity": "proprietary"
+                                "data_sensitivity": "proprietary",
                             },
                             "auth": {
                                 "auth_type": "oauth2",
                                 "auth_server": "https://example.com/oauth",
-                                "scopes": ["read", "write"]
-                            }
+                                "scopes": ["read", "write"],
+                            },
                         }
-                    ]
-                }
+                    ],
+                },
             ]
         }
 
-    def test_load_plugins_success(
-            self,
-            mock_app_config,
-            sample_catalog_data
-    ):
+    def test_load_plugins_success(self, mock_app_config, sample_catalog_data):
         """Test successful loading and parsing of catalog file."""
-        with patch('pathlib.Path.exists', return_value=True), \
-             patch(
-                 'builtins.open',
-                 mock_open(read_data=json.dumps(sample_catalog_data))):
-
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data=json.dumps(sample_catalog_data))),
+        ):
             catalog = FileBasedPluginCatalog(mock_app_config)
 
             # Verify plugins were loaded
@@ -111,16 +98,12 @@ class TestFileBasedPluginCatalog:
             assert tool2.tool_id == "tool_2"
             assert tool2.name == "Test Tool 2"
 
-    def test_get_plugin_existing(
-            self,
-            mock_app_config,
-            sample_catalog_data
-    ):
+    def test_get_plugin_existing(self, mock_app_config, sample_catalog_data):
         """Test retrieving an existing plugin."""
-        with patch('pathlib.Path.exists', return_value=True), \
-             patch('builtins.open',
-                   mock_open(read_data=json.dumps(sample_catalog_data))):
-
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data=json.dumps(sample_catalog_data))),
+        ):
             catalog = FileBasedPluginCatalog(mock_app_config)
             plugin = catalog.get_plugin("test_plugin_1")
 
@@ -128,33 +111,23 @@ class TestFileBasedPluginCatalog:
             assert plugin.plugin_id == "test_plugin_1"
             assert plugin.name == "Test Plugin 1"
 
-    def test_get_plugin_non_existing(
-            self,
-            mock_app_config,
-            sample_catalog_data
-    ):
+    def test_get_plugin_non_existing(self, mock_app_config, sample_catalog_data):
         """Test retrieving a non-existing plugin returns None."""
-        with patch('pathlib.Path.exists', return_value=True), \
-             patch(
-                 'builtins.open',
-                 mock_open(read_data=json.dumps(sample_catalog_data))):
-
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data=json.dumps(sample_catalog_data))),
+        ):
             catalog = FileBasedPluginCatalog(mock_app_config)
             plugin = catalog.get_plugin("non_existing_plugin")
 
             assert plugin is None
 
-    def test_get_tool_existing(
-            self,
-            mock_app_config,
-            sample_catalog_data
-    ):
+    def test_get_tool_existing(self, mock_app_config, sample_catalog_data):
         """Test retrieving an existing tool."""
-        with patch('pathlib.Path.exists', return_value=True), \
-             patch(
-                 'builtins.open',
-                 mock_open(read_data=json.dumps(sample_catalog_data))):
-
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data=json.dumps(sample_catalog_data))),
+        ):
             catalog = FileBasedPluginCatalog(mock_app_config)
             tool = catalog.get_tool("tool_1")
 
@@ -162,17 +135,12 @@ class TestFileBasedPluginCatalog:
             assert tool.tool_id == "tool_1"
             assert tool.name == "Test Tool 1"
 
-    def test_get_tool_non_existing(
-            self,
-            mock_app_config,
-            sample_catalog_data
-    ):
+    def test_get_tool_non_existing(self, mock_app_config, sample_catalog_data):
         """Test retrieving a non-existing tool returns None."""
-        with patch('pathlib.Path.exists', return_value=True), \
-             patch(
-                 'builtins.open',
-                 mock_open(read_data=json.dumps(sample_catalog_data))):
-
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data=json.dumps(sample_catalog_data))),
+        ):
             catalog = FileBasedPluginCatalog(mock_app_config)
             tool = catalog.get_tool("non_existing_tool")
 
@@ -180,7 +148,7 @@ class TestFileBasedPluginCatalog:
 
     def test_catalog_file_does_not_exist(self, mock_app_config):
         """Test handling when catalog file doesn't exist."""
-        with patch('pathlib.Path.exists', return_value=False):
+        with patch("pathlib.Path.exists", return_value=False):
             catalog = FileBasedPluginCatalog(mock_app_config)
 
             assert len(catalog._plugins) == 0
@@ -190,9 +158,10 @@ class TestFileBasedPluginCatalog:
         """Test handling of invalid JSON format."""
         invalid_json = "{ invalid json }"
 
-        with patch('pathlib.Path.exists', return_value=True), \
-             patch('builtins.open', mock_open(read_data=invalid_json)):
-
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data=invalid_json)),
+        ):
             with pytest.raises(PluginFileReadException):
                 FileBasedPluginCatalog(mock_app_config)
 
@@ -207,21 +176,19 @@ class TestFileBasedPluginCatalog:
             ]
         }
 
-        with patch('pathlib.Path.exists', return_value=True), \
-             patch(
-                 'builtins.open',
-                 mock_open(read_data=json.dumps(invalid_catalog_data))):
-
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data=json.dumps(invalid_catalog_data))),
+        ):
             with pytest.raises(PluginCatalogDefinitionException):
                 FileBasedPluginCatalog(mock_app_config)
 
     def test_file_read_error(self, mock_app_config):
         """Test handling of file read errors."""
-        with patch('pathlib.Path.exists', return_value=True), \
-             patch(
-                 'builtins.open',
-                 side_effect=IOError("File read error")):
-
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("builtins.open", side_effect=OSError("File read error")),
+        ):
             with pytest.raises(PluginFileReadException):
                 FileBasedPluginCatalog(mock_app_config)
 
@@ -229,11 +196,10 @@ class TestFileBasedPluginCatalog:
         """Test handling of empty catalog."""
         empty_catalog_data = {"plugins": []}
 
-        with patch('pathlib.Path.exists', return_value=True), \
-             patch(
-                 'builtins.open',
-                 mock_open(read_data=json.dumps(empty_catalog_data))):
-
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch("builtins.open", mock_open(read_data=json.dumps(empty_catalog_data))),
+        ):
             catalog = FileBasedPluginCatalog(mock_app_config)
 
             assert len(catalog._plugins) == 0

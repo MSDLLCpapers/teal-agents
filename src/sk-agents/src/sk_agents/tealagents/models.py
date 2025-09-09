@@ -5,11 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 from semantic_kernel.contents.chat_history import ChatHistory
 
-from sk_agents.ska_types import (
-    ExtraData,
-    MultiModalItem,
-    TokenUsage
-)
+from sk_agents.ska_types import ExtraData, MultiModalItem, TokenUsage
 
 
 class UserMessage(BaseModel):
@@ -37,13 +33,7 @@ class AgentTask(BaseModel):
     items: list[AgentTaskItem]
     created_at: datetime
     last_updated: datetime
-    status: Literal[
-        "Running",
-        "Paused",
-        "Completed",
-        "Failed",
-        "Canceled"
-    ] = "Running"
+    status: Literal["Running", "Paused", "Completed", "Failed", "Canceled"] = "Running"
 
 
 class TealAgentsResponse(BaseModel):
@@ -93,6 +83,7 @@ class StateResponse(BaseModel):
 
 class TaskStatus(Enum):
     """Enum representing the status of a task"""
+
     RUNNING = "Running"
     PAUSED = "Paused"
     COMPLETED = "Completed"

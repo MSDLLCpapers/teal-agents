@@ -1,9 +1,7 @@
-from semantic_kernel.contents.function_call_content import (
-    FunctionCallContent
-)
-from sk_agents.plugin_catalog.plugin_catalog_factory import (
-    PluginCatalogFactory
-)
+from semantic_kernel.contents.function_call_content import FunctionCallContent
+
+from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
+
 # Placeholder for high-risk tools that require human intervention
 
 
@@ -44,10 +42,7 @@ class HitlInterventionRequired(Exception):
         if function_calls:
             self.plugin_name = function_calls[0].plugin_name
             self.function_name = function_calls[0].function_name
-            message = (
-                f"HITL intervention required for "
-                f"{self.plugin_name}.{self.function_name}"
-            )
+            message = f"HITL intervention required for {self.plugin_name}.{self.function_name}"
 
         else:
             message = "HITL intervention required"

@@ -1,19 +1,14 @@
 
-from typing import Type
+from ska_utils import AppConfig, ModuleLoader, Singleton
 
-from ska_utils import Singleton, AppConfig, ModuleLoader
+from sk_agents.configs import TA_PLUGIN_CATALOG_CLASS, TA_PLUGIN_CATALOG_MODULE, configs
 from sk_agents.plugin_catalog.plugin_catalog import PluginCatalog
-from sk_agents.configs import (
-    configs,
-    TA_PLUGIN_CATALOG_MODULE,
-    TA_PLUGIN_CATALOG_CLASS
-)
 
 
 class PluginCatalogFactory(metaclass=Singleton):
     """
-        Singleton factory for creating PluginCatalog
-        instances based on environment variables.
+    Singleton factory for creating PluginCatalog
+    instances based on environment variables.
     """
 
     def __init__(self):
@@ -25,8 +20,8 @@ class PluginCatalogFactory(metaclass=Singleton):
 
     def get_catalog(self) -> PluginCatalog:
         """
-            Get the plugin catalog instance,
-            creating it if it doesn't exist.
+        Get the plugin catalog instance,
+        creating it if it doesn't exist.
         """
         if self._catalog_instance is None:
             self._catalog_instance = self._create_catalog()
@@ -34,15 +29,11 @@ class PluginCatalogFactory(metaclass=Singleton):
 
     def _create_catalog(self) -> PluginCatalog:
         """
-            Create a new plugin catalog instance
-            based on environment variables.
+        Create a new plugin catalog instance
+        based on environment variables.
         """
-        module_name = self.app_config.get(
-            TA_PLUGIN_CATALOG_MODULE.env_name
-        )
-        class_name = self.app_config.get(
-            TA_PLUGIN_CATALOG_CLASS.env_name
-        )
+        module_name = self.app_config.get(TA_PLUGIN_CATALOG_MODULE.env_name)
+        class_name = self.app_config.get(TA_PLUGIN_CATALOG_CLASS.env_name)
 
         if not module_name or not class_name:
             raise ValueError(
@@ -55,27 +46,20 @@ class PluginCatalogFactory(metaclass=Singleton):
             module = ModuleLoader.load_module(module_name)
 
             # Get the class from the module
-            catalog_class: Type[PluginCatalog] = getattr(
-                module,
-                class_name
-            )
+            catalog_class: type[PluginCatalog] = getattr(module, class_name)
 
             # Verify it's a subclass of PluginCatalog
             if not issubclass(catalog_class, PluginCatalog):
                 raise TypeError(
-                    f"Class {class_name} in module {module_name} "
-                    f"must inherit from PluginCatalog"
+                    f"Class {class_name} in module {module_name} must inherit from PluginCatalog"
                 )
 
             # Instantiate and return the catalog
             return catalog_class(self.app_config)
 
         except ImportError as e:
-            raise ImportError(
-                f"Failed to import module '{module_name}': {e}"
-            ) from e
+            raise ImportError(f"Failed to import module '{module_name}': {e}") from e
         except AttributeError as e:
             raise AttributeError(
-                f"Class '{class_name}' not found in"
-                f"module '{module_name}': {e}"
+                f"Class '{class_name}' not found inmodule '{module_name}': {e}"
             ) from e

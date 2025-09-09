@@ -6,11 +6,7 @@ from semantic_kernel.contents import ChatMessageContent, TextContent
 from semantic_kernel.contents.chat_history import ChatHistory
 from semantic_kernel.contents.utils.author_role import AuthorRole
 
-from sk_agents.extra_data_collector import (
-    ExtraDataCollector,
-    ExtraDataPartial
-)
-
+from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
 from sk_agents.ska_types import (
     BaseConfig,
     BaseHandler,
@@ -32,12 +28,7 @@ from sk_agents.tealagents.v1alpha1.utils import (
 
 # this is a place holder for ticket CDW-917
 class ChatAgents(BaseHandler):
-    def __init__(
-            self,
-            config: BaseConfig,
-            agent_builder: AgentBuilder,
-            is_v2: bool = False
-    ):
+    def __init__(self, config: BaseConfig, agent_builder: AgentBuilder, is_v2: bool = False):
         self.version = config.version
         if not is_v2:
             self.name = config.service_name
@@ -66,20 +57,14 @@ class ChatAgents(BaseHandler):
             for key, value in inputs["user_context"].items():
                 content += f"  {key}: {value}\n"
             chat_history.add_message(
-                ChatMessageContent(
-                    role=AuthorRole.USER,
-                    items=[TextContent(text=content)]
-                )
+                ChatMessageContent(role=AuthorRole.USER, items=[TextContent(text=content)])
             )
 
     async def invoke_stream(
         self, inputs: dict[str, Any] | None = None
     ) -> AsyncIterable[PartialResponse | InvokeResponse]:
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(
-            self.config.get_agent(),
-            extra_data_collector
-        )
+        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
 
         # Initialize tasks count and token metrics
         completion_tokens: int = 0
@@ -88,10 +73,7 @@ class ChatAgents(BaseHandler):
         final_response = []
         # Initialize and parse the chat history
         chat_history = ChatHistory()
-        ChatAgents._augment_with_user_context(
-            inputs=inputs,
-            chat_history=chat_history
-        )
+        ChatAgents._augment_with_user_context(inputs=inputs, chat_history=chat_history)
         parse_chat_history(chat_history, inputs)
 
         session_id: str
@@ -106,21 +88,14 @@ class ChatAgents(BaseHandler):
             # Initialize content as the partial message in chunk
             content = chunk.content
             # Calculate usage metrics
-            call_usage = get_token_usage_for_response(
-                agent.get_model_type(),
-                chunk
-            )
+            call_usage = get_token_usage_for_response(agent.get_model_type(), chunk)
             completion_tokens += call_usage.completion_tokens
             prompt_tokens += call_usage.prompt_tokens
             total_tokens += call_usage.total_tokens
             try:
                 # Attempt to parse as ExtraDataPartial
-                extra_data_partial: ExtraDataPartial = (
-                    ExtraDataPartial.new_from_json(content)
-                )
-                extra_data_collector.add_extra_data_items(
-                    extra_data_partial.extra_data
-                )
+                extra_data_partial: ExtraDataPartial = ExtraDataPartial.new_from_json(content)
+                extra_data_collector.add_extra_data_items(extra_data_partial.extra_data)
             except Exception:
                 if len(content) > 0:
                     # Handle and return partial response
@@ -152,15 +127,9 @@ class ChatAgents(BaseHandler):
         inputs: dict[str, Any] | None = None,
     ) -> InvokeResponse:
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(
-            self.config.get_agent(),
-            extra_data_collector
-        )
+        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
         chat_history = ChatHistory()
-        ChatAgents._augment_with_user_context(
-            inputs=inputs,
-            chat_history=chat_history
-        )
+        ChatAgents._augment_with_user_context(inputs=inputs, chat_history=chat_history)
         parse_chat_history(chat_history, inputs)
         response_content = []
         completion_tokens: int = 0
@@ -176,10 +145,7 @@ class ChatAgents(BaseHandler):
 
         async for content in agent.invoke(chat_history):
             response_content.append(content)
-            call_usage = get_token_usage_for_response(
-                agent.get_model_type(),
-                content
-            )
+            call_usage = get_token_usage_for_response(agent.get_model_type(), content)
             completion_tokens += call_usage.completion_tokens
             prompt_tokens += call_usage.prompt_tokens
             total_tokens += call_usage.total_tokens

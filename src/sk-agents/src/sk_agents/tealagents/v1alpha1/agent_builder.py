@@ -15,11 +15,7 @@ from sk_agents.type_loader import get_type_loader
 
 
 class AgentBuilder:
-    def __init__(
-            self,
-            kernel_builder: KernelBuilder,
-            authorization: str | None = None
-    ):
+    def __init__(self, kernel_builder: KernelBuilder, authorization: str | None = None):
         self.kernel_builder = kernel_builder
         self.authorization = authorization
 
@@ -38,32 +34,20 @@ class AgentBuilder:
             extra_data_collector,
         )
 
-        so_supported: bool = (
-            self.kernel_builder.model_supports_structured_output(
-                agent_config.model
-            )
+        so_supported: bool = self.kernel_builder.model_supports_structured_output(
+            agent_config.model
         )
 
-        settings = kernel.get_prompt_execution_settings_from_service_id(
-            agent_config.name
-        )
-        settings.function_choice_behavior = FunctionChoiceBehavior.Auto(
-            auto_invoke=False
-        )
+        settings = kernel.get_prompt_execution_settings_from_service_id(agent_config.name)
+        settings.function_choice_behavior = FunctionChoiceBehavior.Auto(auto_invoke=False)
         if agent_config.temperature:
-            settings.extension_data = {
-                "temperature": float(agent_config.temperature)
-            }
+            settings.extension_data = {"temperature": float(agent_config.temperature)}
             settings.unpack_extension_data()
         if so_supported and output_type:
             type_loader = get_type_loader()
-            settings.response_format = type_loader.get_type(
-                output_type
-            )
+            settings.response_format = type_loader.get_type(output_type)
 
-        model_type: ModelType = self.kernel_builder.get_model_type_for_name(
-            agent_config.model
-        )
+        model_type: ModelType = self.kernel_builder.get_model_type_for_name(agent_config.model)
 
         model_attributes: dict[str, Any] = {
             "model_type": model_type,

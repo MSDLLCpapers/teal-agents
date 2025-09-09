@@ -35,18 +35,13 @@ class RemotePluginCatalog:
         if plugin_path is None:
             self.catalog = None
         else:
-            self.catalog: RemotePlugins = parse_yaml_file_as(
-                RemotePlugins,
-                plugin_path
-            )
+            self.catalog: RemotePlugins = parse_yaml_file_as(RemotePlugins, plugin_path)
 
     def get_remote_plugin(self, plugin_name: str) -> RemotePlugin | None:
         try:
             return self.catalog.get(plugin_name)
         except Exception as e:
-            self.logger.exception(
-                f"could not get remote pluging {plugin_name}. - {e}"
-            )
+            self.logger.exception(f"could not get remote pluging {plugin_name}. - {e}")
             raise
 
 
@@ -58,9 +53,7 @@ class RemotePluginLoader:
         for remote_plugin_name in remote_plugins:
             remote_plugin = self.catalog.get_remote_plugin(remote_plugin_name)
             if remote_plugin:
-                client = httpx.AsyncClient(
-                    timeout=httpx.Timeout(60.0)
-                )
+                client = httpx.AsyncClient(timeout=httpx.Timeout(60.0))
                 kernel.add_plugin_from_openapi(
                     plugin_name=remote_plugin.plugin_name,
                     openapi_document_path=remote_plugin.openapi_json_path,
@@ -71,6 +64,4 @@ class RemotePluginLoader:
                     ),
                 )
             else:
-                raise ValueError(
-                    f"Remote plugin {remote_plugin_name} not found in catalog"
-                )
+                raise ValueError(f"Remote plugin {remote_plugin_name} not found in catalog")

@@ -20,8 +20,6 @@ from sk_agents.hitl.hitl_manager import (
 )
 def test_check_for_intervention(plugin_name, function_name, expected):
     tool_call = FunctionCallContent(plugin_name=plugin_name, function_name=function_name)
-    result = check_for_intervention(tool_call)
-    print(result)
     assert check_for_intervention(tool_call) == expected
 
 

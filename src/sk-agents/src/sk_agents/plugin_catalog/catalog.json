@@ -1,17 +1,17 @@
 {
   "plugins": [
     {
-      "plugin_id": "Shell",
-      "name": "Shell",
+      "plugin_id": "sensitive_plugin",
+      "name": "sensitive_plugin",
       "description": "Executes shell commands.",
       "version": "1.0",
       "owner": "system",
       "plugin_type": { "type_name": "code" },
       "tools": [
         {
-          "tool_id": "Shell-execute",
-          "name": "execute",
-          "description": "Executes a command in the shell.",
+          "tool_id": "sensitive_plugin-delete_user_data",
+          "name": "delete_user_data",
+          "description": "Executes a command in the shell to delete user.",
           "governance": {
             "requires_hitl": true,
             "cost": "high",

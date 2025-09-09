@@ -10,11 +10,11 @@ from sk_agents.hitl.hitl_manager import (
 @pytest.mark.parametrize(
     "plugin_name,function_name,expected",
     [
-        ("Shell", "execute", True),
+        ("sensitive_plugin", "delete_user_data", True),
         ("finance_plugin", "initiate_transfer", True),
         ("admin_tools", "shutdown_service", True),
         ("utility_plugin", "ShellCommand", True),
-        ("safe_plugin", "get_status", False), # unregistered
+        ("safe_plugin", "get_status", False),  # unregistered
         ("finance_plugin", "get_balance", False),
     ],
 )

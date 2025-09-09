@@ -1,0 +1,99 @@
+{
+  "plugins": [
+    {
+      "plugin_id": "Shell",
+      "name": "Shell",
+      "description": "Executes shell commands.",
+      "version": "1.0",
+      "owner": "system",
+      "plugin_type": { "type_name": "code" },
+      "tools": [
+        {
+          "tool_id": "Shell-execute",
+          "name": "execute",
+          "description": "Executes a command in the shell.",
+          "governance": {
+            "requires_hitl": true,
+            "cost": "high",
+            "data_sensitivity": "sensitive"
+          },
+          "auth": null
+        }
+      ]
+    },
+    {
+      "plugin_id": "finance_plugin",
+      "name": "finance_plugin",
+      "description": "updates or retreives financial information",
+      "version": "1.0",
+      "owner": "system",
+      "plugin_type": { "type_name": "code" },
+      "tools": [
+        {
+          "tool_id": "finance_plugin-initiate_transfer",
+          "name": "initiate_transfer",
+          "description": "transfers a balance from one account to another",
+          "governance": {
+            "requires_hitl": true,
+            "cost": "high",
+            "data_sensitivity": "sensitive"
+          },
+          "auth": null
+        },
+        {
+          "tool_id": "finance_plugin-get_balance",
+          "name": "get_balance",
+          "description": "get the account balance",
+          "governance": {
+            "requires_hitl": false,
+            "cost": "low",
+            "data_sensitivity": "proprietary"
+          },
+          "auth": null
+        }
+      ]
+    },
+    {
+      "plugin_id": "admin_tools",
+      "name": "admin_tools",
+      "description": "Executes shell commands.",
+      "version": "1.0",
+      "owner": "system",
+      "plugin_type": { "type_name": "code" },
+      "tools": [
+        {
+          "tool_id": "admin_tools-shutdown_service",
+          "name": "shutdown_service",
+          "description": "Executes a command in the shell to disable services.",
+          "governance": {
+            "requires_hitl": true,
+            "cost": "high",
+            "data_sensitivity": "sensitive"
+          },
+          "auth": null
+        }
+      ]
+    },
+    {
+      "plugin_id": "utility_plugin",
+      "name": "utility_plugin",
+      "description": "Executes shell commands.",
+      "version": "1.0",
+      "owner": "system",
+      "plugin_type": { "type_name": "code" },
+      "tools": [
+        {
+          "tool_id": "utility_plugin-ShellCommand",
+          "name": "ShellCommand",
+          "description": "Executes a command in the shell.",
+          "governance": {
+            "requires_hitl": true,
+            "cost": "high",
+            "data_sensitivity": "sensitive"
+          },
+          "auth": null
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,7 @@
 # Factory implementation
-from configs import TA_PERSISTENCE_CLASS, TA_PERSISTENCE_MODULE
+from ..configs import TA_PERSISTENCE_CLASS, TA_PERSISTENCE_MODULE
 from ska_utils import AppConfig, ModuleLoader
-from task_persistence_manager import TaskPersistenceManager
+from .task_persistence_manager import TaskPersistenceManager
 
 
 class PersistenceFactory:

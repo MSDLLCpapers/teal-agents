@@ -2,11 +2,15 @@
 from typing import Type
 
 from ska_utils import Singleton, AppConfig, ModuleLoader
-from .plugin_catalog import PluginCatalog
-from configs import configs, TA_PLUGIN_CATALOG_MODULE, TA_PLUGIN_CATALOG_CLASS
+from sk_agents.plugin_catalog.plugin_catalog import PluginCatalog
+from sk_agents.configs import (
+    configs,
+    TA_PLUGIN_CATALOG_MODULE,
+    TA_PLUGIN_CATALOG_CLASS
+)
 
 
-class PluginCatalogFactory(Singleton):
+class PluginCatalogFactory(metaclass=Singleton):
     """
         Singleton factory for creating PluginCatalog
         instances based on environment variables.

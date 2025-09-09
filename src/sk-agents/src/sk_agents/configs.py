@@ -78,19 +78,19 @@ TA_PERSISTENCE_CLASS = Config(
 TA_PLUGIN_CATALOG_MODULE = Config(
     env_name="TA_PLUGIN_CATALOG_MODULE",
     is_required=False,
-    default_value="plugincatalog/local_plugin_catalog.py",
+    default_value="src/sk_agents/plugin_catalog/local_plugin_catalog.py",
 )
 
 TA_PLUGIN_CATALOG_CLASS = Config(
     env_name="TA_PLUGIN_CATALOG_CLASS",
     is_required=False,
-    default_value="LocalPluginCatalog",
+    default_value="FileBasedPluginCatalog",
 )
 
 TA_PLUGIN_CATALOG_FILE = Config(
     env_name="TA_PLUGIN_CATALOG_FILE",
     is_required=False,
-    default_value="plugincatalog/catalog.json",
+    default_value="src/sk_agents/plugin_catalog/catalog.json",
 )
 
 configs: list[Config] = [

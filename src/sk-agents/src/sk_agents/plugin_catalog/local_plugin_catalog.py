@@ -1,8 +1,12 @@
 import json
-from configs import TA_PLUGIN_CATALOG_FILE
+from sk_agents.configs import TA_PLUGIN_CATALOG_FILE
 from pathlib import Path
-from plugin_catalog import PluginCatalog
-from models import Plugin, PluginTool, PluginCatalogDefinition
+from sk_agents.plugin_catalog.plugin_catalog import PluginCatalog
+from sk_agents.plugin_catalog.models import (
+    Plugin,
+    PluginTool,
+    PluginCatalogDefinition
+)
 from sk_agents.exceptions import (
     PluginCatalogDefinitionException,
     PluginFileReadException
@@ -52,13 +56,13 @@ class FileBasedPluginCatalog(PluginCatalog):
                 ) from validation_error
             # Process the validated plugins
             for plugin_data in catalog_definition.plugins:
-                plugin = Plugin(**plugin_data)
-                self._plugins[plugin.id] = plugin
+                plugin = plugin_data
+                self._plugins[plugin.plugin_id] = plugin
 
                 # Index tools for quick lookup
                 for tool in plugin.tools:
-                    self._tools[tool.id] = tool
- 
+                    self._tools[tool.tool_id] = tool
+
         except PluginCatalogDefinitionException:
             # Re-raise our custom exception
             raise

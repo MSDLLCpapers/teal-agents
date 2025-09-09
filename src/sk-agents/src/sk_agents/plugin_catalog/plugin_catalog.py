@@ -1,6 +1,6 @@
 # src/sk_agents/plugincatalog/plugin_catalog.py
 from abc import ABC, abstractmethod
-from .models import Plugin, PluginTool
+from sk_agents.plugin_catalog.models import Plugin, PluginTool
 
 
 class PluginCatalog(ABC):

@@ -1,7 +1,10 @@
 from semantic_kernel.contents.function_call_content import (
     FunctionCallContent
 )
-from sk_agents.plugincatalog import plugin_catalog_factory
+from sk_agents.plugin_catalog.plugin_catalog_factory import (
+    PluginCatalogFactory
+)
+# Placeholder for high-risk tools that require human intervention
 
 
 def check_for_intervention(tool_call: FunctionCallContent) -> bool:
@@ -9,7 +12,8 @@ def check_for_intervention(tool_call: FunctionCallContent) -> bool:
     Checks the plugin catalog to determine if a tool call requires
     Human-in-the-Loop intervention.
     """
-    catalog = plugin_catalog_factory.get_instance()
+    plugin_factory = PluginCatalogFactory()
+    catalog = plugin_factory.get_catalog()
     if not catalog:
         # Fallback if catalog is not configured
         return False

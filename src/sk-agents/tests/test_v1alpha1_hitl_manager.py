@@ -1,7 +1,7 @@
 import pytest
 from semantic_kernel.contents.function_call_content import FunctionCallContent
 
-from src.sk_agents.hitl.hitl_manager import (
+from sk_agents.hitl.hitl_manager import (
     HitlInterventionRequired,
     check_for_intervention,
 )
@@ -10,11 +10,11 @@ from src.sk_agents.hitl.hitl_manager import (
 @pytest.mark.parametrize(
     "plugin_name,function_name,expected",
     [
-        ("sensitive_plugin", "delete_user_data", True),
+        ("Shell", "execute", True),
         ("finance_plugin", "initiate_transfer", True),
         ("admin_tools", "shutdown_service", True),
         ("utility_plugin", "ShellCommand", True),
-        ("safe_plugin", "get_status", False),
+        ("safe_plugin", "get_status", False), # unregistered
         ("finance_plugin", "get_balance", False),
     ],
 )
@@ -27,6 +27,8 @@ def test_check_for_intervention(
         plugin_name=plugin_name,
         function_name=function_name
     )
+    result = check_for_intervention(tool_call)
+    print(result)
     assert check_for_intervention(tool_call) == expected
 
 

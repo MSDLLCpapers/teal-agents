@@ -63,7 +63,7 @@ class KernelBuilder:
 
             return kernel
         except Exception as e:
-            self.logger.exception(f"Could not create base kernel with service id {service_id}.-{e}")
+            self.logger.exception(f"Could not create base kernelwith service id {service_id}.-{e}")
             raise
 
     def _load_remote_plugins(self, remote_plugins: list[str], kernel: Kernel) -> Kernel:

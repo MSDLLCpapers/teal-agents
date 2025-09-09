@@ -18,6 +18,7 @@ from semantic_kernel.kernel import Kernel
 from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
 from sk_agents.exceptions import AgentInvokeException, AuthenticationException, PersistenceLoadError
 from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
+from sk_agents.hitl import hitl_manager
 from sk_agents.persistence.in_memory_persistence_manager import InMemoryPersistenceManager
 from sk_agents.ska_types import BaseConfig, BaseHandler, ContentType, TokenUsage
 from sk_agents.tealagents.models import (
@@ -31,7 +32,6 @@ from sk_agents.tealagents.models import (
     TealAgentsResponse,
     UserMessage,
 )
-from sk_agents.tealagents.v1alpha1 import hitl_manager
 from sk_agents.tealagents.v1alpha1.agent.config import Config
 from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
 from sk_agents.tealagents.v1alpha1.utils import get_token_usage_for_response, item_to_content
@@ -107,7 +107,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             return user_id
         except Exception as e:
             raise AuthenticationException(
-                message=f"Unable to authenticate user, exception message: {e}"
+                message=(f"Unable to authenticate user, exception message: {e}")
             ) from e
 
     @staticmethod
@@ -166,7 +166,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             assert user_id == agent_task.user_id
         except AssertionError as e:
             raise AgentInvokeException(
-                message=f"Invalid user ID {user_id} and task ID {task_id} provided. {e}"
+                message=(f"Invalid user ID {user_id}and task ID {task_id} provided. {e}")
             ) from e
 
     @staticmethod
@@ -266,7 +266,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         # Handle intervention function calls
         if intervention_calls:
-            logger.info(f"Intervention required for {len(intervention_calls)} function calls.")
+            logger.info(f"Intervention required for{len(intervention_calls)} function calls.")
             raise hitl_manager.HitlInterventionRequired(intervention_calls)
 
     async def prepare_agent_response(
@@ -298,8 +298,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
         await self._manage_agent_response_task(agent_task, agent_response)
         logger.info(
-            f"{self.name}:{self.version} successful invocation with {total_tokens} tokens. "
-            f"Session ID: {session_id}, Task ID: {task_id}, Request ID {request_id}"
+            f"{self.name}:{self.version}"
+            f"successful invocation with {total_tokens} tokens. "
+            f"Session ID: {session_id}, Task ID: {task_id},"
+            f"Request ID {request_id}"
         )
         return agent_response
 
@@ -349,14 +351,16 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         agent_task.last_updated = datetime.now()
         await self.state.update(agent_task)
 
-        # Retrieve the pending_tool_calls from the last AgentTaskItem before approval/rejection item
+        # Retrieve the pending_tool_calls from the last
+        # AgentTaskItem before approval/rejection item
         tool_calls_in_task_items = agent_task.items[-2].pending_tool_calls
         if tool_calls_in_task_items is None:
             raise AgentInvokeException(f"Pending tool calls no found for request ID: {request_id}")
         _pending_tools = list(tool_calls_in_task_items)  # [fc for fc in tool_calls_in_task_items]
         pending_tools = [FunctionCallContent(**function_call) for function_call in _pending_tools]
 
-        # Execute the tool calls using asyncio.gather(), just as the agent would have.
+        # Execute the tool calls using asyncio.gather(),
+        # just as the agent would have.
         extra_data_collector = ExtraDataCollector()
         agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
         kernel = agent.agent.kernel
@@ -386,7 +390,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
     ) -> TealAgentsResponse | HitlResponse:
         # Initial setup
         user_id = await self.authenticate_user(token=auth_token)
-        session_id, task_id, request_id = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
+        state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
+        session_id, task_id, request_id = state_ids
         agent_task = await self._manage_incoming_task(
             task_id, session_id, user_id, request_id, inputs
         )
@@ -412,7 +417,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
     ) -> AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse]:
         # Initial setup
         user_id = await self.authenticate_user(token=auth_token)
-        session_id, task_id, request_id = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
+        state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
+        session_id, task_id, request_id = state_ids
         agent_task = await self._manage_incoming_task(
             task_id, session_id, user_id, request_id, inputs
         )
@@ -489,7 +495,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 ]
 
                 if fc_in_response:
-                    # chat_history.add_message(response)  # Add assistant's message to history
+                    # chat_history.add_message(response)
+                    # Add assistant's message to history
                     function_calls.extend(fc_in_response)
                 else:
                     # If no function calls, it's a direct answer
@@ -524,14 +531,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         except Exception as e:
             logger.exception(
                 f"Error invoking {self.name}:{self.version}"
-                f"for Session ID {session_id}, Task ID {task_id}, Request ID {request_id}, "
-                f"Error message: {str(e)}",
+                f"for Session ID {session_id}, Task ID {task_id},"
+                f"Request ID {request_id}, Error message: {str(e)}",
                 exc_info=True,
             )
             raise AgentInvokeException(
                 f"Error invoking {self.name}:{self.version}"
-                f"for Session ID {session_id}, Task ID {task_id}, Request ID {request_id}, "
-                f"Error message: {str(e)}"
+                f"for Session ID {session_id}, Task ID {task_id},"
+                f" Request ID {request_id}, Error message: {str(e)}"
             ) from e
 
         # Persist and return response
@@ -559,9 +566,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         try:
             kernel = agent.agent.kernel
             arguments = agent.agent.arguments
-            chat_completion_service, settings = kernel.select_ai_service(
+            kernel_configs = kernel.select_ai_service(
                 arguments=arguments, type=ChatCompletionClientBase
             )
+            chat_completion_service, settings = kernel_configs
             assert isinstance(chat_completion_service, ChatCompletionClientBase)
 
             all_responses = []
@@ -636,14 +644,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         except Exception as e:
             logger.exception(
                 f"Error invoking stream for {self.name}:{self.version} "
-                f"for Session ID {session_id}, Task ID {task_id}, Request ID {request_id}. "
-                f"Error message: {str(e)}",
+                f"for Session ID {session_id}, Task ID {task_id},"
+                f" Request ID {request_id}, Error message: {str(e)}",
                 exc_info=True,
             )
             raise AgentInvokeException(
                 f"Error invoking stream for {self.name}:{self.version}"
-                f" for Session ID {session_id}, Task ID {task_id}, Request ID {request_id}, "
-                f"Error message: {str(e)}"
+                f"for Session ID {session_id}, Task ID {task_id},"
+                f"Request ID {request_id}, Error message: {str(e)}"
             ) from e
 
         # # Persist and return response

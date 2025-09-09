@@ -118,7 +118,8 @@ async def add_conversation_message_by_id(
             if jt.telemetry_enabled()
             else nullcontext()
         ):
-            response = agent.invoke_api(conv, authorization)
+            response = agent.invoke_api(conv, authorization, request.image_data)
+
             try:
                 # Set the agent response from raw output
                 agent_response = response.get("output_raw", "No output available.")
@@ -133,7 +134,6 @@ async def add_conversation_message_by_id(
                 print(f"Error processing extra data: {e}")
                 # Fallback to printing output_raw again if an error occurs
                 agent_response = response.get("output_raw", "No output available.")
-                print(agent_response)
 
         with (
             jt.tracer.start_as_current_span("update-history-assistant")

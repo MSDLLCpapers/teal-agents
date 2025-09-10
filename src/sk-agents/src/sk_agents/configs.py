@@ -93,6 +93,17 @@ TA_PLUGIN_CATALOG_FILE = Config(
     default_value="src/sk_agents/plugin_catalog/catalog.json",
 )
 
+TA_AUTH_STORAGE_MANAGER_CLASS = Config(
+    env_name="TA_AUTH_STORAGE_MANAGER_CLASS",
+    is_required=False,
+    default_value=None,
+)
+TA_AUTH_STORAGE_MANAGER_MODULE = Config(
+    env_name="TA_AUTH_STORAGE_MANAGER_MODULE",
+    is_required=False,
+    default_value=None,
+)
+
 configs: list[Config] = [
     TA_API_KEY,
     TA_SERVICE_CONFIG,
@@ -121,4 +132,6 @@ configs: list[Config] = [
     TA_PLUGIN_CATALOG_CLASS,
     TA_PLUGIN_CATALOG_MODULE,
     TA_PLUGIN_CATALOG_FILE,
+    TA_AUTH_STORAGE_MANAGER_CLASS,
+    TA_AUTH_STORAGE_MANAGER_MODULE,
 ]

@@ -25,11 +25,12 @@ class UserMessage(BaseModel):
     New input model for the tealagents/v1alpha1 API version.
     Unlike BaseMultiModalInput, chat history is maintained server-side.
     """
+
     session_id: UUID4 | None = None
     task_id: UUID4 | None = None
     items: list[MultiModalItem]
 
-    @validator('session_id', 'task_id', pre=True)
+    @validator("session_id", "task_id", pre=True)
     def validate_uuid(cls, v):
         if v is not None and not isinstance(v, uuid.UUID):
             try:
@@ -41,6 +42,7 @@ class UserMessage(BaseModel):
 
 class TaskState(BaseModel):
     """Model for the state associated with a Task ID"""
+
     task_id: UUID4
     session_id: UUID4
     user_id: str  # User identity for authorization
@@ -53,6 +55,7 @@ class TaskState(BaseModel):
 
 class RequestState(BaseModel):
     """Model for the state associated with a Request ID"""
+
     request_id: UUID4
     task_id: UUID4
     status: TaskStatus = TaskStatus.RUNNING
@@ -63,6 +66,7 @@ class RequestState(BaseModel):
 
 class StateResponse(BaseModel):
     """Response model including state identifiers"""
+
     session_id: UUID4
     task_id: UUID4
     request_id: UUID4
@@ -97,6 +101,7 @@ class StateManager(ABC):
     async def update_request(self, request_state: RequestState) -> None:
         """Update a request state"""
 
+
 class InMemoryStateManager(StateManager):
     """In-memory implementation of state manager"""
 
@@ -108,10 +113,7 @@ class InMemoryStateManager(StateManager):
         session_id = session_id or uuid.uuid4()
         task_id = uuid.uuid4()
         self.tasks[task_id] = TaskState(
-            task_id=task_id,
-            session_id=session_id,
-            user_id=user_id,
-            messages=[]
+            task_id=task_id, session_id=session_id, user_id=user_id, messages=[]
         )
         return session_id, task_id
 
@@ -126,10 +128,7 @@ class InMemoryStateManager(StateManager):
 
     async def create_request(self, task_id: UUID4) -> UUID4:
         request_id = uuid.uuid4()
-        self.requests[request_id] = RequestState(
-            request_id=request_id,
-            task_id=task_id
-        )
+        self.requests[request_id] = RequestState(request_id=request_id, task_id=task_id)
         return request_id
 
     async def get_request(self, request_id: UUID4) -> RequestState:
@@ -141,6 +140,7 @@ class InMemoryStateManager(StateManager):
         request_state.updated_at = datetime.utcnow()
         self.requests[request_state.request_id] = request_state
 
+
 class RedisStateManager(StateManager):
     """Redis implementation of state manager"""
 
@@ -151,12 +151,7 @@ class RedisStateManager(StateManager):
     async def create_task(self, session_id: UUID4 | None, user_id: str) -> tuple[UUID4, UUID4]:
         session_id = session_id or uuid.uuid4()
         task_id = uuid.uuid4()
-        task_state = TaskState(
-            task_id=task_id,
-            session_id=session_id,
-            user_id=user_id,
-            messages=[]
-        )
+        task_state = TaskState(task_id=task_id, session_id=session_id, user_id=user_id, messages=[])
         await self._set_task(task_state)
         return session_id, task_id
 
@@ -177,10 +172,7 @@ class RedisStateManager(StateManager):
 
     async def create_request(self, task_id: UUID4) -> UUID4:
         request_id = uuid.uuid4()
-        request_state = RequestState(
-            request_id=request_id,
-            task_id=task_id
-        )
+        request_state = RequestState(request_id=request_id, task_id=task_id)
         await self._set_request(request_state)
         return request_id
 

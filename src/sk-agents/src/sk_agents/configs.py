@@ -75,6 +75,23 @@ TA_PERSISTENCE_CLASS = Config(
     is_required=True,
     default_value="InMemoryPersistenceManager",
 )
+TA_PLUGIN_CATALOG_MODULE = Config(
+    env_name="TA_PLUGIN_CATALOG_MODULE",
+    is_required=False,
+    default_value="src/sk_agents/plugin_catalog/local_plugin_catalog.py",
+)
+
+TA_PLUGIN_CATALOG_CLASS = Config(
+    env_name="TA_PLUGIN_CATALOG_CLASS",
+    is_required=False,
+    default_value="FileBasedPluginCatalog",
+)
+
+TA_PLUGIN_CATALOG_FILE = Config(
+    env_name="TA_PLUGIN_CATALOG_FILE",
+    is_required=False,
+    default_value="src/sk_agents/plugin_catalog/catalog.json",
+)
 
 TA_AUTH_STORAGE_MANAGER_CLASS = Config(
     env_name="TA_AUTH_STORAGE_MANAGER_CLASS",
@@ -112,6 +129,9 @@ configs: list[Config] = [
     TA_PERSISTENCE_CLASS,
     TA_AUTHORIZER_CLASS,
     TA_AUTHORIZER_MODULE,
+    TA_PLUGIN_CATALOG_CLASS,
+    TA_PLUGIN_CATALOG_MODULE,
+    TA_PLUGIN_CATALOG_FILE,
     TA_AUTH_STORAGE_MANAGER_CLASS,
     TA_AUTH_STORAGE_MANAGER_MODULE,
 ]

@@ -1,4 +1,3 @@
-
 import pytest
 
 from sk_agents.exceptions import AgentInvokeException, InvalidConfigException

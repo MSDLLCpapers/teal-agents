@@ -1,4 +1,6 @@
 import logging
+import mlflow
+import os
 
 from opentelemetry import trace
 from opentelemetry._logs import set_logger_provider
@@ -36,8 +38,11 @@ TA_TELEMETRY_ENABLED = Config(
 )
 TA_OTEL_ENDPOINT = Config(env_name="TA_OTEL_ENDPOINT", is_required=False, default_value=None)
 TA_LOG_LEVEL = Config(env_name="TA_LOG_LEVEL", is_required=False, default_value="info")
-
-TELEMETRY_CONFIGS: list[Config] = [TA_TELEMETRY_ENABLED, TA_OTEL_ENDPOINT, TA_LOG_LEVEL]
+TA_TRACES_DESTINATION = Config(
+    env_name="TA_TRACES_DESTINATION", is_required=False, default_value="aspire"
+)
+TA_MLFLOW_EXPERIMENT_NAME = Config(env_name="TA_MLFLOW_EXPERIMENT_NAME", is_required=False, default_value="agentic-app-traces")
+TELEMETRY_CONFIGS: list[Config] = [TA_TELEMETRY_ENABLED, TA_OTEL_ENDPOINT, TA_LOG_LEVEL, TA_TRACES_DESTINATION, TA_MLFLOW_EXPERIMENT_NAME]
 
 AppConfig.add_configs(TELEMETRY_CONFIGS)
 
@@ -49,9 +54,11 @@ class Telemetry:
         self.resource = Resource.create({ResourceAttributes.SERVICE_NAME: self.service_name})
         self._telemetry_enabled = strtobool(str(app_config.get(TA_TELEMETRY_ENABLED.env_name)))
         self.endpoint = app_config.get(TA_OTEL_ENDPOINT.env_name)
-        self._check_enable_telemetry()
-        self.tracer: trace.Tracer | None = self._get_tracer()
-
+        self.traces_destination = app_config.get(TA_TRACES_DESTINATION.env_name)
+        self.mlflow_experiment_name = app_config.get(TA_MLFLOW_EXPERIMENT_NAME.env_name)
+        self.tracer: trace.Tracer | None = None#self._get_tracer()
+        
+        
         match app_config.get(TA_LOG_LEVEL.env_name):
             case "debug":
                 self._log_level = logging.DEBUG
@@ -63,15 +70,18 @@ class Telemetry:
                 self._log_level = logging.CRITICAL
             case _:
                 self._log_level = logging.INFO
+        
+        self._check_enable_telemetry()
+        if self._telemetry_enabled:
+            self.tracer = trace.get_tracer(f"{self.service_name}-tracer")
 
     def telemetry_enabled(self) -> bool:
         return self._telemetry_enabled
 
     def _get_tracer(self) -> trace.Tracer | None:
-        if self._telemetry_enabled:
-            return trace.get_tracer(f"{self.service_name}-tracer")
-        else:
-            return None
+        if self._telemetry_enabled and self.tracer is None:
+            self.tracer = trace.get_tracer(f"{self.service_name}-tracer")
+        return self.tracer
 
     def _check_enable_telemetry(self) -> None:
         if not self._telemetry_enabled:
@@ -82,18 +92,55 @@ class Telemetry:
         self._enable_metrics()
 
     def _enable_tracing(self) -> None:
-        exporter: SpanExporter
-        if self.endpoint:
+        if self.traces_destination == "mlflow":
+            logging.info(f"Configuring MLflow tracing for experiment: {self.mlflow_experiment_name}")
+            try:
+                # Set tracking URI if not already set via env var
+                if os.environ.get("MLFLOW_TRACKING_URI") is None and os.environ.get("DATABRICKS_HOST"):
+                    os.environ["MLFLOW_TRACKING_URI"] = "databricks"
+                
+                # Check if a tracking URI is now available
+                if not os.environ.get("MLFLOW_TRACKING_URI"):
+                    logging.warning(
+                        "MLflow tracing requested but no MLFLOW_TRACKING_URI, DATABRICKS_HOST, or DATABRICKS_TOKEN is set. "
+                        "Traces may not be exported. Falling back to no-op tracer."
+                    )
+                    trace.set_tracer_provider(trace.NoOpTracerProvider())
+                    return
+                
+                mlflow.set_experiment(self.mlflow_experiment_name)
+                # MLflow autologging enables MLflow's internal tracing and context propagation.
+                # It is the only thing needed to get MLflow tracing working.
+                mlflow.autolog(log_traces=True)
+                logging.info("MLflow autolog enabled with log_traces=True.")
+                
+                # IMPORTANT: With MLflow tracing enabled, it takes over the global TracerProvider.
+                # We need to set a no-op provider to avoid conflicting with MLflow's own.
+                # MLflow's autolog handles the OpenTelemetry integration internally.
+                trace.set_tracer_provider(trace.NoOpTracerProvider())
+                
+            except Exception as e:
+                logging.exception("Failed to configure MLflow tracing: %s", e)
+                trace.set_tracer_provider(trace.NoOpTracerProvider()) # Fallback to no-op
+
+            
+        elif self.endpoint:
             exporter = OTLPSpanExporter(endpoint=self.endpoint)
+            provider = TracerProvider(resource=self.resource)
+            processor = BatchSpanProcessor(exporter)
+            provider.add_span_processor(processor)
+            trace.set_tracer_provider(provider)
+            print("Exporting traces to OTLP endpoint")
         else:
             exporter = ConsoleSpanExporter()
+            provider = TracerProvider(resource=self.resource)
+            processor = BatchSpanProcessor(exporter)
+            provider.add_span_processor(processor)
+            trace.set_tracer_provider(provider)
+            print("Exporting traces to console")
 
-        provider = TracerProvider(resource=self.resource)
-        processor = BatchSpanProcessor(exporter)
-        provider.add_span_processor(processor)
-
-        trace.set_tracer_provider(provider)
-
+            
+        
     def get_logger(self, name: str) -> logging.Logger:
         if not self._telemetry_enabled:
             logger = logging.getLogger(name)
@@ -150,7 +197,9 @@ _services_telemetry: Telemetry | None = None
 
 def initialize_telemetry(service_name: str, app_config: AppConfig) -> None:
     global _services_telemetry
-    _services_telemetry = Telemetry(service_name, app_config)
+    if _services_telemetry is None:
+        _services_telemetry = Telemetry(service_name, app_config)
+    # _services_telemetry = Telemetry(service_name, app_config)
 
 
 def get_telemetry() -> Telemetry:

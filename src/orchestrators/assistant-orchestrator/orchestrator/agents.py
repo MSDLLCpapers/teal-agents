@@ -10,26 +10,69 @@ from ska_utils import strtobool
 from model import Conversation
 
 
+class MultiModalItem(BaseModel):
+    content_type: str
+    content: str
+
+
+class ChatHistoryMultiModalItem(BaseModel):
+    role: str
+    items: list[MultiModalItem]
+
+
 class ChatHistoryItem(BaseModel):
     role: str
     content: str
 
 
 class AgentInput(BaseModel):
-    chat_history: list[ChatHistoryItem]
+    chat_history: list[ChatHistoryItem | ChatHistoryMultiModalItem]
     user_context: dict[str, str]
 
 
-def _conversation_to_agent_input(conv: Conversation) -> AgentInput:
-    chat_history: list[ChatHistoryItem] = []
-    for item in conv.history:
-        if hasattr(item, "recipient"):
+def _conversation_to_agent_input(
+    conv: Conversation, image_data: list[str] | str | None
+) -> AgentInput:
+    chat_history: list[ChatHistoryItem | ChatHistoryMultiModalItem] = []
+    for idx, item in enumerate(conv.history):
+        if image_data:
+            if "data:image" in image_data or "string" not in image_data:
+                if idx == len(conv.history) - 1:
+                    image_items = []
+                    # Handle both string and list of strings for image_data
+                    if isinstance(image_data, list):
+                        for img in image_data:
+                            image_items.append(MultiModalItem(content_type="image", content=img))
+                    else:
+                        image_items.append(MultiModalItem(content_type="image", content=image_data))
+                    chat_history.append(
+                        ChatHistoryMultiModalItem(
+                            role="user",
+                            items=[MultiModalItem(content_type="text", content=item.content)]
+                            + image_items,
+                        )
+                    )
+            else:
+                chat_history.append(
+                    ChatHistoryMultiModalItem(
+                        role="user",
+                        items=[MultiModalItem(content_type="text", content=item.content)],
+                    )
+                )
+
+        elif hasattr(item, "recipient"):
+            # Create a ChatHistoryItem for user messages (simple format)
             chat_history.append(ChatHistoryItem(role="user", content=item.content))
         elif hasattr(item, "sender"):
+            # Create a ChatHistoryItem for assistant messages (simple format)
             chat_history.append(ChatHistoryItem(role="assistant", content=item.content))
+
+    # Build user_context
     user_context: dict[str, str] = {}
     for key, item in conv.user_context.items():
         user_context[key] = item.value
+
+    # Return AgentInput
     return AgentInput(chat_history=chat_history, user_context=user_context)
 
 
@@ -47,7 +90,7 @@ class BaseAgent(ABC, BaseModel):
     async def invoke_stream(
         self, conv: Conversation, authorization: str | None = None
     ) -> AsyncIterable[str]:
-        base_input = _conversation_to_agent_input(conv)
+        base_input = _conversation_to_agent_input(conv, None)
         input_message = self.get_invoke_input(base_input)
 
         headers = {
@@ -60,9 +103,15 @@ class BaseAgent(ABC, BaseModel):
             async for message in ws:
                 yield message
 
-    def invoke_api(self, conv: Conversation, authorization: str | None = None) -> dict:
+    # Origianl
+    def invoke_api(
+        self,
+        conv: Conversation,
+        authorization: str | None = None,
+        image_data: list[str] | str | None = None,
+    ) -> dict:
         """Invoke the agent via an HTTP API call."""
-        base_input = _conversation_to_agent_input(conv)
+        base_input = _conversation_to_agent_input(conv, image_data)
         input_message = self.get_invoke_input(base_input)
 
         headers = {
@@ -71,6 +120,7 @@ class BaseAgent(ABC, BaseModel):
             "Content-Type": "application/json",
         }
         inject(headers)
+
         response = requests.post(self.endpoint_api, data=input_message, headers=headers)
 
         if response.status_code != 200:
@@ -78,9 +128,14 @@ class BaseAgent(ABC, BaseModel):
 
         return response.json()
 
-    async def invoke_sse(self, conv: Conversation, authorization: str | None = None) -> dict:
+    async def invoke_sse(
+        self,
+        conv: Conversation,
+        authorization: str | None = None,
+        image_data: list[str] | str | None = None,
+    ) -> dict:
         """Invoke the agent via an HTTP API call for SSE response."""
-        base_input = _conversation_to_agent_input(conv)
+        base_input = _conversation_to_agent_input(conv, image_data)
         input_message = self.get_invoke_input(base_input)
 
         headers = {

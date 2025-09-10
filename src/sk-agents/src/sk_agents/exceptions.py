@@ -72,3 +72,21 @@ class AuthenticationException(AgentsException):
 
     def __init__(self, message: str):
         self.message = message
+
+
+class PluginCatalogDefinitionException(AgentsException):
+    """Exception raised when the parsed json does not match the PluginCatalogDefinition Model"""
+
+    message: str
+
+    def __init__(self, message: str):
+        self.message = message
+
+
+class PluginFileReadException(AgentsException):
+    """Raise this exception when the plugin file fails to be read"""
+
+    message: str
+
+    def __init__(self, message: str):
+        self.message = message

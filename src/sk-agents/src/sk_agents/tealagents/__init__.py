@@ -1,4 +1,4 @@
-##Top-level handler factory
+# Top-level handler factory
 from ska_utils import AppConfig
 
 from sk_agents.ska_types import BaseConfig, BaseHandler

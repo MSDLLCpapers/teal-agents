@@ -42,7 +42,8 @@ def parse_chat_history(
 
 
 def get_token_usage_for_response(model_type: ModelType, content: ChatMessageContent) -> TokenUsage:
-    # Check if the content is a ChatMessageContent object and if it contains usage information
+    # Check if the content is a ChatMessageContent object
+    # and if it contains usage information
     if (
         isinstance(content, ChatMessageContent)
         and hasattr(content.inner_content, "usage")
@@ -56,23 +57,24 @@ def get_token_usage_for_response(model_type: ModelType, content: ChatMessageCont
 
 
 def get_token_usage_for_openai_response(content: ChatMessageContent) -> TokenUsage:
+    completion_tokens = content.inner_content.usage.completion_tokens
+    prompt_tokens = content.inner_content.usage.prompt_tokens
+    total_tokens = completion_tokens + prompt_tokens
     return TokenUsage(
-        completion_tokens=content.inner_content.usage.completion_tokens,
-        prompt_tokens=content.inner_content.usage.prompt_tokens,
-        total_tokens=(
-            content.inner_content.usage.completion_tokens
-            + content.inner_content.usage.prompt_tokens
-        ),
+        completion_tokens=completion_tokens,
+        prompt_tokens=prompt_tokens,
+        total_tokens=total_tokens,
     )
 
 
 def get_token_usage_for_anthropic_response(
     content: ChatMessageContent,
 ) -> TokenUsage:
+    output_tokens = content.inner_content.usage.output_tokens
+    input_tokens = content.inner_content.usage.input_tokens
+    total_tokens = output_tokens + input_tokens
     return TokenUsage(
-        completion_tokens=content.inner_content.usage.output_tokens,
-        prompt_tokens=content.inner_content.usage.input_tokens,
-        total_tokens=(
-            content.inner_content.usage.output_tokens + content.inner_content.usage.input_tokens
-        ),
+        completion_tokens=output_tokens,
+        prompt_tokens=input_tokens,
+        total_tokens=total_tokens,
     )

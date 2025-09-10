@@ -295,8 +295,7 @@ class Routes:
             user_id = await authorizer.authorize_request(authorization)
             if not user_id:
                 raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication required"
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
                 )
             return user_id
 
@@ -307,17 +306,11 @@ class Routes:
             response_description="Agent response with state identifiers",
             tags=["Agent"],
         )
-        async def chat(
-            message: input_class,
-            user_id: str = Depends(get_user_id)
-        ) -> StateResponse:
+        async def chat(message: input_class, user_id: str = Depends(get_user_id)) -> StateResponse:
             # Handle new task creation or task retrieval
             if message.task_id is None:
                 # New task
-                session_id, task_id = await state_manager.create_task(
-                    message.session_id,
-                    user_id
-                )
+                session_id, task_id = await state_manager.create_task(message.session_id, user_id)
                 task_state = await state_manager.get_task(task_id)
             else:
                 # Follow-on request
@@ -327,7 +320,7 @@ class Routes:
                 if task_state.user_id != user_id:
                     raise HTTPException(
                         status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Not authorized to access this task"
+                        detail="Not authorized to access this task",
                     )
                 session_id = task_state.session_id
 
@@ -340,7 +333,7 @@ class Routes:
                 task_id=task_id,
                 request_id=request_id,
                 status=TaskStatus.COMPLETED,
-                content="Agent response"  # Replace with actual response
+                content="Agent response",  # Replace with actual response
             )
 
         return router

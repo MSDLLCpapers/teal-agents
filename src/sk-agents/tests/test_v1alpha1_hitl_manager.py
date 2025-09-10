@@ -1,7 +1,7 @@
 import pytest
 from semantic_kernel.contents.function_call_content import FunctionCallContent
 
-from sk_agents.tealagents.v1alpha1.hitl_manager import (
+from sk_agents.hitl.hitl_manager import (
     HitlInterventionRequired,
     check_for_intervention,
 )
@@ -14,7 +14,7 @@ from sk_agents.tealagents.v1alpha1.hitl_manager import (
         ("finance_plugin", "initiate_transfer", True),
         ("admin_tools", "shutdown_service", True),
         ("utility_plugin", "ShellCommand", True),
-        ("safe_plugin", "get_status", False),
+        ("safe_plugin", "get_status", False),  # unregistered
         ("finance_plugin", "get_balance", False),
     ],
 )
@@ -32,7 +32,7 @@ def test_hitl_intervention_required_exception_single():
         raise HitlInterventionRequired([fc])
 
     exc = exc_info.value
-    assert str(exc) == f"HITL intervention required for {plugin_name}.{function_name}"
+    assert str(exc) == (f"HITL intervention required for {plugin_name}.{function_name}")
     assert exc.plugin_name == plugin_name
     assert exc.function_name == function_name
     assert fc in exc.function_calls

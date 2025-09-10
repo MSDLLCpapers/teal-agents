@@ -21,7 +21,8 @@ class AgentTaskItem(BaseModel):
     item: MultiModalItem
     request_id: str
     updated: datetime
-    pending_tool_calls: list[dict] | None = None  # Store serialized FunctionCallContent
+    # Store serialized FunctionCallContent
+    pending_tool_calls: list[dict] | None = None
     chat_history: ChatHistory | None = None
 
 
@@ -82,10 +83,12 @@ class StateResponse(BaseModel):
 
 class TaskStatus(Enum):
     """Enum representing the status of a task"""
+
     RUNNING = "Running"
     PAUSED = "Paused"
     COMPLETED = "Completed"
     FAILED = "Failed"
+
 
 class ResumeRequest(BaseModel):
     action: str  # e.g., "approve", "reject"

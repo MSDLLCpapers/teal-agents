@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -20,7 +21,8 @@ class AgentTaskItem(BaseModel):
     item: MultiModalItem
     request_id: str
     updated: datetime
-    pending_tool_calls: list[dict] | None = None  # Store serialized FunctionCallContent
+    # Store serialized FunctionCallContent
+    pending_tool_calls: list[dict] | None = None
     chat_history: ChatHistory | None = None
 
 
@@ -68,3 +70,25 @@ class RejectedToolResponse(BaseModel):
     session_id: str
     request_id: str
     message: str = "Tool excecution rejected."
+
+
+class StateResponse(BaseModel):
+    session_id: str
+    task_id: str
+    request_id: str
+    status: Literal["Running", "Paused", "Completed", "Failed"]
+    content: str | dict | None = None
+    model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
+
+
+class TaskStatus(Enum):
+    """Enum representing the status of a task"""
+
+    RUNNING = "Running"
+    PAUSED = "Paused"
+    COMPLETED = "Completed"
+    FAILED = "Failed"
+
+
+class ResumeRequest(BaseModel):
+    action: str  # e.g., "approve", "reject"

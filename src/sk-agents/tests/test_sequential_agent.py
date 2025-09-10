@@ -113,6 +113,35 @@ class MockChatHistory:
     messages: list = [MockMessage(), MockMessage()]
 
 
+class MockSpan:
+    def set_attribute(self, key, value):
+        pass
+
+    def add_event(self, name, attributes=None):
+        pass
+
+    # Enable MockSpan to be used as a context manager
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
+class MockTracer:
+    def start_as_current_span(self, name, context=None):
+        return MockSpan()
+
+
+class MockTelemetry:
+    def telemetry_enabled(self):
+        return True
+
+    @property
+    def tracer(self):
+        return MockTracer()
+
+
 @pytest.mark.asyncio
 async def test_sequential_invoke(
     config,
@@ -129,7 +158,10 @@ async def test_sequential_invoke(
     Task count and token metrics change
     Response output_raw is last message in chat history
     """
-
+    mocker.patch(
+        "sk_agents.skagents.v1.sequential.sequential_skagents.get_telemetry",
+        return_value=MockTelemetry(),
+    )
     skagents = SequentialSkagents(config, mock_kernel_builder, mock_task_builder)
     test_input = {"test_input_key": "test_input_value", "chat_history": []}
     mock_parse_task_inputs = mocker.patch.object(
@@ -171,6 +203,10 @@ async def test_sequential_invoke_with_output_type(
     Test:
     Tranform output if required is called when config.output_type is set
     """
+    mocker.patch(
+        "sk_agents.skagents.v1.sequential.sequential_skagents.get_telemetry",
+        return_value=MockTelemetry(),
+    )
 
     config.output_type = "mock_type"
     mock_parse_task_inputs = mocker.patch.object(
@@ -242,7 +278,10 @@ async def test_sequential_invoke_exception_error(
     Test:
     AgentInvokeException error is raised
     """
-
+    mocker.patch(
+        "sk_agents.skagents.v1.sequential.sequential_skagents.get_telemetry",
+        return_value=MockTelemetry(),
+    )
     skagents = SequentialSkagents(config, mock_kernel_builder, mock_task_builder)
     test_input = {"test_input_key": "test_input_value", "chat_history": []}
     mocker.patch.object(

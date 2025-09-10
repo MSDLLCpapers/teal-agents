@@ -96,12 +96,14 @@ TA_PLUGIN_CATALOG_FILE = Config(
 TA_AUTH_STORAGE_MANAGER_CLASS = Config(
     env_name="TA_AUTH_STORAGE_MANAGER_CLASS",
     is_required=False,
-    default_value=None,
+    default_value="InMemorySecureAuthStorageManager",
 )
 TA_AUTH_STORAGE_MANAGER_MODULE = Config(
     env_name="TA_AUTH_STORAGE_MANAGER_MODULE",
     is_required=False,
-    default_value=None,
+    default_value="""
+    sk_agents/auth_storage/in_memory_secure_auth_storage_manager
+    """,
 )
 
 configs: list[Config] = [

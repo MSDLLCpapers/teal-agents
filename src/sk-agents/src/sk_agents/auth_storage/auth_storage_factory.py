@@ -1,18 +1,21 @@
 from ska_utils import AppConfig, ModuleLoader
 
+from sk_agents.auth_storage.in_memory_secure_auth_storage_manager import (
+    InMemorySecureAuthStorageManager,
+)
+from sk_agents.auth_storage.singleton import Singleton
 from sk_agents.configs import TA_AUTH_STORAGE_MANAGER_CLASS, TA_AUTH_STORAGE_MANAGER_MODULE
-
-from .in_memory_secure_auth_storage_manager import InMemorySecureAuthStorageManager
-from .singleton import Singleton
 
 """"
 The AuthStorageFactory is responsible for creating instances of authentication
 storage managers, such as InMemorySecureAuthStorageManager.
 
 It retrieves the module and class names from environment variables,
-and  ensures the dynamically loaded class is a subclass of InMemorySecureAuthStorageManager.
+and  ensures the dynamically loaded class is a
+subclass of InMemorySecureAuthStorageManager.
 
 """
+
 
 class AuthStorageFactory(metaclass=Singleton):
     def __init__(self, app_config: AppConfig):

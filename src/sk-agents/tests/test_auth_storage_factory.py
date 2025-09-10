@@ -25,8 +25,9 @@ def mock_app_config():
 
 @pytest.mark.asyncio
 @patch("sk_agents.authorization.authorizer_factory.ModuleLoader.load_module")
-async def test_successful_initialization_and_get_auth_storage_manager(mock_load_module,
-                                                                      mock_app_config):
+async def test_successful_initialization_and_get_auth_storage_manager(
+    mock_load_module, mock_app_config
+):
     """Test successful initialization and retrieval of an authorizer."""
     mock_app_config.get.side_effect = lambda key: {
         TA_AUTH_STORAGE_MANAGER_MODULE.env_name: "dummy_module",
@@ -89,6 +90,7 @@ def test_class_not_subclass_of_request_authorizer_raises_type_error(
     mock_load_module, mock_app_config
 ):
     """Test that a class not subclassing AuthStorageManager raises TypeError."""
+
     class InvalidAuthorizer:
         pass
 
@@ -101,8 +103,9 @@ def test_class_not_subclass_of_request_authorizer_raises_type_error(
     dummy_module.InvalidAuthorizer = InvalidAuthorizer
     mock_load_module.return_value = dummy_module
 
-    with pytest.raises(TypeError,
-                       match="Class 'InvalidAuthorizer' is not a subclass of AuthStorageManager."):
+    with pytest.raises(
+        TypeError, match="Class 'InvalidAuthorizer' is not a subclass of AuthStorageManager."
+    ):
         AuthStorageFactory(mock_app_config)
 
 
@@ -112,8 +115,9 @@ def test_missing_module_env_variable_raises_value_error(mock_app_config):
         lambda key: None if key == TA_AUTH_STORAGE_MANAGER_MODULE.env_name else "SomeClass"
     )
 
-    with pytest.raises(ValueError,
-                       match="Environment variable AUTH_STORAGE_MANAGER_MODULE is not set."):
+    with pytest.raises(
+        ValueError, match="Environment variable AUTH_STORAGE_MANAGER_MODULE is not set."
+    ):
         AuthStorageFactory(mock_app_config)
 
 
@@ -123,6 +127,7 @@ def test_missing_class_env_variable_raises_value_error(mock_app_config):
         lambda key: "some.module" if key == TA_AUTH_STORAGE_MANAGER_MODULE.env_name else None
     )
 
-    with pytest.raises(ValueError,
-                       match="Environment variable AUTH_STORAGE_MANAGER_CLASS is not set."):
+    with pytest.raises(
+        ValueError, match="Environment variable AUTH_STORAGE_MANAGER_CLASS is not set."
+    ):
         AuthStorageFactory(mock_app_config)

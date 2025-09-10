@@ -10,9 +10,11 @@ The AuthStorageFactory is responsible for creating instances of authentication
 storage managers, such as InMemorySecureAuthStorageManager.
 
 It retrieves the module and class names from environment variables,
-and  ensures the dynamically loaded class is a subclass of InMemorySecureAuthStorageManager.
+and  ensures the dynamically loaded class is a
+subclass of InMemorySecureAuthStorageManager.
 
 """
+
 
 class AuthStorageFactory(metaclass=Singleton):
     def __init__(self, app_config: AppConfig):

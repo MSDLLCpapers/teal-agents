@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from .models import AuthData
+from sk_agents.auth_storage.models import AuthData
 
 
 class SecureAuthStorageManager(ABC):

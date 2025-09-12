@@ -1,3 +1,4 @@
+import logging
 from enum import Enum
 
 from pydantic import BaseModel
@@ -8,6 +9,7 @@ from collab_orchestrator.co_types import (
     HistoryMultiModalMessage,
 )
 
+logger = logging.getLogger(__name__)
 
 class TeamBaseAgent(BaseModel):
     name: str
@@ -76,5 +78,6 @@ class ManagerAgent(InvokableAgent):
             agent_list=team_task_agents,
             conversation=conversation,
         )
+        logger.info("Begin building response ")
         response = await self.invoke(request)
         return ManagerOutput(**response["output_pydantic"])

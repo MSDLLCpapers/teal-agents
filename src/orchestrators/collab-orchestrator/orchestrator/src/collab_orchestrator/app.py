@@ -1,3 +1,4 @@
+import logging
 import uuid
 from collections.abc import AsyncIterable
 from contextlib import nullcontext
@@ -31,6 +32,7 @@ from collab_orchestrator.handler_factory import HandlerFactory
 from collab_orchestrator.planning_handler.pending_plans import PendingPlanStore  # ➌
 from collab_orchestrator.planning_handler.plan import Plan  # ➌
 
+logger = logging.getLogger(__name__)
 
 # ----------------------------------------------------------------- helpers
 def docstring_parameter(*sub):

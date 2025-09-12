@@ -1,3 +1,4 @@
+import logging
 from contextlib import nullcontext
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,6 +18,8 @@ from .deps import (
     get_rec_chooser,
     get_user_context_cache,
 )
+
+logger = logging.getLogger(__name__)
 
 conv_manager = get_conv_manager()
 conn_manager = get_conn_manager()
@@ -118,6 +121,7 @@ async def add_conversation_message_by_id(
             if jt.telemetry_enabled()
             else nullcontext()
         ):
+            logger.info("Begin processing invoke_api")
             response = agent.invoke_api(conv, authorization, request.image_data)
 
             try:

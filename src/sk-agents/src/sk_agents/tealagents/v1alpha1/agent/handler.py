@@ -389,6 +389,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         self, auth_token: str, inputs: UserMessage
     ) -> TealAgentsResponse | HitlResponse:
         # Initial setup
+        logger.info("Beginning processing invoke")
+
         user_id = await self.authenticate_user(token=auth_token)
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
@@ -405,17 +407,18 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             inputs=inputs, chat_history=chat_history
         )
         TealAgentsV1Alpha1Handler._build_chat_history(agent_task, chat_history)
-
+        logger.info("Building the final response")
         final_response_invoke = await self.recursion_invoke(
             inputs=chat_history, session_id=session_id, request_id=request_id, task_id=task_id
         )
-
+        logger.info("Final response complete")
         return final_response_invoke
 
     async def invoke_stream(
         self, auth_token: str, inputs: UserMessage
     ) -> AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse]:
         # Initial setup
+        logger.info("Beginning processing invoke")
         user_id = await self.authenticate_user(token=auth_token)
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
@@ -431,10 +434,12 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         TealAgentsV1Alpha1Handler._augment_with_user_context(
             inputs=inputs, chat_history=chat_history
         )
+        logger.info("Building the final response")
         TealAgentsV1Alpha1Handler._build_chat_history(agent_task, chat_history)
         final_response_stream = self.recursion_invoke_stream(
             chat_history, session_id, task_id, request_id
         )
+        logger.info("Final response complete")
         return final_response_stream
 
     async def recursion_invoke(

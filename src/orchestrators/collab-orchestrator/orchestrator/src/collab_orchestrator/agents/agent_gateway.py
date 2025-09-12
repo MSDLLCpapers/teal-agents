@@ -43,6 +43,7 @@ class AgentGateway(BaseModel):
         agent_version: str,
         agent_input: BaseModel,
     ) -> Any:
+        self._logger.info("Begin processing invoke agent")
         payload = agent_input.model_dump_json()
 
         headers = {
@@ -61,6 +62,7 @@ class AgentGateway(BaseModel):
                     self._logger.info(
                         f"Invoking agent {agent_name}:{agent_version} ({attempt + 1}/{max_retries})"
                     )
+                    self._logger.info("Beginning response processing")
                     response = await client.post(
                         self._get_endpoint_for_agent(agent_name, agent_version),
                         content=payload,
@@ -107,6 +109,7 @@ class AgentGateway(BaseModel):
     async def invoke_agent_sse(
         self, agent_name: str, agent_version: str, agent_input: BaseModel
     ) -> AsyncIterable[PartialResponse | InvokeResponse | KeepaliveMessage | ServerSentEvent]:
+        self._logger.info("Begin processing invoke agent sse")
         json_input = agent_input.model_dump(mode="json")
         headers = {
             "taAgwKey": self.agw_key,
@@ -119,6 +122,7 @@ class AgentGateway(BaseModel):
         first_event_received = False
 
         self._logger.debug(f"Invoking agent {agent_name}:{agent_version} SSE endpoint")
+        self._logger.info("Beginning response processing")
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             async with aconnect_sse(
                 client,

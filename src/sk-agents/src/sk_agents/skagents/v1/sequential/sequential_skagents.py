@@ -142,9 +142,12 @@ class SequentialSkagents(BaseHandler):
             if jt.telemetry_enabled()
             else nullcontext()
         ) as stream_span:
+            logger.info("Beginning processing invoke stream")
+
             # Process and stream back intermediate tasks results
             for task in self.tasks[:-1]:
                 try:
+                    logger.info("Creating IntermediateTaskResponse")
                     first_token_received = False
                     start_time = time.time()
                     i_response: InvokeResponse = await task.invoke(
@@ -176,7 +179,7 @@ class SequentialSkagents(BaseHandler):
                         f"for Session-id {session_id}, Request-id {request_id}, "
                         f"Task description {task.description}. Error: {str(e)}"
                     ) from e
-
+            logger.info("Beginning final processing")
             # Process and stream back final task results
             first_token_received = False
             start_time = time.time()
@@ -222,6 +225,7 @@ class SequentialSkagents(BaseHandler):
                 f"{self.name}:{self.version} responded with {total_tokens} tokens. "
                 f"Session-id {session_id}, Request-id {request_id}"
             )
+            logger.info("Building the final response with InvokeResponse")
             # Build the final response with InvokeResponse
             final_response = "".join(final_response)
             response = InvokeResponse(
@@ -236,6 +240,7 @@ class SequentialSkagents(BaseHandler):
                 extra_data=collector.get_extra_data(),
                 output_raw=final_response,
             )
+            logger.info("Final response complete")
             # Format and transform for pydantic output
             if self.config.config.output_type is None:
                 yield response
@@ -268,6 +273,7 @@ class SequentialSkagents(BaseHandler):
             else nullcontext()
         ) as invoke_span:
             average_ttft_ms = []
+            logger.info("Beginning processing invoke")
             for task in self.tasks:
                 try:
                     start_time = time.time()
@@ -301,6 +307,7 @@ class SequentialSkagents(BaseHandler):
                 f"{self.name}:{self.version} responded with {total_tokens} tokens. "
                 f"Session-id {session_id}, Request-id {request_id}"
             )
+            logger.info("Building the final response with InvokeResponse")
             last_message = chat_history.messages[-1].content
             response = InvokeResponse(
                 session_id=session_id,
@@ -314,6 +321,7 @@ class SequentialSkagents(BaseHandler):
                 extra_data=collector.get_extra_data(),
                 output_raw=last_message,
             )
+            logger.info("Final response complete")
             if self.config.config.output_type is None:
                 return response
             else:

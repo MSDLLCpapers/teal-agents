@@ -1,3 +1,4 @@
+import logging
 import time
 import uuid
 from collections.abc import AsyncIterable
@@ -24,6 +25,7 @@ from sk_agents.skagents.v1.utils import (
     parse_chat_history,
 )
 
+logger = logging.getLogger(__name__)
 
 class ChatAgents(BaseHandler):
     def __init__(self, config: BaseConfig, agent_builder: AgentBuilder, is_v2: bool = False):
@@ -90,6 +92,7 @@ class ChatAgents(BaseHandler):
         ) as stream_span:
             first_token_received = False
             start_time = time.time()
+            logger.info("Beginning processing invoke stream")
             async for chunk in agent.invoke_stream(chat_history):
                 if not first_token_received:
                     first_token_time = time.time()
@@ -117,6 +120,7 @@ class ChatAgents(BaseHandler):
                             output_partial=content,
                         )
             # Build the final response with InvokeResponse
+            logger.info("Building the final response with InvokeRespons")
             stream_span.set_attribute("completion_tokens", completion_tokens)
             stream_span.set_attribute("prompt_tokens", prompt_tokens)
             stream_span.set_attribute("total_tokens", total_tokens)
@@ -137,6 +141,7 @@ class ChatAgents(BaseHandler):
                 extra_data=extra_data_collector.get_extra_data(),
                 output_raw=final_response,
             )
+            logger.info("Final response complete")
             yield response
 
     async def invoke(
@@ -166,6 +171,8 @@ class ChatAgents(BaseHandler):
         ) as invoke_span:
             first_token_received = False
             start_time = time.time()
+            logger.info("Beginning processing invoke")
+
             async for content in agent.invoke(chat_history):
                 if not first_token_received:
                     first_token_time = time.time()
@@ -176,6 +183,8 @@ class ChatAgents(BaseHandler):
                 completion_tokens += call_usage.completion_tokens
                 prompt_tokens += call_usage.prompt_tokens
                 total_tokens += call_usage.total_tokens
+
+            logger.info("Building the final response with InvokeRespons")
             invoke_span.set_attribute("completion_tokens", completion_tokens)
             invoke_span.set_attribute("prompt_tokens", prompt_tokens)
             invoke_span.set_attribute("total_tokens", total_tokens)
@@ -183,7 +192,7 @@ class ChatAgents(BaseHandler):
                 "agent_response_time_ms",
                 attributes={"response_time_ms": titme_to_first_token_ms},
             )
-            return InvokeResponse(
+            response = InvokeResponse(
                 session_id=session_id,
                 source=f"{self.name}:{self.version}",
                 request_id=request_id,
@@ -195,3 +204,5 @@ class ChatAgents(BaseHandler):
                 extra_data=extra_data_collector.get_extra_data(),
                 output_raw=response_content[-1].content,
             )
+            logger.info("Final response complete")
+            return response

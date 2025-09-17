@@ -24,6 +24,7 @@ from sk_agents.ska_types import BaseConfig, BaseHandler, ContentType, TokenUsage
 from sk_agents.tealagents.models import (
     AgentTask,
     AgentTaskItem,
+    AuthChallengeResponse,
     HitlResponse,
     MultiModalItem,
     RejectedToolResponse,
@@ -109,6 +110,59 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise AuthenticationException(
                 message=(f"Unable to authenticate user, exception message: {e}")
             ) from e
+
+    async def authenticate_mcp_servers(self, user_id: str, session_id: str, task_id: str, request_id: str) -> AuthChallengeResponse | None:
+        """
+        Authenticate MCP servers before agent construction.
+
+        Returns AuthChallengeResponse if authentication is needed, None if all servers are authenticated.
+        """
+        mcp_servers = self.config.get_agent().mcp_servers
+        if not mcp_servers:
+            return None
+
+        try:
+            from sk_agents.auth_storage.auth_storage_factory import AuthStorageFactory
+            from sk_agents.mcp_client import resolve_server_auth_headers
+            from ska_utils import AppConfig
+
+            auth_storage_factory = AuthStorageFactory(AppConfig())
+            auth_storage = auth_storage_factory.get_auth_storage_manager()
+
+            missing_auth_servers = []
+
+            for server_config in mcp_servers:
+                if server_config.auth_server and server_config.scopes:
+                    # Check if we have valid auth for this server
+                    composite_key = f"{server_config.auth_server}|{'|'.join(sorted(server_config.scopes))}"
+                    auth_data = auth_storage.retrieve(user_id, composite_key)
+
+                    if not auth_data:
+                        # Missing authentication for this server
+                        auth_challenge = {
+                            "server_name": server_config.name,
+                            "auth_server": server_config.auth_server,
+                            "scopes": server_config.scopes,
+                            "auth_url": f"{server_config.auth_server}/authorize?client_id=teal_agents&scope={'%20'.join(server_config.scopes)}&response_type=code"
+                        }
+                        missing_auth_servers.append(auth_challenge)
+
+            if missing_auth_servers:
+                return AuthChallengeResponse(
+                    task_id=task_id,
+                    session_id=session_id,
+                    request_id=request_id,
+                    message=f"Authentication required for {len(missing_auth_servers)} MCP server(s).",
+                    auth_challenges=missing_auth_servers,
+                    resume_url=f"/api/v1alpha1/agents/resume/{request_id}"
+                )
+
+            return None
+
+        except Exception as e:
+            logger.warning(f"Error during MCP server authentication check: {e}")
+            # Continue without MCP auth if there are issues with auth storage
+            return None
 
     @staticmethod
     def handle_state_id(inputs: UserMessage) -> tuple[str, str, str]:
@@ -362,7 +416,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         # Execute the tool calls using asyncio.gather(),
         # just as the agent would have.
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector, user_id=user_id)
         kernel = agent.agent.kernel
 
         # Create ToolContent objects from the results
@@ -387,7 +441,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
     async def invoke(
         self, auth_token: str, inputs: UserMessage
-    ) -> TealAgentsResponse | HitlResponse:
+    ) -> TealAgentsResponse | HitlResponse | AuthChallengeResponse:
         # Initial setup
         logger.info("Beginning processing invoke")
 
@@ -401,6 +455,12 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise AgentInvokeException("Agent task not created")
         # Check user_id match request and state
         TealAgentsV1Alpha1Handler._validate_user_id(user_id, task_id, agent_task)
+
+        # Check MCP server authentication before agent construction
+        auth_challenge = await self.authenticate_mcp_servers(user_id, session_id, task_id, request_id)
+        if auth_challenge:
+            logger.info(f"MCP authentication required for {len(auth_challenge.auth_challenges)} server(s)")
+            return auth_challenge
 
         chat_history = ChatHistory()
         TealAgentsV1Alpha1Handler._augment_with_user_context(
@@ -416,7 +476,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
     async def invoke_stream(
         self, auth_token: str, inputs: UserMessage
-    ) -> AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse]:
+    ) -> AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse | AuthChallengeResponse]:
         # Initial setup
         logger.info("Beginning processing invoke")
         user_id = await self.authenticate_user(token=auth_token)
@@ -429,6 +489,13 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise AgentInvokeException("Agent task not created")
         # Check user_id match request and state
         TealAgentsV1Alpha1Handler._validate_user_id(user_id, task_id, agent_task)
+
+        # Check MCP server authentication before agent construction
+        auth_challenge = await self.authenticate_mcp_servers(user_id, session_id, task_id, request_id)
+        if auth_challenge:
+            logger.info(f"MCP authentication required for {len(auth_challenge.auth_challenges)} server(s)")
+            yield auth_challenge
+            return
 
         chat_history = ChatHistory()
         TealAgentsV1Alpha1Handler._augment_with_user_context(
@@ -453,7 +520,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise PersistenceLoadError(f"Agent task with ID {task_id} not found in state.")
 
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector, user_id=user_id)
 
         # Prepare metadata
         completion_tokens: int = 0
@@ -560,7 +627,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise PersistenceLoadError(f"Agent task with ID {task_id} not found in state.")
 
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector, user_id=user_id)
 
         # Prepare metadata
         final_response = []

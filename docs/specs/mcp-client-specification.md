@@ -91,20 +91,25 @@ class McpServerConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
     
     # Universal fields
-    name: str                                    # Unique server identifier
-    transport: Literal["stdio", "http"] = "stdio"  # Transport protocol
+    name: str                                             # Unique server identifier
+    transport: Optional[Literal["stdio", "http"]] = None  # Inferred if omitted
     
     # Stdio transport fields
     command: Optional[str] = None               # Command to start server
-    args: List[str] = []                       # Command arguments  
-    env: Optional[Dict[str, str]] = None       # Environment variables
+    args: List[str] = []                        # Command arguments  
+    env: Optional[Dict[str, str]] = None        # Environment variables
     
     # HTTP transport fields (supports both Streamable HTTP and SSE)
-    url: Optional[str] = None                  # HTTP/SSE endpoint URL
-    headers: Optional[Dict[str, str]] = None   # HTTP headers (for auth, etc.)
-    timeout: Optional[float] = 30.0            # Connection timeout in seconds
-    sse_read_timeout: Optional[float] = 300.0  # SSE read timeout in seconds
+    url: Optional[str] = None                   # HTTP/SSE endpoint URL
+    headers: Optional[Dict[str, str]] = None    # HTTP headers (for auth, etc.)
+    timeout: Optional[float] = None             # Connection timeout in seconds
+    sse_read_timeout: Optional[float] = None    # SSE read timeout in seconds
 ```
+
+Transport inference:
+- If `url` provided (and `command` not) → http
+- If `command` provided (and `url` not) → stdio
+- If both provided without `transport` → validation error
 
 #### 3.2.2 McpClient
 
@@ -202,7 +207,6 @@ spec:
   mcp_servers:
     # Stdio transport (local servers)
     - name: local-server
-      transport: stdio               # Optional, defaults to stdio
       command: executable-path       # Required for stdio
       args: ["arg1", "arg2"]        # Optional: command arguments
       env:                          # Optional: environment variables
@@ -210,7 +214,6 @@ spec:
         
     # HTTP transport (remote servers)
     - name: http-server
-      transport: http
       url: "https://api.example.com/mcp"      # Required: HTTP/SSE endpoint URL
       timeout: 30.0                 # Optional: connection timeout (seconds)
       sse_read_timeout: 300.0       # Optional: SSE read timeout (seconds)
@@ -218,6 +221,8 @@ spec:
         Authorization: "Bearer ${API_KEY}"
         User-Agent: "TealAgents-MCP/1.1"
         X-Client-Version: "1.0"
+  
+  # Note: Transport is inferred when omitted. Set explicitly only to override or disambiguate.
 ```
 
 ### 4.2 Example Configurations

@@ -42,7 +42,6 @@ class McpServerConfig(BaseModel):
 
 class AgentConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
-
     name: str
     model: str
     system_prompt: str

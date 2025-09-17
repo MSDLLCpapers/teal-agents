@@ -30,7 +30,6 @@ spec:
   mcp_servers:
     # User management service
     - name: user-management
-      transport: http
       url: "https://auth.example.com/api/v2/mcp"
       timeout: 30
       headers:
@@ -40,7 +39,6 @@ spec:
         
     # Content management system
     - name: cms-api
-      transport: http
       url: "https://cms.example.com/api/v1/sse"
       timeout: 45
       sse_read_timeout: 300
@@ -51,7 +49,6 @@ spec:
         
     # Analytics service
     - name: analytics
-      transport: http
       url: "https://analytics-api.example.com/v3/mcp"
       timeout: 60
       headers:
@@ -61,7 +58,6 @@ spec:
         
     # Third-party integrations
     - name: external-service
-      transport: http
       url: "https://external-api.partner.com/mcp/v1/sse"
       timeout: 120  # Longer timeout for external services
       sse_read_timeout: 600
@@ -72,7 +68,6 @@ spec:
         
     # Internal microservice
     - name: internal-service
-      transport: http
       url: "https://internal.example.com/mcp-api/v1"
       timeout: 15  # Fast internal network
       headers:

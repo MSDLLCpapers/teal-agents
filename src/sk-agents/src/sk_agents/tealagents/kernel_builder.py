@@ -50,6 +50,7 @@ class KernelBuilder:
         mcp_servers: list[McpServerConfig] | None = None,
         authorization: str | None = None,
         extra_data_collector: ExtraDataCollector | None = None,
+        user_id: str | None = None,
     ) -> Kernel:
         try:
             kernel = self._create_base_kernel(model_name, service_id)
@@ -69,7 +70,7 @@ class KernelBuilder:
                     )
                 except RuntimeError:
                     # No event loop running, safe to use asyncio.run()
-                    kernel = asyncio.run(self._load_mcp_plugins(mcp_servers, kernel))
+                    kernel = asyncio.run(self._load_mcp_plugins(mcp_servers, kernel, user_id))
             
             return kernel
         except Exception as e:
@@ -111,7 +112,7 @@ class KernelBuilder:
             self.logger.exception(f"Could not load remote plugings. -{e}")
             raise
 
-    async def _load_mcp_plugins(self, mcp_servers: list[McpServerConfig] | None, kernel: Kernel) -> Kernel:
+    async def _load_mcp_plugins(self, mcp_servers: list[McpServerConfig] | None, kernel: Kernel, user_id: str | None = None) -> Kernel:
         """Load MCP plugins by connecting to MCP servers and registering their tools."""
         if mcp_servers is None or len(mcp_servers) < 1:
             return kernel
@@ -124,7 +125,7 @@ class KernelBuilder:
             # Connect to all servers concurrently for better performance
             connection_tasks = []
             for server_config in mcp_servers:
-                task = self._connect_single_mcp_server(mcp_client, server_config, kernel)
+                task = self._connect_single_mcp_server(mcp_client, server_config, kernel, user_id)
                 connection_tasks.append(task)
             
             if connection_tasks:
@@ -143,11 +144,11 @@ class KernelBuilder:
             self.logger.exception(f"Could not load MCP plugins. - {e}")
             raise
             
-    async def _connect_single_mcp_server(self, mcp_client, server_config: McpServerConfig, kernel: Kernel) -> None:
+    async def _connect_single_mcp_server(self, mcp_client, server_config: McpServerConfig, kernel: Kernel, user_id: str | None = None) -> None:
         """Connect to a single MCP server and register its plugin."""
         try:
             self.logger.info(f"Connecting to MCP server: {server_config.name}")
-            await mcp_client.connect_server(server_config)
+            await mcp_client.connect_server(server_config, user_id)
             
             # Get the plugin for this server and register it with the kernel
             plugin = mcp_client.get_plugin(server_config.name)

@@ -359,7 +359,7 @@ class McpClient:
         self._connection_stacks: Dict[str, AsyncExitStack] = {}
         self._connection_health: Dict[str, bool] = {}
         
-    async def connect_server(self, server_config: McpServerConfig) -> None:
+    async def connect_server(self, server_config: McpServerConfig, user_id: str | None = None) -> None:
         """
         Connect to an MCP server and register its tools.
         

@@ -13,20 +13,22 @@ The MCP client implementation provides:
 
 ## Supported Transports
 
-Based on the current MCP Python SDK capabilities, Teal Agents supports:
+Teal Agents supports the following MCP SDK transports:
 
-- **stdio**: Local subprocess communication (fully supported)
+- **stdio**: Local subprocess communication
+- **http**: HTTP with Streamable HTTP and SSE fallback (remote servers)
 
 ## Planned Transports
 
-The following transports are planned but not yet available in the MCP Python SDK:
-
-- **http**: HTTP with Server-Sent Events for remote servers
-- **websocket**: WebSocket connections
+- **websocket**: WebSocket connections (when available in the MCP Python SDK)
 
 ## Configuration
 
-To use MCP servers with your agent, add the `mcp_servers` configuration to your agent config:
+To use MCP servers with your agent, add the `mcp_servers` configuration to your agent config. Transport is inferred when omitted:
+
+- If `url` is provided (and `command` is not), transport is `http`
+- If `command` is provided (and `url` is not), transport is `stdio`
+- If both are provided without `transport`, validation will fail (ambiguous)
 
 ```yaml
 apiVersion: tealagents/v1alpha1
@@ -46,7 +48,7 @@ spec:
   remote_plugins:
     - https://example.com/plugins/api
   
-  # MCP servers using stdio transport
+  # MCP servers
   mcp_servers:
     # Stdio transport (local subprocess)
     - name: filesystem
@@ -56,7 +58,13 @@ spec:
         - "/path/to/allowed/directory"
       env:
         NODE_ENV: production
-        
+    
+    # HTTP transport (minimal config)
+    - name: user-management
+      url: "https://auth.example.com/api/v2/mcp"
+      headers:
+        Authorization: "Bearer ${USER_MGMT_API_KEY}"
+
     - name: sqlite
       command: python3
       args:
@@ -72,13 +80,12 @@ spec:
 
 All MCP servers require:
 - **name**: Unique identifier for the server
-- **command**: Command to start the MCP server (required)
 
-Optional fields:
-- **args**: Command line arguments (optional)
-- **env**: Environment variables (optional)
+Transport-specific requirements (transport is inferred if omitted):
+- **stdio**: requires **command** (optional: **args**, **env**)
+- **http**: requires **url** (optional: **headers**, **timeout**, **sse_read_timeout**)
 
-Note: The `transport` field is not needed as only stdio is currently supported.
+Note: The `transport` field is optional. If you provide both `command` and `url`, you must set `transport` to disambiguate.
 
 ## Example MCP Servers
 
@@ -229,10 +236,8 @@ node /path/to/my_mcp_server.js
 
 ### Currently Not Supported
 
-- **HTTP/SSE transport**: Not yet available in the MCP Python SDK
-- **WebSocket transport**: Not yet available in the MCP Python SDK  
-- **Custom transport protocols**: Only stdio is currently supported
-- **Remote connections**: Only local subprocess connections are supported currently
+- **WebSocket transport**: Not yet available in the MCP Python SDK
+- **Custom transport protocols**: Only stdio and http are supported
 
 ## Future Enhancements
 

@@ -1,6 +1,8 @@
 from typing import Dict, List, Optional, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from sk_agents.plugin_catalog.models import GovernanceOverride
+
 
 class McpServerConfig(BaseModel):
     """Configuration for an MCP server connection supporting multiple transports."""
@@ -17,9 +19,16 @@ class McpServerConfig(BaseModel):
     
     # HTTP transport fields
     url: Optional[str] = None
-    headers: Optional[Dict[str, str]] = None
-    timeout: Optional[float] = 30.0
-    sse_read_timeout: Optional[float] = 300.0
+    headers: Optional[Dict[str, str]] = None  # Legacy support - auth should use auth_server/scopes
+    timeout: Optional[float] = None  # Will be set automatically if not provided
+    sse_read_timeout: Optional[float] = None  # Will be set automatically if not provided
+
+    # Server-level authentication for tool catalog integration
+    auth_server: Optional[str] = None  # OAuth2 authorization server URL
+    scopes: List[str] = []  # Required OAuth2 scopes for this server's tools
+
+    # Tool-specific governance overrides (optional)
+    tool_governance_overrides: Optional[Dict[str, GovernanceOverride]] = None
     
     @model_validator(mode='after')
     def validate_transport_fields(self):
@@ -36,7 +45,17 @@ class McpServerConfig(BaseModel):
             # Validate URL format
             if not (self.url.startswith('http://') or self.url.startswith('https://')):
                 raise ValueError("HTTP transport URL must start with 'http://' or 'https://'")
-        
+
+            # Set smart defaults for timeouts if not provided
+            if self.timeout is None:
+                self.timeout = 30.0  # Default timeout
+            if self.sse_read_timeout is None:
+                self.sse_read_timeout = 300.0  # Default SSE read timeout
+
+        # Validate auth configuration
+        if self.auth_server and not self.auth_server.startswith(('http://', 'https://')):
+            raise ValueError("auth_server must be a valid HTTP/HTTPS URL")
+
         return self
 
 

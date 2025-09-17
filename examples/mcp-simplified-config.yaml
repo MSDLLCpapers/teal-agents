@@ -1,0 +1,70 @@
+apiVersion: tealagents/v1alpha1
+name: simplified-mcp-agent
+version: 1.0
+description: "Agent using simplified MCP server configuration with integrated auth"
+
+metadata:
+  description: "Demonstrates the new simplified MCP configuration with auth integration"
+  skills:
+    - id: "mcp-auth-tools"
+      name: "MCP Tools with Auth"
+      description: "Tools from MCP servers with automatic auth resolution"
+      tags: ["mcp", "auth", "simplified"]
+
+spec:
+  name: simplified-mcp-agent
+  model: gpt-4
+  system_prompt: |
+    You are an assistant with access to various tools through MCP servers.
+
+    All tools have been automatically configured with proper authentication
+    and governance policies based on their characteristics.
+
+    Destructive operations will require human approval through the HITL system.
+
+  temperature: 0.1
+
+  mcp_servers:
+    # Simplified GitHub MCP server with governance overrides
+    - name: github
+      url: "https://api.github.com/mcp"
+      auth_server: "https://github.com/login/oauth"
+      scopes: ["repo", "read:user"]
+      tool_governance_overrides:
+        create_repository:
+          requires_hitl: false  # Override: don't require HITL for repo creation
+          cost: "medium"        # Override: reduce cost from auto-detected "high"
+        delete_repository:
+          requires_hitl: true   # Ensure this always requires HITL
+          data_sensitivity: "sensitive"
+        list_repositories:
+          cost: "low"           # Override: mark as low cost (only cost override)
+
+    # Simple internal API server with selective overrides
+    - name: internal-api
+      url: "https://internal.company.com/mcp"
+      auth_server: "https://auth.company.com/oauth2"
+      scopes: ["api:read", "api:write"]
+      tool_governance_overrides:
+        upload_file:
+          requires_hitl: true   # Add HITL requirement for file uploads
+
+    # Public MCP server (no auth needed)
+    - name: weather
+      url: "https://weather-api.example.com/mcp"
+
+    # Local MCP server via stdio
+    - name: filesystem
+      command: npx
+      args:
+        - "@modelcontextprotocol/server-filesystem"
+        - "/safe/workspace"
+
+# Notes:
+# - timeout and sse_read_timeout are automatically set based on server capabilities
+# - Tools are automatically registered in the plugin catalog with governance policies
+# - MCP annotations (destructiveHint, readOnlyHint) map to HITL requirements by default
+# - tool_governance_overrides allows manual override of auto-inferred governance
+# - Only specified override fields are applied; others use auto-inferred values
+# - Auth headers are resolved from the secure auth storage at runtime
+# - Backward compatibility maintained with manual headers configuration

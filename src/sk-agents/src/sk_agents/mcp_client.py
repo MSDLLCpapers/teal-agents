@@ -24,12 +24,126 @@ from semantic_kernel.kernel import Kernel
 
 from sk_agents.ska_types import BasePlugin
 from sk_agents.tealagents.v1alpha1.config import McpServerConfig
+from sk_agents.auth_storage.auth_storage_factory import AuthStorageFactory
+from sk_agents.auth_storage.models import OAuth2AuthData
+from sk_agents.plugin_catalog.models import Governance, GovernanceOverride, Oauth2PluginAuth, PluginTool
+from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
 
 
 logger = logging.getLogger(__name__)
 
 
-async def create_mcp_session(server_config: McpServerConfig, connection_stack: AsyncExitStack) -> ClientSession:
+def map_mcp_annotations_to_governance(annotations: Dict[str, Any]) -> Governance:
+    """
+    Map MCP tool annotations to Teal Agents governance policies.
+
+    Args:
+        annotations: MCP tool annotations
+
+    Returns:
+        Governance: Governance settings for the tool
+    """
+    # Map MCP destructiveHint to HITL requirement
+    destructive_hint = annotations.get("destructiveHint", False)
+    requires_hitl = destructive_hint
+
+    # Map destructive operations to higher cost and sensitivity
+    if destructive_hint:
+        cost = "high"
+        data_sensitivity = "sensitive"
+    else:
+        # Check if it's read-only
+        read_only_hint = annotations.get("readOnlyHint", False)
+        if read_only_hint:
+            cost = "low"
+            data_sensitivity = "public"
+        else:
+            cost = "medium"
+            data_sensitivity = "proprietary"
+
+    return Governance(
+        requires_hitl=requires_hitl,
+        cost=cost,
+        data_sensitivity=data_sensitivity
+    )
+
+
+def apply_governance_overrides(base_governance: Governance, tool_name: str, overrides: Optional[Dict[str, GovernanceOverride]]) -> Governance:
+    """
+    Apply tool-specific governance overrides to base governance settings.
+
+    Args:
+        base_governance: Auto-inferred governance from MCP annotations
+        tool_name: Name of the MCP tool
+        overrides: Optional governance overrides from server config
+
+    Returns:
+        Governance: Final governance with overrides applied
+    """
+    if not overrides or tool_name not in overrides:
+        return base_governance
+
+    override = overrides[tool_name]
+
+    # Apply selective overrides - only override specified fields
+    return Governance(
+        requires_hitl=override.requires_hitl if override.requires_hitl is not None else base_governance.requires_hitl,
+        cost=override.cost if override.cost is not None else base_governance.cost,
+        data_sensitivity=override.data_sensitivity if override.data_sensitivity is not None else base_governance.data_sensitivity
+    )
+
+
+def resolve_server_auth_headers(server_config: McpServerConfig, user_id: str = "default") -> Dict[str, str]:
+    """
+    Resolve authentication headers for MCP server connection.
+
+    Args:
+        server_config: MCP server configuration
+        user_id: User ID for auth lookup
+
+    Returns:
+        Dict[str, str]: Headers to use for server connection
+    """
+    headers = {}
+
+    # Start with any manually configured headers (legacy support)
+    if server_config.headers:
+        headers.update(server_config.headers)
+
+    # If server has auth configuration, resolve tokens using existing auth system
+    if server_config.auth_server and server_config.scopes:
+        try:
+            # Use AuthStorageFactory directly - no wrapper needed
+            from ska_utils import AppConfig
+            app_config = AppConfig()
+            auth_storage_factory = AuthStorageFactory(app_config)
+            auth_storage = auth_storage_factory.get_auth_storage_manager()
+
+            # Generate composite key for OAuth2 token lookup
+            composite_key = f"{server_config.auth_server}|{sorted(server_config.scopes)}"
+
+            # Retrieve stored auth data
+            auth_data = auth_storage.retrieve(user_id, composite_key)
+
+            if auth_data and isinstance(auth_data, OAuth2AuthData):
+                # Check if token is still valid
+                from datetime import datetime
+                if auth_data.expires_at > datetime.utcnow():
+                    # Add authorization header
+                    headers["Authorization"] = f"Bearer {auth_data.access_token}"
+                    logger.info(f"Resolved auth headers for MCP server: {server_config.name}")
+                else:
+                    logger.warning(f"Token expired for MCP server: {server_config.name}")
+            else:
+                logger.warning(f"No valid auth token found for MCP server: {server_config.name}")
+
+        except Exception as e:
+            logger.error(f"Failed to resolve auth for MCP server {server_config.name}: {e}")
+
+    return headers
+
+
+async def create_mcp_session(server_config: McpServerConfig, connection_stack: AsyncExitStack, user_id: str = "default") -> ClientSession:
     """Create MCP session using SDK transport factories."""
     transport_type = server_config.transport
     
@@ -52,15 +166,18 @@ async def create_mcp_session(server_config: McpServerConfig, connection_stack: A
         return session
         
     elif transport_type == "http":
+        # Resolve auth headers for HTTP transport
+        resolved_headers = resolve_server_auth_headers(server_config, user_id)
+
         # Try streamable HTTP first (preferred), fall back to SSE
         try:
             from mcp.client.streamable_http import streamablehttp_client
-            
+
             # Use streamable HTTP transport
             read, write, _ = await connection_stack.enter_async_context(
                 streamablehttp_client(
                     url=server_config.url,
-                    headers=server_config.headers,
+                    headers=resolved_headers,
                     timeout=server_config.timeout or 30.0
                 )
             )
@@ -78,7 +195,7 @@ async def create_mcp_session(server_config: McpServerConfig, connection_stack: A
                 read, write = await connection_stack.enter_async_context(
                     sse_client(
                         url=server_config.url,
-                        headers=server_config.headers,
+                        headers=resolved_headers,
                         timeout=server_config.timeout or 30.0,
                         sse_read_timeout=server_config.sse_read_timeout or 300.0
                     )
@@ -122,12 +239,13 @@ def get_transport_info(server_config: McpServerConfig) -> str:
 
 class McpTool:
     """Wrapper for MCP tools to make them compatible with Semantic Kernel."""
-    
-    def __init__(self, name: str, description: str, input_schema: Dict[str, Any], client_session):
+
+    def __init__(self, name: str, description: str, input_schema: Dict[str, Any], client_session, server_name: str = None):
         self.name = name
         self.description = description
         self.input_schema = input_schema
         self.client_session = client_session
+        self.server_name = server_name
         self.original_name = name
         
     async def invoke(self, **kwargs) -> str:
@@ -266,7 +384,10 @@ class McpClient:
             
             # Initialize the session
             await session.initialize()
-            
+
+            # Apply smart defaults based on server capabilities
+            self._apply_smart_defaults(server_config, session)
+
             # Store the session and resources
             self.connected_servers[server_config.name] = session
             self.server_configs[server_config.name] = server_config
@@ -328,40 +449,178 @@ class McpClient:
                 
             # Generic fallback error
             raise ConnectionError(f"Could not connect to MCP server '{server_config.name}': {e}") from e
-    
+
+    def _apply_smart_defaults(self, server_config: McpServerConfig, session) -> None:
+        """
+        Apply intelligent defaults based on MCP server capabilities.
+
+        Args:
+            server_config: MCP server configuration to adjust
+            session: Initialized MCP session
+        """
+        try:
+            # For HTTP transport, adjust timeouts based on server characteristics
+            if server_config.transport == "http":
+                # Get server info if available (this might not be accessible from session)
+                # For now, we'll use simple heuristics
+
+                # Base timeout adjustments
+                if server_config.timeout is None:
+                    # Set longer timeout for initial connections
+                    server_config.timeout = 45.0
+                    logger.debug(f"Set default timeout to {server_config.timeout}s for {server_config.name}")
+
+                if server_config.sse_read_timeout is None:
+                    # Set longer SSE timeout for servers that might have many tools
+                    server_config.sse_read_timeout = 600.0
+                    logger.debug(f"Set default SSE timeout to {server_config.sse_read_timeout}s for {server_config.name}")
+
+                # Log the applied defaults
+                logger.info(
+                    f"Applied smart defaults for MCP server '{server_config.name}': "
+                    f"timeout={server_config.timeout}s, sse_read_timeout={server_config.sse_read_timeout}s"
+                )
+
+        except Exception as e:
+            logger.warning(f"Failed to apply smart defaults for {server_config.name}: {e}")
+
     async def _discover_and_register_tools(self, server_name: str, session) -> None:
-        """Discover tools from the connected MCP server and create plugin wrappers."""
+        """Discover tools from MCP server and register them directly in existing catalog."""
         try:
             # List available tools from the server
             tools_result = await session.list_tools()
-            
+
             if not tools_result or not hasattr(tools_result, 'tools'):
                 logger.warning(f"No tools found on MCP server: {server_name}")
                 return
-            
-            # Create MCP tool wrappers
+
+            server_config = self.server_configs[server_name]
+
+            # Get the existing plugin catalog - no wrapper needed
+            try:
+                catalog = PluginCatalogFactory().get_catalog()
+            except Exception as e:
+                logger.warning(f"Could not get plugin catalog for MCP registration: {e}")
+                catalog = None
+
+            # Create plugin tools and register directly in catalog
             mcp_tools = []
+            plugin_tools = []
+
             for tool_info in tools_result.tools:
+                # Create MCP tool wrapper for Semantic Kernel
                 mcp_tool = McpTool(
                     name=tool_info.name,
                     description=tool_info.description or f"Tool {tool_info.name} from {server_name}",
                     input_schema=getattr(tool_info, 'inputSchema', {}) or {},
-                    client_session=session
+                    client_session=session,
+                    server_name=server_name
                 )
                 mcp_tools.append(mcp_tool)
-                
+
+                # Create PluginTool for catalog registration (first-class citizen)
+                if catalog:
+                    # Create tool_id that matches HITL expectations
+                    tool_id = f"mcp_{server_name}-{server_name}_{tool_info.name}"
+
+                    # Map MCP annotations to governance and apply any overrides
+                    annotations = getattr(tool_info, 'annotations', {}) or {}
+                    base_governance = map_mcp_annotations_to_governance(annotations)
+                    governance = apply_governance_overrides(base_governance, tool_info.name, server_config.tool_governance_overrides)
+
+                    # Create auth configuration if server has auth
+                    auth = None
+                    if server_config.auth_server and server_config.scopes:
+                        auth = Oauth2PluginAuth(
+                            auth_server=server_config.auth_server,
+                            scopes=server_config.scopes
+                        )
+
+                    plugin_tool = PluginTool(
+                        tool_id=tool_id,
+                        name=getattr(tool_info, 'title', None) or tool_info.name,
+                        description=tool_info.description or f"MCP tool: {tool_info.name}",
+                        governance=governance,
+                        auth=auth
+                    )
+                    plugin_tools.append(plugin_tool)
+
                 logger.info(f"Discovered tool: {tool_info.name} from server {server_name}")
-            
-            # Create a plugin for this server's tools
+
+            # Register tools directly in existing catalog
+            if catalog and plugin_tools:
+                plugin_id = f"mcp-{server_name}"
+
+                # Create the MCP plugin
+                from sk_agents.plugin_catalog.models import McpPluginType, Plugin
+                plugin = Plugin(
+                    plugin_id=plugin_id,
+                    name=f"MCP Server: {server_name}",
+                    description=f"Tools from MCP server '{server_name}'",
+                    version="1.0.0",
+                    owner="mcp-integration",
+                    plugin_type=McpPluginType(),
+                    tools=plugin_tools
+                )
+
+                # Register directly in existing catalog - no wrapper
+                catalog.register_dynamic_plugin(plugin)
+                logger.info(f"Registered {len(plugin_tools)} MCP tools directly in existing catalog for server {server_name}")
+
+            # Create semantic kernel plugin
             if mcp_tools:
                 plugin = McpPlugin(mcp_tools, server_name=server_name)
                 self.plugins[server_name] = plugin
-                logger.info(f"Created plugin for server {server_name} with {len(mcp_tools)} tools")
-            
+                logger.info(f"Created Semantic Kernel plugin for server {server_name} with {len(mcp_tools)} tools")
+
+                # Apply additional smart defaults based on tool count
+                self._adjust_defaults_for_tool_count(server_name, len(mcp_tools))
+
         except Exception as e:
             logger.error(f"Failed to discover tools from MCP server {server_name}: {e}")
             raise
-    
+
+    def _adjust_defaults_for_tool_count(self, server_name: str, tool_count: int) -> None:
+        """
+        Adjust server configuration defaults based on the number of discovered tools.
+
+        Args:
+            server_name: Name of the MCP server
+            tool_count: Number of tools discovered
+        """
+        server_config = self.server_configs.get(server_name)
+        if not server_config or server_config.transport != "http":
+            return
+
+        try:
+            # Adjust timeouts based on tool count
+            original_timeout = server_config.timeout
+            original_sse_timeout = server_config.sse_read_timeout
+
+            # More tools = potentially longer operations, increase timeouts
+            if tool_count > 10:
+                # Large server with many tools
+                server_config.timeout = max(server_config.timeout or 30.0, 60.0)
+                server_config.sse_read_timeout = max(server_config.sse_read_timeout or 300.0, 900.0)
+            elif tool_count > 5:
+                # Medium server
+                server_config.timeout = max(server_config.timeout or 30.0, 45.0)
+                server_config.sse_read_timeout = max(server_config.sse_read_timeout or 300.0, 600.0)
+            else:
+                # Small server, keep default timeouts
+                pass
+
+            # Log changes if timeouts were adjusted
+            if (server_config.timeout != original_timeout or
+                server_config.sse_read_timeout != original_sse_timeout):
+                logger.info(
+                    f"Adjusted timeouts for {server_name} ({tool_count} tools): "
+                    f"timeout={server_config.timeout}s, sse_read_timeout={server_config.sse_read_timeout}s"
+                )
+
+        except Exception as e:
+            logger.warning(f"Failed to adjust defaults for {server_name}: {e}")
+
     def get_plugin(self, server_name: str) -> Optional[McpPlugin]:
         """Get the plugin for a specific MCP server."""
         return self.plugins.get(server_name)
@@ -383,24 +642,33 @@ class McpClient:
     async def disconnect_server(self, server_name: str) -> None:
         """Disconnect from an MCP server and clean up resources."""
         try:
+            # Clean up catalog registration - use existing catalog directly
+            try:
+                catalog = PluginCatalogFactory().get_catalog()
+                plugin_id = f"mcp-{server_name}"
+                if catalog.unregister_dynamic_plugin(plugin_id):
+                    logger.info(f"Unregistered MCP plugin '{plugin_id}' from catalog")
+            except Exception as e:
+                logger.warning(f"Could not unregister MCP plugin from catalog: {e}")
+
             # Clean up connection resources
             if server_name in self._connection_stacks:
                 connection_stack = self._connection_stacks[server_name]
                 await connection_stack.aclose()
                 del self._connection_stacks[server_name]
-                
+
             # Clean up tracking dictionaries
             for dictionary in [
                 self.connected_servers,
-                self.server_configs, 
+                self.server_configs,
                 self.plugins,
                 self._connection_health
             ]:
                 if server_name in dictionary:
                     del dictionary[server_name]
-                    
+
             logger.info(f"Disconnected from MCP server: {server_name}")
-            
+
         except Exception as e:
             logger.error(f"Error disconnecting from MCP server {server_name}: {e}")
     

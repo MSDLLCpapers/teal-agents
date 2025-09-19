@@ -1,28 +1,30 @@
 # MCP Client Integration - Design & Implementation Specification
 
-**Version:** 1.1  
-**Date:** 2025-01-09  
-**Status:** Implemented (HTTP Transport Support Complete)  
+**Version:** 1.2
+**Date:** 2025-01-17
 
 ## 1. Overview
 
 This specification describes the design and implementation of Model Context Protocol (MCP) client integration for the Teal Agents platform. The integration supports multiple transport protocols (stdio and HTTP) and allows agents to automatically connect to MCP servers, discover their tools, and register them as Semantic Kernel plugins.
 
-**Latest Update:** Added full HTTP transport support with both Streamable HTTP and SSE (Server-Sent Events) fallback capabilities.
+**Latest Update:** Redesigned architecture to follow established ephemeral agent patterns. Added comprehensive authentication integration with OAuth2 support and tool governance capabilities.
 
 ### 1.1 Goals
 
 - **Seamless Integration**: MCP tools should work identically to native plugins
+- **Pattern Alignment**: Follow established ephemeral agent-per-request patterns
 - **Configuration-Driven**: Server connections specified via agent configuration
 - **Automatic Discovery**: Tools are discovered and registered without manual intervention
+- **Authentication Integration**: Leverage existing OAuth2 auth infrastructure
+- **Tool Governance**: Full HITL and governance policy integration
 - **Error Resilience**: Failed connections shouldn't prevent agent initialization
-- **Resource Management**: Proper connection lifecycle handling
+- **Resource Management**: Session-scoped connection lifecycle with proper cleanup
 
 ### 1.2 Non-Goals
 
-- Authentication/authorization for MCP servers (future enhancement)
 - Real-time tool discovery (tools discovered at connection time only)
 - MCP server management/orchestration
+- Cross-session connection sharing (each session maintains isolated connections)
 
 ## 2. Architecture
 
@@ -30,34 +32,43 @@ This specification describes the design and implementation of Model Context Prot
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Agent Config  │───▶│   KernelBuilder  │───▶│ Semantic Kernel │
+│   Agent Config  │───▶│   AgentBuilder   │───▶│ Agent Instance  │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
          │                       │                       │
          │              ┌─────────────────┐              │
-         │              │   McpClient     │              │
-         └─────────────▶│                 │◀─────────────┘
-                        │ - connect()     │
-                        │ - discover()    │
-                        │ - register()    │
-                        └─────────────────┘
+         │              │ KernelBuilder   │              │
+         └─────────────▶│ - build_kernel()│              │
+                        └─────────────────┘              │
+                                 │                       │
+                     ┌─────────────────────┐            │
+                     │ Handler (Post-Agent)│            │
+                     │ - load_mcp_plugins()│            │
+                     └─────────────────────┘            │
+                                 │                       │
+                    ┌─────────────────────────┐         │
+                    │SessionMcpClientRegistry │         │
+                    │ - session_clients{}     │         │
+                    │ - cleanup_tasks{}       │◀────────┘
+                    └─────────────────────────┘
                                  │
                     ┌─────────────────────────────┐
                     │        MCP Servers          │
-                    │                             │
                     │ ┌─────────┐ ┌─────────────┐ │
-                    │ │FileSystem│ │   SQLite   │ │
-                    │ │ Server  │ │   Server   │ │
+                    │ │ GitHub  │ │ FileSystem  │ │
+                    │ │ + Auth  │ │ + Tools     │ │
                     │ └─────────┘ └─────────────┘ │
                     └─────────────────────────────┘
 ```
 
 ### 2.2 Core Components
 
-1. **McpClient**: Main orchestrator for MCP server connections
-2. **McpTool**: Wrapper that adapts MCP tools to Semantic Kernel functions
-3. **McpPlugin**: Plugin container for MCP tools
-4. **McpServerConfig**: Configuration model for server specifications
-5. **KernelBuilder**: Extended to support MCP server loading
+1. **SessionMcpClientRegistry**: Session-scoped client management with automatic cleanup
+2. **McpClient**: Per-session orchestrator for MCP server connections
+3. **McpTool**: Wrapper that adapts MCP tools to Semantic Kernel functions
+4. **McpPlugin**: Plugin container for MCP tools with governance integration
+5. **McpServerConfig**: Configuration model with authentication and governance fields
+6. **KernelBuilder**: Extended with async MCP loading capability
+7. **AgentHandler**: Orchestrates MCP loading after agent construction
 
 ## 3. Implementation Details
 
@@ -89,21 +100,28 @@ examples/
 class McpServerConfig(BaseModel):
     """Configuration for an MCP server connection supporting multiple transports."""
     model_config = ConfigDict(extra="allow")
-    
+
     # Universal fields
     name: str                                             # Unique server identifier
     transport: Optional[Literal["stdio", "http"]] = None  # Inferred if omitted
-    
+
     # Stdio transport fields
     command: Optional[str] = None               # Command to start server
-    args: List[str] = []                        # Command arguments  
+    args: List[str] = []                        # Command arguments
     env: Optional[Dict[str, str]] = None        # Environment variables
-    
+
     # HTTP transport fields (supports both Streamable HTTP and SSE)
     url: Optional[str] = None                   # HTTP/SSE endpoint URL
     headers: Optional[Dict[str, str]] = None    # HTTP headers (for auth, etc.)
     timeout: Optional[float] = None             # Connection timeout in seconds
     sse_read_timeout: Optional[float] = None    # SSE read timeout in seconds
+
+    # Authentication integration fields
+    auth_server: Optional[str] = None           # OAuth2 authorization server URL
+    scopes: List[str] = []                      # Required OAuth2 scopes for tools
+
+    # Tool governance override fields
+    tool_governance_overrides: Optional[Dict[str, GovernanceOverride]] = None
 ```
 
 Transport inference:
@@ -166,29 +184,103 @@ class AgentConfig(BaseModel):
     mcp_servers: list[McpServerConfig] | None = None
 ```
 
-#### 3.3.2 Kernel Builder Integration
+#### 3.3.2 Handler-Driven MCP Loading
 
-Extended `KernelBuilder.build_kernel()` method:
+MCP loading now happens after agent construction in async context:
 
 ```python
-def build_kernel(
-    self,
-    model_name: str,
-    service_id: str,
-    plugins: list[str],
-    remote_plugins: list[str],
-    mcp_servers: list[McpServerConfig] | None = None,  # New parameter
-    authorization: str | None = None,
-    extra_data_collector: ExtraDataCollector | None = None,
-) -> Kernel:
-    # ... existing logic
-    kernel = asyncio.run(self._load_mcp_plugins(mcp_servers, kernel))
-    return kernel
+# In agent handler, after agent construction
+agent = self.agent_builder.build_agent(self.config.get_agent(), ...)
+
+# Load MCP plugins after agent construction to avoid async gap
+if self.config.get_agent().mcp_servers:
+    await self.agent_builder.kernel_builder.load_mcp_plugins(
+        self.config.get_agent().mcp_servers,
+        agent.agent.kernel,
+        user_id,
+        session_id
+    )
 ```
 
-## 4. Configuration Specification
+#### KernelBuilder Public API
 
-### 4.1 Agent Configuration Schema
+```python
+class KernelBuilder:
+    async def load_mcp_plugins(
+        self,
+        mcp_servers: list[McpServerConfig],
+        kernel: Kernel,
+        user_id: str,
+        session_id: str
+    ) -> Kernel:
+        """Public async entry point for MCP plugin loading."""
+        return await self._load_mcp_plugins(mcp_servers, kernel, user_id, session_id)
+```
+
+## 4. Authentication & Authorization
+
+### 4.1 OAuth2 Integration
+
+MCP servers support server-level authentication through the existing OAuth2 infrastructure:
+
+```python
+# Authentication configuration
+auth_server: "https://github.com/login/oauth"
+scopes: ["repo", "read:user"]
+
+# Auth resolution at runtime
+def resolve_server_auth_headers(server_config: McpServerConfig, user_id: str) -> Dict[str, str]:
+    auth_storage_factory = AuthStorageFactory(app_config)
+    auth_storage = auth_storage_factory.get_auth_storage_manager()
+
+    # Generate composite key for OAuth2 token lookup
+    composite_key = f"{server_config.auth_server}|{sorted(server_config.scopes)}"
+    auth_data = auth_storage.retrieve(user_id, composite_key)
+
+    if auth_data and isinstance(auth_data, OAuth2AuthData):
+        return {"Authorization": f"Bearer {auth_data.access_token}"}
+```
+
+### 4.2 Auth Challenge Flow
+
+Before agent construction, MCP servers are checked for authentication:
+
+```python
+# Pre-flight auth check in handler
+auth_challenge = await self.authenticate_mcp_servers(user_id, session_id, task_id, request_id)
+if auth_challenge:
+    return AuthChallengeResponse(
+        auth_challenges=[...],  # List of servers requiring auth
+        resume_url="..."        # URL to resume after auth completion
+    )
+```
+
+### 4.3 Tool Governance Integration
+
+MCP tools integrate with the existing governance system:
+
+```python
+# Automatic governance mapping from MCP annotations
+def map_mcp_annotations_to_governance(annotations: Dict[str, Any]) -> Governance:
+    destructive_hint = annotations.get("destructiveHint", False)
+    read_only_hint = annotations.get("readOnlyHint", False)
+
+    return Governance(
+        requires_hitl=destructive_hint,
+        cost="high" if destructive_hint else ("low" if read_only_hint else "medium"),
+        data_sensitivity="sensitive" if destructive_hint else ("public" if read_only_hint else "proprietary")
+    )
+
+# Manual governance overrides
+tool_governance_overrides:
+  create_repository:
+    requires_hitl: false  # Override auto-inferred HITL requirement
+    cost: "medium"        # Override auto-inferred cost level
+```
+
+## 5. Configuration Specification
+
+### 5.1 Agent Configuration Schema
 
 ```yaml
 apiVersion: tealagents/v1alpha1
@@ -225,9 +317,9 @@ spec:
   # Note: Transport is inferred when omitted. Set explicitly only to override or disambiguate.
 ```
 
-### 4.2 Example Configurations
+### 5.2 Example Configurations
 
-#### Filesystem Server
+#### Filesystem Server (Stdio)
 ```yaml
 mcp_servers:
   - name: filesystem
@@ -239,7 +331,7 @@ mcp_servers:
       NODE_ENV: production
 ```
 
-#### SQLite Server
+#### SQLite Server (Stdio)
 ```yaml
 mcp_servers:
   - name: sqlite
@@ -251,16 +343,49 @@ mcp_servers:
       - "/path/to/database.db"
 ```
 
-#### Custom Server with Environment
+#### GitHub MCP Server (HTTP with OAuth2)
+```yaml
+mcp_servers:
+  - name: github
+    url: "https://api.github.com/mcp"
+    auth_server: "https://github.com/login/oauth"
+    scopes: ["repo", "read:user"]
+    tool_governance_overrides:
+      create_repository:
+        requires_hitl: false
+        cost: "medium"
+      delete_repository:
+        requires_hitl: true
+        cost: "high"
+        data_sensitivity: "sensitive"
+```
+
+#### Authenticated API Server (HTTP with Custom Headers)
 ```yaml
 mcp_servers:
   - name: custom-api
+    url: "https://api.example.com/mcp"
+    headers:
+      Authorization: "Bearer ${API_TOKEN}"
+      X-API-Version: "v1"
+    timeout: 30.0
+    auth_server: "https://auth.example.com/oauth2"
+    scopes: ["read", "write"]
+```
+
+#### Local Server with Environment Variables
+```yaml
+mcp_servers:
+  - name: local-tools
     command: /opt/custom-mcp-server
     args: ["--port", "8080", "--config", "/etc/server.conf"]
     env:
       API_KEY: "${API_KEY}"
       LOG_LEVEL: "INFO"
-```
+    tool_governance_overrides:
+      system_command:
+        requires_hitl: true
+        cost: "high"
 
 ## 5. Deployment Considerations
 

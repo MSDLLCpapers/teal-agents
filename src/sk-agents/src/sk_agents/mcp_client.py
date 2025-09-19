@@ -359,7 +359,7 @@ class McpClient:
         self._connection_stacks: Dict[str, AsyncExitStack] = {}
         self._connection_health: Dict[str, bool] = {}
         
-    async def connect_server(self, server_config: McpServerConfig, user_id: str | None = None) -> None:
+    async def connect_server(self, server_config: McpServerConfig, user_id: str | None = None, session_id: str = "default") -> None:
         """
         Connect to an MCP server and register its tools.
         
@@ -394,8 +394,8 @@ class McpClient:
             self._connection_stacks[server_config.name] = connection_stack
             self._connection_health[server_config.name] = True
             
-            # Discover and register tools
-            await self._discover_and_register_tools(server_config.name, session)
+            # Discover and register tools with session context
+            await self._discover_and_register_tools(server_config.name, session, session_id)
             
             logger.info(f"Successfully connected to MCP server: {server_config.name}")
             
@@ -484,7 +484,7 @@ class McpClient:
         except Exception as e:
             logger.warning(f"Failed to apply smart defaults for {server_config.name}: {e}")
 
-    async def _discover_and_register_tools(self, server_name: str, session) -> None:
+    async def _discover_and_register_tools(self, server_name: str, session, session_id: str = "default") -> None:
         """Discover tools from MCP server and register them directly in existing catalog."""
         try:
             # List available tools from the server
@@ -520,8 +520,8 @@ class McpClient:
 
                 # Create PluginTool for catalog registration (first-class citizen)
                 if catalog:
-                    # Create tool_id that matches HITL expectations
-                    tool_id = f"mcp_{server_name}-{server_name}_{tool_info.name}"
+                    # Create session-scoped tool_id that matches HITL expectations
+                    tool_id = f"mcp_{session_id}_{server_name}-{server_name}_{tool_info.name}"
 
                     # Map MCP annotations to governance and apply any overrides
                     annotations = getattr(tool_info, 'annotations', {}) or {}
@@ -547,9 +547,9 @@ class McpClient:
 
                 logger.info(f"Discovered tool: {tool_info.name} from server {server_name}")
 
-            # Register tools directly in existing catalog
+            # Register tools directly in existing catalog with session scope
             if catalog and plugin_tools:
-                plugin_id = f"mcp-{server_name}"
+                plugin_id = f"mcp-{session_id}-{server_name}"
 
                 # Create the MCP plugin
                 from sk_agents.plugin_catalog.models import McpPluginType, Plugin
@@ -639,15 +639,15 @@ class McpClient:
                 logger.error(f"Failed to register MCP plugin for server {server_name}: {e}")
                 raise
     
-    async def disconnect_server(self, server_name: str) -> None:
+    async def disconnect_server(self, server_name: str, session_id: str = "default") -> None:
         """Disconnect from an MCP server and clean up resources."""
         try:
-            # Clean up catalog registration - use existing catalog directly
+            # Clean up session-scoped catalog registration
             try:
                 catalog = PluginCatalogFactory().get_catalog()
-                plugin_id = f"mcp-{server_name}"
+                plugin_id = f"mcp-{session_id}-{server_name}"
                 if catalog.unregister_dynamic_plugin(plugin_id):
-                    logger.info(f"Unregistered MCP plugin '{plugin_id}' from catalog")
+                    logger.info(f"Unregistered session-scoped MCP plugin '{plugin_id}' from catalog")
             except Exception as e:
                 logger.warning(f"Could not unregister MCP plugin from catalog: {e}")
 
@@ -698,67 +698,92 @@ class McpClient:
         return list(self.connected_servers.keys())
 
 
-class McpClientManager:
-    """Thread-safe singleton manager for MCP client instances."""
-    
-    _instance: Optional['McpClientManager'] = None
-    _client: Optional[McpClient] = None
-    _lock: Optional[asyncio.Lock] = None
-    _thread_lock = threading.Lock()
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-    
-    async def get_client(self) -> McpClient:
-        """Get or create the global MCP client instance (thread-safe)."""
-        if self._client is None:
-            # Initialize async lock if needed
-            if self._lock is None:
-                with self._thread_lock:
-                    if self._lock is None:
-                        self._lock = asyncio.Lock()
-                        
-            async with self._lock:
-                # Double-check after acquiring lock
-                if self._client is None:
-                    self._client = McpClient()
-        return self._client
-    
-    async def reset_client(self) -> None:
-        """Reset the global MCP client instance (thread-safe)."""
-        if self._lock is None:
-            with self._thread_lock:
-                if self._lock is None:
-                    self._lock = asyncio.Lock()
-                    
-        async with self._lock:
-            if self._client is not None:
-                await self._client.disconnect_all()
-                self._client = None
+class SessionMcpClientRegistry:
+    """Session-scoped registry for MCP client instances."""
+
+    _session_clients: Dict[str, McpClient] = {}
+    _session_locks: Dict[str, asyncio.Lock] = {}
+    _cleanup_tasks: Dict[str, asyncio.Task] = {}
+    _registry_lock = threading.Lock()
+
+    @classmethod
+    async def get_or_create_client(cls, session_id: str) -> McpClient:
+        """Get or create MCP client for specific session."""
+        # Ensure session lock exists
+        if session_id not in cls._session_locks:
+            with cls._registry_lock:
+                if session_id not in cls._session_locks:
+                    cls._session_locks[session_id] = asyncio.Lock()
+
+        # Get or create client for session
+        async with cls._session_locks[session_id]:
+            if session_id not in cls._session_clients:
+                cls._session_clients[session_id] = McpClient()
+                logger.info(f"Created new MCP client for session: {session_id}")
+
+                # Schedule automatic cleanup
+                cls._schedule_cleanup(session_id, delay_minutes=60)
+
+            return cls._session_clients[session_id]
+
+    @classmethod
+    async def cleanup_session(cls, session_id: str) -> None:
+        """Clean up MCP client and resources for a specific session."""
+        try:
+            # Cancel any scheduled cleanup
+            if session_id in cls._cleanup_tasks:
+                cleanup_task = cls._cleanup_tasks[session_id]
+                if not cleanup_task.done():
+                    cleanup_task.cancel()
+                del cls._cleanup_tasks[session_id]
+
+            # Clean up client if exists
+            if session_id in cls._session_clients:
+                client = cls._session_clients[session_id]
+                await client.disconnect_all()
+                del cls._session_clients[session_id]
+                logger.info(f"Cleaned up MCP client for session: {session_id}")
+
+            # Clean up session lock
+            if session_id in cls._session_locks:
+                del cls._session_locks[session_id]
+
+        except Exception as e:
+            logger.error(f"Error cleaning up session {session_id}: {e}")
+
+    @classmethod
+    def _schedule_cleanup(cls, session_id: str, delay_minutes: int = 60) -> None:
+        """Schedule automatic cleanup for abandoned sessions."""
+        async def cleanup_after_delay():
+            await asyncio.sleep(delay_minutes * 60)
+            logger.info(f"Auto-cleaning up abandoned session: {session_id}")
+            await cls.cleanup_session(session_id)
+
+        # Cancel existing cleanup task if any
+        if session_id in cls._cleanup_tasks:
+            existing_task = cls._cleanup_tasks[session_id]
+            if not existing_task.done():
+                existing_task.cancel()
+
+        # Schedule new cleanup
+        try:
+            task = asyncio.create_task(cleanup_after_delay())
+            cls._cleanup_tasks[session_id] = task
+        except RuntimeError:
+            # No event loop running, cleanup will happen when session explicitly ends
+            logger.debug(f"No event loop for auto-cleanup of session {session_id}")
+
+    @classmethod
+    def get_active_sessions(cls) -> List[str]:
+        """Get list of active session IDs."""
+        return list(cls._session_clients.keys())
 
 
-def get_mcp_client() -> McpClient:
-    """Get the global MCP client instance."""
-    manager = McpClientManager()
-    
-    # Try to get existing client first (fast path)
-    if manager._client is not None:
-        return manager._client
-    
-    # Need to create client - handle async context properly
-    try:
-        asyncio.get_running_loop()
-        # We're in an async context but called sync function
-        logger.warning(
-            "get_mcp_client() called from async context. "
-            "Consider using 'await McpClientManager().get_client()' instead."
-        )
-        # Create client synchronously for backward compatibility
-        if manager._client is None:
-            manager._client = McpClient()
-        return manager._client
-    except RuntimeError:
-        # No event loop, safe to use asyncio.run()
-        return asyncio.run(manager.get_client())
+async def get_mcp_client_for_session(session_id: str) -> McpClient:
+    """Get MCP client instance for specific session."""
+    return await SessionMcpClientRegistry.get_or_create_client(session_id)
+
+
+async def cleanup_mcp_session(session_id: str) -> None:
+    """Clean up MCP resources for specific session."""
+    await SessionMcpClientRegistry.cleanup_session(session_id)

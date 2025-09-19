@@ -336,13 +336,3 @@ node /path/to/my_mcp_server.js
 - **WebSocket transport**: Not yet available in the MCP Python SDK
 - **Custom transport protocols**: Only stdio and http are supported
 
-## Future Enhancements
-
-Planned improvements include:
-
-- **HTTP/SSE support**: When officially supported by MCP SDK
-- **WebSocket support**: When officially supported by MCP SDK
-- **Remote server connections**: HTTP and WebSocket transports for remote MCP servers
-- **Tool governance**: HITL and authorization integration
-- **Performance optimization**: Connection pooling and caching
-- **Dynamic discovery**: Runtime tool discovery and registration

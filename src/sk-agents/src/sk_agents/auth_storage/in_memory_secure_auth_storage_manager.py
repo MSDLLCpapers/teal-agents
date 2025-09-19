@@ -1,7 +1,7 @@
 import threading
 
-from .models import AuthData
-from .secure_auth_storage_manager import SecureAuthStorageManager
+from sk_agents.auth_storage.models import AuthData
+from sk_agents.auth_storage.secure_auth_storage_manager import SecureAuthStorageManager
 
 
 class InMemorySecureAuthStorageManager(SecureAuthStorageManager):

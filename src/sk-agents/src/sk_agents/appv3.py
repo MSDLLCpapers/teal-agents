@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from redis.asyncio import Redis
 from ska_utils import AppConfig, strtobool
 
+from sk_agents.auth_storage.auth_storage_factory import AuthStorageFactory
 from sk_agents.configs import (
     TA_REDIS_DB,
     TA_REDIS_HOST,
@@ -74,6 +75,11 @@ class AppV3:
                 return InMemoryStateManager()
 
     @staticmethod
+    def _get_auth_storage_manager(app_config: AppConfig):
+        auth_storage_factory = AuthStorageFactory(app_config)
+        return auth_storage_factory.get_auth_storage_manager()
+
+    @staticmethod
     def _get_auth_manager(app_config: AppConfig):
         # For initial implementation, use mock authentication
         # Will be extended in future for Entra ID
@@ -94,6 +100,7 @@ class AppV3:
         # Create state and auth managers
         state_manager = AppV3._get_state_manager(app_config)
         auth_manager = AppV3._get_auth_manager(app_config)
+        auth_storage_manager = AppV3._get_auth_storage_manager(app_config)
 
         # Get description from metadata if available
         if config.metadata is not None and config.metadata.description is not None:
@@ -110,6 +117,7 @@ class AppV3:
                 config=config,
                 state_manager=state_manager,
                 authorizer=auth_manager,
+                auth_storage_manager=auth_storage_manager,
                 input_class=UserMessage,
             ),
             prefix=f"/{name}/{version}",

@@ -1,9 +1,10 @@
-from ska_utils import AppConfig, ModuleLoader, Singleton
+from ska_utils import AppConfig, ModuleLoader
 
 from sk_agents.configs import TA_AUTH_STORAGE_MANAGER_CLASS, TA_AUTH_STORAGE_MANAGER_MODULE
 
 from .in_memory_secure_auth_storage_manager import InMemorySecureAuthStorageManager
 from .secure_auth_storage_manager import SecureAuthStorageManager
+from .singleton import Singleton
 
 """"
 The AuthStorageFactory is responsible for creating instances of authentication

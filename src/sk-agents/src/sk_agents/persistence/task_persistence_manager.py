@@ -5,19 +5,19 @@ from sk_agents.tealagents.models import AgentTask
 
 class TaskPersistenceManager(ABC):
     @abstractmethod
-    async def create(task: AgentTask) -> None:
+    async def create(self, task: AgentTask) -> None:
         pass
 
     @abstractmethod
-    async def load(task_id: str) -> AgentTask | None:
+    async def load(self, task_id: str) -> AgentTask | None:
         pass
 
     @abstractmethod
-    async def update(task: AgentTask) -> None:
+    async def update(self, task: AgentTask) -> None:
         pass
 
     @abstractmethod
-    async def delete(task_id: str) -> None:
+    async def delete(self, task_id: str) -> None:
         pass
 
     @abstractmethod

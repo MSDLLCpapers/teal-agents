@@ -37,5 +37,5 @@ def _handle_chat(
     chat_completion_builder = ChatCompletionBuilder(app_config)
     kernel_builder = KernelBuilder(chat_completion_builder, remote_plugin_loader, app_config)
     agent_builder = AgentBuilder(kernel_builder, authorization)
-    chat_agents = TealAgentsV1Alpha1Handler(config, agent_builder)
+    chat_agents = TealAgentsV1Alpha1Handler(config, app_config, agent_builder)
     return chat_agents

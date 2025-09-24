@@ -20,13 +20,13 @@ def handle(config: BaseConfig, app_config: AppConfig, authorization: str | None 
     match config.kind:
         # need to be modified base on ticket CDW-917
         case "agent":
-            return _handle_chat(config, app_config, authorization, False)
+            return _handle_teal(config, app_config, authorization)
         case _:
             raise ValueError(f"Unknown kind: {config.kind}")
 
 
 # need to be modified base on ticket CDW-917
-def _handle_chat(
+def _handle_teal(
     config: BaseConfig,
     app_config: AppConfig,
     authorization: str | None = None,

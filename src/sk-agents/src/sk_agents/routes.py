@@ -20,6 +20,7 @@ from opentelemetry.propagate import extract
 from ska_utils import AppConfig, get_telemetry
 
 from sk_agents.a2a import A2AAgentExecutor
+from sk_agents.auth_storage.secure_auth_storage_manager import SecureAuthStorageManager
 from sk_agents.authorization.request_authorizer import RequestAuthorizer
 from sk_agents.configs import (
     TA_AGENT_BASE_URL,
@@ -284,6 +285,7 @@ class Routes:
         config: BaseConfig,
         state_manager: StateManager,
         authorizer: RequestAuthorizer,
+        auth_storage_manager: SecureAuthStorageManager,
         input_class: type[UserMessage],
     ) -> APIRouter:
         """

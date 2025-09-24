@@ -1,9 +1,8 @@
-from ska_utils import AppConfig, ModuleLoader
+from ska_utils import AppConfig, ModuleLoader, Singleton
 
 from sk_agents.configs import TA_PERSISTENCE_CLASS, TA_PERSISTENCE_MODULE
 
 from .in_memory_persistence_manager import InMemoryPersistenceManager
-from .singleton import Singleton
 from .task_persistence_manager import TaskPersistenceManager
 
 """

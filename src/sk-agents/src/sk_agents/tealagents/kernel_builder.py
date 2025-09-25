@@ -100,41 +100,41 @@ class KernelBuilder:
             return kernel
         
         try:
-            # Use session-scoped MCP client
-            from sk_agents.mcp_client import get_mcp_client_for_session
+            # Create ephemeral MCP client for tool discovery
+            from sk_agents.mcp_client import McpClient
 
             # Default session_id if not provided
             effective_session_id = session_id or "default"
-            mcp_client = await get_mcp_client_for_session(effective_session_id)
-            
-            # Connect to all servers concurrently for better performance
-            connection_tasks = []
+            mcp_client = McpClient()
+
+            # Discover tools from all servers concurrently for better performance
+            discovery_tasks = []
             for server_config in mcp_servers:
-                task = self._connect_single_mcp_server(mcp_client, server_config, kernel, user_id, effective_session_id)
-                connection_tasks.append(task)
-            
-            if connection_tasks:
-                # Wait for all connections, but don't fail if some servers fail
-                results = await asyncio.gather(*connection_tasks, return_exceptions=True)
-                
-                # Log any connection failures
+                task = self._discover_server_tools(mcp_client, server_config, kernel, user_id, effective_session_id)
+                discovery_tasks.append(task)
+
+            if discovery_tasks:
+                # Wait for all discoveries, but don't fail if some servers fail
+                results = await asyncio.gather(*discovery_tasks, return_exceptions=True)
+
+                # Log any discovery failures
                 for i, result in enumerate(results):
                     if isinstance(result, Exception):
                         server_name = mcp_servers[i].name
-                        self.logger.error(f"Failed to connect to MCP server {server_name}: {result}")
-            
+                        self.logger.error(f"Failed to discover tools from MCP server {server_name}: {result}")
+
             return kernel
-            
+
         except Exception as e:
             self.logger.exception(f"Could not load MCP plugins. - {e}")
             raise
             
-    async def _connect_single_mcp_server(self, mcp_client, server_config: McpServerConfig, kernel: Kernel, user_id: str | None = None, session_id: str | None = None) -> None:
-        """Connect to a single MCP server and register its plugin."""
+    async def _discover_server_tools(self, mcp_client, server_config: McpServerConfig, kernel: Kernel, user_id: str | None = None, session_id: str | None = None) -> None:
+        """Discover tools from a single MCP server and register its plugin."""
         try:
-            self.logger.info(f"Connecting to MCP server: {server_config.name}")
-            await mcp_client.connect_server(server_config, user_id, session_id or "default")
-            
+            self.logger.info(f"Discovering tools from MCP server: {server_config.name}")
+            await mcp_client.discover_and_register_tools(server_config, user_id, session_id or "default")
+
             # Get the plugin for this server and register it with the kernel
             plugin = mcp_client.get_plugin(server_config.name)
             if plugin:
@@ -142,9 +142,9 @@ class KernelBuilder:
                 self.logger.info(f"Registered MCP plugin for server: {server_config.name}")
             else:
                 self.logger.warning(f"No plugin created for MCP server: {server_config.name}")
-                
+
         except Exception as e:
-            self.logger.error(f"Failed to load MCP server {server_config.name}: {e}")
+            self.logger.error(f"Failed to discover tools from MCP server {server_config.name}: {e}")
             raise
 
     @staticmethod

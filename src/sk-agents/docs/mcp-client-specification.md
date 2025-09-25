@@ -18,13 +18,13 @@ This specification describes the design and implementation of Model Context Prot
 - **Authentication Integration**: Leverage existing OAuth2 auth infrastructure
 - **Tool Governance**: Full HITL and governance policy integration
 - **Error Resilience**: Failed connections shouldn't prevent agent initialization
-- **Resource Management**: Session-scoped connection lifecycle with proper cleanup
+- **Resource Management**: Ephemeral connections with automatic cleanup per tool invocation
 
 ### 1.2 Non-Goals
 
 - Real-time tool discovery (tools discovered at connection time only)
 - MCP server management/orchestration
-- Cross-session connection sharing (each session maintains isolated connections)
+- Persistent connections (all connections are ephemeral and just-in-time)
 
 ## 2. Architecture
 
@@ -42,33 +42,41 @@ This specification describes the design and implementation of Model Context Prot
                                  │                       │
                      ┌─────────────────────┐            │
                      │ Handler (Post-Agent)│            │
-                     │ - load_mcp_plugins()│            │
+                     │- discover_mcp_tools()│           │
                      └─────────────────────┘            │
                                  │                       │
-                    ┌─────────────────────────┐         │
-                    │SessionMcpClientRegistry │         │
-                    │ - session_clients{}     │         │
-                    │ - cleanup_tasks{}       │◀────────┘
-                    └─────────────────────────┘
-                                 │
-                    ┌─────────────────────────────┐
-                    │        MCP Servers          │
-                    │ ┌─────────┐ ┌─────────────┐ │
-                    │ │ GitHub  │ │ FileSystem  │ │
-                    │ │ + Auth  │ │ + Tools     │ │
-                    │ └─────────┘ └─────────────┘ │
+                          ┌─────────────┐               │
+                          │  McpClient  │               │
+                          │- ephemeral  │               │
+                          │- just-in-time│              │
+                          └─────────────┘               │
+                                 │                       │
+                          ┌─────────────────────────────┐│
+                          │       Tool Invocation       ││
+                          │  ┌─────────────────────────┐││
+                          │  │    Per Tool Call:       │││
+                          │  │  connect → invoke →     │││
+                          │  │  disconnect             │││
+                          │  └─────────────────────────┘││
+                          └─────────────────────────────┘│
+                                         │                │
+                            ┌─────────────────────────────┐
+                            │        MCP Servers          │
+                            │ ┌─────────┐ ┌─────────────┐ │
+                            │ │ GitHub  │ │ FileSystem  │ │
+                            │ │ + Auth  │ │ + Tools     │ │
+                            │ └─────────┘ └─────────────┘ │
                     └─────────────────────────────┘
 ```
 
 ### 2.2 Core Components
 
-1. **SessionMcpClientRegistry**: Session-scoped client management with automatic cleanup
-2. **McpClient**: Per-session orchestrator for MCP server connections
-3. **McpTool**: Wrapper that adapts MCP tools to Semantic Kernel functions
-4. **McpPlugin**: Plugin container for MCP tools with governance integration
-5. **McpServerConfig**: Configuration model with authentication and governance fields
-6. **KernelBuilder**: Extended with async MCP loading capability
-7. **AgentHandler**: Orchestrates MCP loading after agent construction
+1. **McpClient**: Ephemeral connection orchestrator for MCP server discovery and execution
+2. **McpTool**: Just-in-time wrapper that creates connections per tool invocation
+3. **McpPlugin**: Plugin container for MCP tools with governance integration
+4. **McpServerConfig**: Configuration model with authentication and governance fields
+5. **KernelBuilder**: Extended with async MCP tool discovery capability
+6. **AgentHandler**: Orchestrates MCP tool discovery after agent construction
 
 ## 3. Implementation Details
 

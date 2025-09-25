@@ -42,10 +42,12 @@ logger = logging.getLogger(__name__)
 
 # Import session cleanup function
 async def cleanup_session_resources(session_id: str) -> None:
-    """Clean up session-scoped resources including MCP connections."""
+    """Clean up session-scoped resources including MCP catalog entries."""
     try:
-        from sk_agents.mcp_client import cleanup_mcp_session
-        await cleanup_mcp_session(session_id)
+        # With ephemeral connections, we only need to clean up catalog entries
+        from sk_agents.mcp_client import McpClient
+        mcp_client = McpClient()
+        mcp_client.cleanup_session_plugins(session_id)
         logger.info(f"Successfully cleaned up session resources for: {session_id}")
     except Exception as e:
         logger.error(f"Error cleaning up session {session_id}: {e}")

@@ -20,6 +20,7 @@ from opentelemetry.propagate import extract
 from ska_utils import AppConfig, get_telemetry
 
 from sk_agents.a2a import A2AAgentExecutor
+from sk_agents.auth_storage.secure_auth_storage_manager import SecureAuthStorageManager
 from sk_agents.authorization.request_authorizer import RequestAuthorizer
 from sk_agents.configs import (
     TA_AGENT_BASE_URL,
@@ -35,8 +36,19 @@ from sk_agents.ska_types import (
 from sk_agents.skagents import handle as skagents_handle
 from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.state import StateManager
-from sk_agents.tealagents.models import ResumeRequest, StateResponse, TaskStatus, UserMessage
+from sk_agents.tealagents.models import (
+    ResumeRequest,
+    StateResponse,
+    TaskStatus,
+    UserMessage
+)
+from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
 from sk_agents.tealagents.v1alpha1.agent.handler import TealAgentsV1Alpha1Handler
+from sk_agents.tealagents.remote_plugin_loader import (
+    RemotePluginLoader,
+    RemotePluginCatalog
+)
+from sk_agents.tealagents.kernel_builder import KernelBuilder
 from sk_agents.utils import docstring_parameter, get_sse_event_for_response
 
 logger = logging.getLogger(__name__)
@@ -93,6 +105,39 @@ class Routes:
         )
 
     @staticmethod
+    def _create_chat_completions_builder(app_config: AppConfig):
+        return ChatCompletionBuilder(app_config)
+
+    @staticmethod
+    def _create_remote_plugin_loader(app_config: AppConfig):
+        remote_plugin_catalog = RemotePluginCatalog(app_config)
+        return RemotePluginLoader(remote_plugin_catalog)
+
+    @staticmethod
+    def _create_kernel_builder(app_config: AppConfig, authorization: str):
+        chat_completions = Routes._create_chat_completions_builder(app_config)
+        remote_plugin_loader = Routes._create_remote_plugin_loader(app_config)
+        kernel_builder = KernelBuilder(
+           chat_completions,
+           remote_plugin_loader,
+           app_config,
+           authorization
+        )
+        return kernel_builder
+
+    @staticmethod
+    def _create_agent_builder(app_config: AppConfig, authorization: str):
+        kernel_builder = Routes._create_kernel_builder(
+            app_config,
+            authorization
+        )
+        agent_builder = AgentBuilder(
+            kernel_builder,
+            authorization
+        )
+        return agent_builder
+
+    @staticmethod
     def get_request_handler(
         config: BaseConfig,
         app_config: AppConfig,
@@ -106,6 +151,15 @@ class Routes:
             ),
             task_store=task_store,
         )
+
+    @staticmethod
+    def get_task_handler(
+        config: BaseConfig,
+        app_config: AppConfig,
+        authorization: str,
+    ) -> TealAgentsV1Alpha1Handler:
+        agent_builder = Routes._create_agent_builder(app_config, authorization)
+        return TealAgentsV1Alpha1Handler(config, app_config, agent_builder)
 
     @staticmethod
     def get_a2a_routes(
@@ -281,10 +335,11 @@ class Routes:
         name: str,
         version: str,
         description: str,
-        root_handler_name: str,
         config: BaseConfig,
         app_config: AppConfig,
         state_manager: StateManager,
+        authorizer: RequestAuthorizer,
+        auth_storage_manager: SecureAuthStorageManager,
         input_class: type[UserMessage],
     ) -> APIRouter:
         """
@@ -292,55 +347,56 @@ class Routes:
         """
         router = APIRouter()
 
+        async def get_user_id(authorization: str = Header(None)):
+            user_id = await authorizer.authorize_request(authorization)
+            if not user_id:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
+                )
+            return user_id
+
         @router.post(
-            "/chat",
+            "",
             response_model=StateResponse,
             summary="Send a message to the agent",
             response_description="Agent response with state identifiers",
             tags=["Agent"],
         )
-        async def chat(message: input_class, request: Request) -> StateResponse:
-            st = get_telemetry()
-            context = extract(request.headers)
-
-            authorization = request.headers.get("authorization", None)
-            with (
-                st.tracer.start_as_current_span(
-                    f"{name}-{version}-chat",
-                    context=context,
+        async def chat(message: input_class, user_id: str = Depends(get_user_id)) -> StateResponse:
+            # Handle new task creation or task retrieval
+            teal_handler = Routes.get_task_handler(config, app_config, user_id)
+            response_content = ""
+            if message.task_id is None:
+                # New task
+                session_id, task_id = await state_manager.create_task(message.session_id, user_id)
+                task_state = await state_manager.get_task(task_id)
+                response_content = await teal_handler.invoke(
+                    user_id,
+                    message
                 )
-                if st.telemetry_enabled()
-                else nullcontext()
-            ):
-                match root_handler_name:
-                    case "skagents":
-                        handler: BaseHandler = skagents_handle(config, app_config, authorization)
-                    case _:
-                        raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
+            else:
+                # Follow-on request
+                task_id = message.task_id
+                task_state = await state_manager.get_task(task_id)
+                # Verify user ownership
+                if task_state.user_id != user_id:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Not authorized to access this task",
+                    )
+                session_id = task_state.session_id
 
-                # Handle new task creation or task retrieval
-                if message.task_id is None:
-                    # New task - use state_manager to create task
-                    session_id, task_id = await state_manager.create_task(message.session_id, None)  # No user_id from handler
-                else:
-                    # Follow-on request
-                    task_id = message.task_id
-                    task_state = await state_manager.get_task(task_id)
-                    session_id = task_state.session_id
+            # Create a new request
+            request_id = await state_manager.create_request(task_id)
 
-                # Create a new request
-                request_id = await state_manager.create_request(task_id)
-
-                inv_inputs = message.__dict__
-                output = await handler.invoke(inputs=inv_inputs)
-                
-                return StateResponse(
-                    session_id=session_id,
-                    task_id=task_id,
-                    request_id=request_id,
-                    status=TaskStatus.COMPLETED,
-                    content=output.output if hasattr(output, 'output') else str(output),
-                )
+            # Return response with state identifiers
+            return StateResponse(
+                session_id=str(session_id),
+                task_id=str(task_id),
+                request_id=str(request_id),
+                status=TaskStatus.COMPLETED.value,
+                content=str(response_content),  # Replace with actual response
+            )
 
         return router
 
@@ -350,49 +406,28 @@ class Routes:
 
         @router.post("/tealagents/v1alpha1/resume/{request_id}")
         async def resume(request_id: str, request: Request, body: ResumeRequest):
-            st = get_telemetry()
-            context = extract(request.headers)
-            
             authorization = request.headers.get("authorization", None)
-            with (
-                st.tracer.start_as_current_span(
-                    f"tealagents-v1alpha1-resume",
-                    context=context,
+            try:
+                return await TealAgentsV1Alpha1Handler.resume_task(
+                    request_id, authorization, body.model_dump(), stream=False
                 )
-                if st.telemetry_enabled()
-                else nullcontext()
-            ):
-                try:
-                    return await TealAgentsV1Alpha1Handler.resume_task(
-                        request_id, authorization, body.model_dump(), stream=False
-                    )
-                except Exception as e:
-                    logger.exception(f"Error in resume: {e}")
-                    raise HTTPException(status_code=500, detail="Internal Server Error") from e
+            except Exception as e:
+                logger.exception(f"Error in resume: {e}")
+                raise HTTPException(status_code=500, detail="Internal Server Error") from e
 
         @router.post("/tealagents/v1alpha1/resume/{request_id}/sse")
         async def resume_sse(request_id: str, request: Request, body: ResumeRequest):
-            st = get_telemetry()
-            context = extract(request.headers)
             authorization = request.headers.get("authorization", None)
 
             async def event_generator():
-                with (
-                    st.tracer.start_as_current_span(
-                        f"tealagents-v1alpha1-resume-sse",
-                        context=context,
-                    )
-                    if st.telemetry_enabled()
-                    else nullcontext()
-                ):
-                    try:
-                        async for content in TealAgentsV1Alpha1Handler.resume_task(
-                            request_id, authorization, body.model_dump(), stream=True
-                        ):
-                            yield get_sse_event_for_response(content)
-                    except Exception as e:
-                        logger.exception(f"Error in resume_sse: {e}")
-                        raise HTTPException(status_code=500, detail="Internal Server Error") from e
+                try:
+                    async for content in TealAgentsV1Alpha1Handler.resume_task(
+                        request_id, authorization, body.model_dump(), stream=True
+                    ):
+                        yield get_sse_event_for_response(content)
+                except Exception as e:
+                    logger.exception(f"Error in resume_sse: {e}")
+                    raise HTTPException(status_code=500, detail="Internal Server Error") from e
 
             return StreamingResponse(event_generator(), media_type="text/event-stream")
 

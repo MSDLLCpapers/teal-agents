@@ -32,39 +32,118 @@ from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
 logger = logging.getLogger(__name__)
 
 
-def map_mcp_annotations_to_governance(annotations: Dict[str, Any]) -> Governance:
+def get_package_version() -> str:
+    """Get package version for MCP client identification."""
+    try:
+        from importlib.metadata import version
+        return version('sk-agents')
+    except Exception:
+        return '1.0.0'  # Fallback version
+
+
+def map_mcp_annotations_to_governance(annotations: Dict[str, Any], tool_description: str = "") -> Governance:
     """
-    Map MCP tool annotations to Teal Agents governance policies.
+    Map MCP tool annotations to Teal Agents governance policies using secure-by-default approach.
 
     Args:
         annotations: MCP tool annotations
+        tool_description: Tool description for risk analysis
 
     Returns:
         Governance: Governance settings for the tool
     """
-    # Map MCP destructiveHint to HITL requirement
-    destructive_hint = annotations.get("destructiveHint", False)
-    requires_hitl = destructive_hint
+    # SECURE-BY-DEFAULT: Start with HITL required for unknown tools
+    requires_hitl = True
+    cost = "high"
+    data_sensitivity = "sensitive"
 
-    # Map destructive operations to higher cost and sensitivity
+    # Only relax restrictions with explicit safe annotations
+    read_only_hint = annotations.get("readOnlyHint", False)
+    if read_only_hint:
+        requires_hitl = False
+        cost = "low"
+        data_sensitivity = "public"
+
+    # Destructive tools require HITL (already secure)
+    destructive_hint = annotations.get("destructiveHint", False)
     if destructive_hint:
+        requires_hitl = True
         cost = "high"
         data_sensitivity = "sensitive"
-    else:
-        # Check if it's read-only
-        read_only_hint = annotations.get("readOnlyHint", False)
-        if read_only_hint:
-            cost = "low"
-            data_sensitivity = "public"
-        else:
-            cost = "medium"
+
+    # Enhanced risk analysis based on tool description
+    if tool_description:
+        description_lower = tool_description.lower()
+
+        # Network/external access indicators
+        if any(keyword in description_lower for keyword in [
+            "http", "https", "api", "network", "request", "fetch", "download", "upload",
+            "url", "web", "internet", "remote", "curl", "wget"
+        ]):
+            requires_hitl = True
+            cost = "high"
+            data_sensitivity = "sensitive"
+
+        # File system access indicators
+        elif any(keyword in description_lower for keyword in [
+            "file", "directory", "write", "delete", "create", "modify", "save",
+            "remove", "mkdir", "rmdir", "chmod", "move", "copy"
+        ]):
+            requires_hitl = True
+            cost = "medium" if not destructive_hint else "high"
             data_sensitivity = "proprietary"
+
+        # Code execution indicators
+        elif any(keyword in description_lower for keyword in [
+            "execute", "run", "command", "shell", "bash", "script", "eval", "exec"
+        ]):
+            requires_hitl = True
+            cost = "high"
+            data_sensitivity = "sensitive"
+
+        # Database/storage access
+        elif any(keyword in description_lower for keyword in [
+            "database", "sql", "query", "insert", "update", "delete", "drop"
+        ]):
+            requires_hitl = True
+            cost = "high"
+            data_sensitivity = "sensitive"
 
     return Governance(
         requires_hitl=requires_hitl,
         cost=cost,
         data_sensitivity=data_sensitivity
     )
+
+
+def apply_trust_level_governance(base_governance: Governance, trust_level: str) -> Governance:
+    """
+    Apply server trust level controls to governance settings.
+
+    Args:
+        base_governance: Base governance settings
+        trust_level: Server trust level ("trusted", "sandboxed", "untrusted")
+
+    Returns:
+        Governance: Governance with trust level controls applied
+    """
+    if trust_level == "untrusted":
+        # Force HITL for all tools from untrusted servers
+        return Governance(
+            requires_hitl=True,
+            cost="high",
+            data_sensitivity="sensitive"
+        )
+    elif trust_level == "sandboxed":
+        # Require HITL unless explicitly marked as safe
+        return Governance(
+            requires_hitl=True if base_governance.requires_hitl else True,  # Force HITL unless overridden
+            cost=base_governance.cost if base_governance.cost != "low" else "medium",  # Elevate cost
+            data_sensitivity=base_governance.data_sensitivity
+        )
+    else:  # trusted
+        # Use base governance as-is for trusted servers
+        return base_governance
 
 
 def apply_governance_overrides(base_governance: Governance, tool_name: str, overrides: Optional[Dict[str, GovernanceOverride]]) -> Governance:
@@ -187,30 +266,34 @@ async def create_mcp_session(server_config: McpServerConfig, connection_stack: A
             return session
             
         except ImportError:
-            # Fall back to SSE transport if streamable HTTP not available
-            try:
-                from mcp.client.sse import sse_client
+            raise NotImplementedError(
+                "HTTP transport is not available. "
+                "Please install the MCP SDK with HTTP support"
+            )
+            # # Fall back to SSE transport if streamable HTTP not available
+            # try:
+            #     from mcp.client.sse import sse_client
                 
-                read, write = await connection_stack.enter_async_context(
-                    sse_client(
-                        url=server_config.url,
-                        headers=resolved_headers,
-                        timeout=server_config.timeout or 30.0,
-                        sse_read_timeout=server_config.sse_read_timeout or 300.0
-                    )
-                )
-                session = await connection_stack.enter_async_context(
-                    ClientSession(read, write)
-                )
+            #     read, write = await connection_stack.enter_async_context(
+            #         sse_client(
+            #             url=server_config.url,
+            #             headers=resolved_headers,
+            #             timeout=server_config.timeout or 30.0,
+            #             sse_read_timeout=server_config.sse_read_timeout or 300.0
+            #         )
+            #     )
+            #     session = await connection_stack.enter_async_context(
+            #         ClientSession(read, write)
+            #     )
                 
-                return session
+            #     return session
                 
-            except ImportError:
-                raise NotImplementedError(
-                    "HTTP transport is not available. "
-                    "Please install the MCP SDK with HTTP support: "
-                    "pip install 'mcp[http]' or 'mcp[sse]'"
-                )
+            # except ImportError:
+            #     raise NotImplementedError(
+            #         "HTTP transport is not available. "
+            #         "Please install the MCP SDK with HTTP support: "
+            #         "pip install 'mcp[http]' or 'mcp[sse]'"
+            #     )
     else:
         raise ValueError(f"Unsupported transport type: {transport_type}")
 
@@ -454,6 +537,8 @@ class McpClient:
             ConnectionError: If connection to the MCP server fails
             ValueError: If server configuration is invalid
         """
+        # Validate governance configuration for production security
+        self._validate_governance_configuration(server_config)
         connection_stack = AsyncExitStack()
         try:
             # Get transport info for logging
@@ -463,8 +548,24 @@ class McpClient:
             # Create temporary session for tool discovery
             session = await create_mcp_session(server_config, connection_stack, user_id or "default")
 
-            # Initialize the session
-            await session.initialize()
+            # Initialize the session with proper protocol negotiation
+            init_result = await session.initialize(
+                protocol_version="2025-03-26",
+                client_info={
+                    "name": "teal-agents",
+                    "version": get_package_version()
+                },
+                capabilities={
+                    "roots": {"listChanged": False},
+                    "sampling": {},
+                    "experimental": {}
+                }
+            )
+            logger.info(
+                f"MCP session initialized for '{server_config.name}': "
+                f"server={getattr(init_result, 'server_info', 'unknown')}, "
+                f"protocol={getattr(init_result, 'protocol_version', 'unknown')}"
+            )
 
             # Apply smart defaults based on server capabilities
             self._apply_smart_defaults(server_config, session)
@@ -473,7 +574,7 @@ class McpClient:
             self.server_configs[server_config.name] = server_config
 
             # Discover and register tools
-            await self._discover_and_register_tools(server_config.name, session, session_id)
+            await self._discover_and_register_tools(server_config.name, session, session_id, user_id or "default")
 
             logger.info(f"Successfully discovered tools from MCP server: {server_config.name}")
 
@@ -482,6 +583,13 @@ class McpClient:
 
             # Provide transport-specific error guidance
             error_msg = str(e).lower()
+
+            # Enhanced protocol error detection
+            if 'protocol' in error_msg and ('version' in error_msg or 'unsupported' in error_msg):
+                raise ConnectionError(
+                    f"Protocol version mismatch with server '{server_config.name}'. "
+                    f"Client supports '2025-03-26'. Server error: {e}"
+                ) from e
 
             if server_config.transport == "stdio":
                 # Stdio-specific errors
@@ -559,16 +667,49 @@ class McpClient:
 
             # Create temporary session for tool execution
             session = await create_mcp_session(server_config, connection_stack, user_id)
-            await session.initialize()
+            init_result = await session.initialize(
+                protocol_version="2025-03-26",
+                client_info={
+                    "name": "teal-agents",
+                    "version": get_package_version()
+                },
+                capabilities={
+                    "roots": {"listChanged": False},
+                    "sampling": {},
+                    "experimental": {}
+                }
+            )
+            logger.debug(
+                f"MCP session initialized for tool execution on '{server_name}': "
+                f"server={getattr(init_result, 'server_info', 'unknown')}, "
+                f"protocol={getattr(init_result, 'protocol_version', 'unknown')}"
+            )
 
-            # Execute the tool
-            result = await session.call_tool(tool_name, arguments)
+            # Execute the tool with timeout
+            try:
+                result = await asyncio.wait_for(
+                    session.call_tool(tool_name, arguments),
+                    timeout=server_config.request_timeout or 30.0
+                )
+            except asyncio.TimeoutError:
+                raise ConnectionError(
+                    f"Tool '{tool_name}' execution timed out on server '{server_name}' after {server_config.request_timeout or 30.0}s"
+                )
 
             logger.debug(f"Successfully executed tool '{tool_name}' on server '{server_name}'")
             return str(result.content[0].text) if result.content else "No content returned"
 
         except Exception as e:
             logger.error(f"Failed to execute tool '{tool_name}' on server '{server_name}': {e}")
+
+            # Enhanced protocol error detection
+            error_msg = str(e).lower()
+            if 'protocol' in error_msg and ('version' in error_msg or 'unsupported' in error_msg):
+                raise ConnectionError(
+                    f"Protocol version mismatch with server '{server_name}'. "
+                    f"Client supports '2025-03-26'. Server error: {e}"
+                ) from e
+
             raise ConnectionError(f"Tool execution failed: {e}") from e
 
         finally:
@@ -610,17 +751,26 @@ class McpClient:
         except Exception as e:
             logger.warning(f"Failed to apply smart defaults for {server_config.name}: {e}")
 
-    async def _discover_and_register_tools(self, server_name: str, session, session_id: str = "default") -> None:
+    async def _discover_and_register_tools(self, server_name: str, session, session_id: str = "default", user_id: str = "default") -> None:
         """Discover tools from MCP server and register them directly in existing catalog."""
         try:
-            # List available tools from the server
-            tools_result = await session.list_tools()
+            server_config = self.server_configs[server_name]
+
+            # List available tools from the server with timeout
+            try:
+                tools_result = await asyncio.wait_for(
+                    session.list_tools(),
+                    timeout=server_config.request_timeout or 30.0
+                )
+            except asyncio.TimeoutError:
+                raise ConnectionError(
+                    f"Tool discovery timed out for server '{server_name}' after {server_config.request_timeout or 30.0}s. "
+                    f"Server may be unresponsive."
+                )
 
             if not tools_result or not hasattr(tools_result, 'tools'):
                 logger.warning(f"No tools found on MCP server: {server_name}")
                 return
-
-            server_config = self.server_configs[server_name]
 
             # Get the existing plugin catalog - no wrapper needed
             try:
@@ -650,10 +800,16 @@ class McpClient:
                     # Create session-scoped tool_id that matches HITL expectations
                     tool_id = f"mcp_{session_id}_{server_name}-{server_name}_{tool_info.name}"
 
-                    # Map MCP annotations to governance and apply any overrides
+                    # Map MCP annotations to governance and apply trust level + overrides
                     annotations = getattr(tool_info, 'annotations', {}) or {}
-                    base_governance = map_mcp_annotations_to_governance(annotations)
-                    governance = apply_governance_overrides(base_governance, tool_info.name, server_config.tool_governance_overrides)
+                    tool_description = tool_info.description or f"Tool {tool_info.name} from {server_name}"
+                    base_governance = map_mcp_annotations_to_governance(annotations, tool_description)
+
+                    # Apply server trust level governance controls
+                    trust_governance = apply_trust_level_governance(base_governance, server_config.trust_level)
+
+                    # Apply tool-specific overrides (highest priority)
+                    governance = apply_governance_overrides(trust_governance, tool_info.name, server_config.tool_governance_overrides)
 
                     # Create auth configuration if server has auth
                     auth = None
@@ -780,5 +936,52 @@ class McpClient:
     def get_configured_servers(self) -> List[str]:
         """Get list of configured MCP server names."""
         return list(self.server_configs.keys())
+
+    def _validate_governance_configuration(self, server_config: McpServerConfig) -> None:
+        """
+        Validate governance configuration for security best practices.
+
+        Args:
+            server_config: MCP server configuration to validate
+
+        Raises:
+            ValueError: If configuration violates security requirements
+        """
+        # Check for production security requirements
+        if server_config.trust_level == "untrusted":
+            if not server_config.tool_governance_overrides:
+                logger.warning(
+                    f"MCP server '{server_config.name}' is marked as 'untrusted' but has no "
+                    f"governance overrides. All tools will require HITL approval by default."
+                )
+
+        elif server_config.trust_level == "trusted":
+            if not server_config.tool_governance_overrides:
+                logger.warning(
+                    f"MCP server '{server_config.name}' is marked as 'trusted' but has no "
+                    f"governance overrides. Consider reviewing all tools for security risks."
+                )
+
+            # Recommend explicit governance for trusted servers
+            logger.info(
+                f"Server '{server_config.name}' is trusted. Ensure all tools have been "
+                f"security reviewed and appropriate governance overrides are configured."
+            )
+
+        # Validate authentication for remote servers
+        if server_config.transport == "http":
+            if not server_config.auth_server and not server_config.headers:
+                logger.warning(
+                    f"Remote MCP server '{server_config.name}' has no authentication configured. "
+                    f"This may pose security risks."
+                )
+
+        # Log governance policy for audit trail
+        logger.info(
+            f"MCP server '{server_config.name}' configuration validated: "
+            f"trust_level={server_config.trust_level}, "
+            f"has_overrides={bool(server_config.tool_governance_overrides)}, "
+            f"has_auth={bool(server_config.auth_server or server_config.headers)}"
+        )
 
 

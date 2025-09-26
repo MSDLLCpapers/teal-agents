@@ -29,6 +29,12 @@ class McpServerConfig(BaseModel):
 
     # Tool-specific governance overrides (optional)
     tool_governance_overrides: Optional[Dict[str, GovernanceOverride]] = None
+
+    # Server trust level for additional governance controls
+    trust_level: Literal["trusted", "sandboxed", "untrusted"] = "untrusted"
+
+    # Request-level timeout for individual MCP operations (seconds)
+    request_timeout: Optional[float] = 30.0
     
     @model_validator(mode='after')
     def validate_transport_fields(self):

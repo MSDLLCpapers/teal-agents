@@ -32,39 +32,118 @@ from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
 logger = logging.getLogger(__name__)
 
 
-def map_mcp_annotations_to_governance(annotations: Dict[str, Any]) -> Governance:
+def get_package_version() -> str:
+    """Get package version for MCP client identification."""
+    try:
+        from importlib.metadata import version
+        return version('sk-agents')
+    except Exception:
+        return '1.0.0'  # Fallback version
+
+
+def map_mcp_annotations_to_governance(annotations: Dict[str, Any], tool_description: str = "") -> Governance:
     """
-    Map MCP tool annotations to Teal Agents governance policies.
+    Map MCP tool annotations to Teal Agents governance policies using secure-by-default approach.
 
     Args:
         annotations: MCP tool annotations
+        tool_description: Tool description for risk analysis
 
     Returns:
         Governance: Governance settings for the tool
     """
-    # Map MCP destructiveHint to HITL requirement
-    destructive_hint = annotations.get("destructiveHint", False)
-    requires_hitl = destructive_hint
+    # SECURE-BY-DEFAULT: Start with HITL required for unknown tools
+    requires_hitl = True
+    cost = "high"
+    data_sensitivity = "sensitive"
 
-    # Map destructive operations to higher cost and sensitivity
+    # Only relax restrictions with explicit safe annotations
+    read_only_hint = annotations.get("readOnlyHint", False)
+    if read_only_hint:
+        requires_hitl = False
+        cost = "low"
+        data_sensitivity = "public"
+
+    # Destructive tools require HITL (already secure)
+    destructive_hint = annotations.get("destructiveHint", False)
     if destructive_hint:
+        requires_hitl = True
         cost = "high"
         data_sensitivity = "sensitive"
-    else:
-        # Check if it's read-only
-        read_only_hint = annotations.get("readOnlyHint", False)
-        if read_only_hint:
-            cost = "low"
-            data_sensitivity = "public"
-        else:
-            cost = "medium"
+
+    # Enhanced risk analysis based on tool description
+    if tool_description:
+        description_lower = tool_description.lower()
+
+        # Network/external access indicators
+        if any(keyword in description_lower for keyword in [
+            "http", "https", "api", "network", "request", "fetch", "download", "upload",
+            "url", "web", "internet", "remote", "curl", "wget"
+        ]):
+            requires_hitl = True
+            cost = "high"
+            data_sensitivity = "sensitive"
+
+        # File system access indicators
+        elif any(keyword in description_lower for keyword in [
+            "file", "directory", "write", "delete", "create", "modify", "save",
+            "remove", "mkdir", "rmdir", "chmod", "move", "copy"
+        ]):
+            requires_hitl = True
+            cost = "medium" if not destructive_hint else "high"
             data_sensitivity = "proprietary"
+
+        # Code execution indicators
+        elif any(keyword in description_lower for keyword in [
+            "execute", "run", "command", "shell", "bash", "script", "eval", "exec"
+        ]):
+            requires_hitl = True
+            cost = "high"
+            data_sensitivity = "sensitive"
+
+        # Database/storage access
+        elif any(keyword in description_lower for keyword in [
+            "database", "sql", "query", "insert", "update", "delete", "drop"
+        ]):
+            requires_hitl = True
+            cost = "high"
+            data_sensitivity = "sensitive"
 
     return Governance(
         requires_hitl=requires_hitl,
         cost=cost,
         data_sensitivity=data_sensitivity
     )
+
+
+def apply_trust_level_governance(base_governance: Governance, trust_level: str) -> Governance:
+    """
+    Apply server trust level controls to governance settings.
+
+    Args:
+        base_governance: Base governance settings
+        trust_level: Server trust level ("trusted", "sandboxed", "untrusted")
+
+    Returns:
+        Governance: Governance with trust level controls applied
+    """
+    if trust_level == "untrusted":
+        # Force HITL for all tools from untrusted servers
+        return Governance(
+            requires_hitl=True,
+            cost="high",
+            data_sensitivity="sensitive"
+        )
+    elif trust_level == "sandboxed":
+        # Require HITL unless explicitly marked as safe
+        return Governance(
+            requires_hitl=True if base_governance.requires_hitl else True,  # Force HITL unless overridden
+            cost=base_governance.cost if base_governance.cost != "low" else "medium",  # Elevate cost
+            data_sensitivity=base_governance.data_sensitivity
+        )
+    else:  # trusted
+        # Use base governance as-is for trusted servers
+        return base_governance
 
 
 def apply_governance_overrides(base_governance: Governance, tool_name: str, overrides: Optional[Dict[str, GovernanceOverride]]) -> Governance:
@@ -187,30 +266,34 @@ async def create_mcp_session(server_config: McpServerConfig, connection_stack: A
             return session
             
         except ImportError:
-            # Fall back to SSE transport if streamable HTTP not available
-            try:
-                from mcp.client.sse import sse_client
+            raise NotImplementedError(
+                "HTTP transport is not available. "
+                "Please install the MCP SDK with HTTP support"
+            )
+            # # Fall back to SSE transport if streamable HTTP not available
+            # try:
+            #     from mcp.client.sse import sse_client
                 
-                read, write = await connection_stack.enter_async_context(
-                    sse_client(
-                        url=server_config.url,
-                        headers=resolved_headers,
-                        timeout=server_config.timeout or 30.0,
-                        sse_read_timeout=server_config.sse_read_timeout or 300.0
-                    )
-                )
-                session = await connection_stack.enter_async_context(
-                    ClientSession(read, write)
-                )
+            #     read, write = await connection_stack.enter_async_context(
+            #         sse_client(
+            #             url=server_config.url,
+            #             headers=resolved_headers,
+            #             timeout=server_config.timeout or 30.0,
+            #             sse_read_timeout=server_config.sse_read_timeout or 300.0
+            #         )
+            #     )
+            #     session = await connection_stack.enter_async_context(
+            #         ClientSession(read, write)
+            #     )
                 
-                return session
+            #     return session
                 
-            except ImportError:
-                raise NotImplementedError(
-                    "HTTP transport is not available. "
-                    "Please install the MCP SDK with HTTP support: "
-                    "pip install 'mcp[http]' or 'mcp[sse]'"
-                )
+            # except ImportError:
+            #     raise NotImplementedError(
+            #         "HTTP transport is not available. "
+            #         "Please install the MCP SDK with HTTP support: "
+            #         "pip install 'mcp[http]' or 'mcp[sse]'"
+            #     )
     else:
         raise ValueError(f"Unsupported transport type: {transport_type}")
 

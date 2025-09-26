@@ -196,7 +196,7 @@ class AuthenticationManager(ABC):
     """Abstract base class for authentication management"""
 
     @abstractmethod
-    async def authenticate(self, token: str) -> str:
+    async def authorize_request(self, token: str) -> str:
         """Authenticate a token and return the user ID"""
         pass
 
@@ -209,7 +209,7 @@ class AuthenticationManager(ABC):
 class MockAuthenticationManager(AuthenticationManager):
     """Mock implementation of authentication manager for development"""
 
-    async def authenticate(self, token: str) -> str:
+    async def authorize_request(self, token: str) -> str:
         # In mock implementation, just return the token as the user ID
         # In real implementation, this would validate the token with Entra ID
         return token or "anonymous-user"

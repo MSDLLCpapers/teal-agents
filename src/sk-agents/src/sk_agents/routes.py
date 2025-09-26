@@ -37,6 +37,7 @@ from sk_agents.skagents import handle as skagents_handle
 from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.state import StateManager
 from sk_agents.tealagents.models import ResumeRequest, StateResponse, TaskStatus, UserMessage
+from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
 from sk_agents.tealagents.v1alpha1.agent.handler import TealAgentsV1Alpha1Handler
 from sk_agents.utils import docstring_parameter, get_sse_event_for_response
 
@@ -107,7 +108,13 @@ class Routes:
             ),
             task_store=task_store,
         )
-
+    @staticmethod
+    def get_task_handler(
+        config: BaseConfig,
+        app_config: AppConfig,
+        agent_builder: AgentBuilder
+    ) -> TealAgentsV1Alpha1Handler:
+        return TealAgentsV1Alpha1Handler()
     @staticmethod
     def get_a2a_routes(
         name: str,
@@ -302,7 +309,7 @@ class Routes:
             return user_id
 
         @router.post(
-            "/chat",
+            "",
             response_model=StateResponse,
             summary="Send a message to the agent",
             response_description="Agent response with state identifiers",
@@ -310,10 +317,15 @@ class Routes:
         )
         async def chat(message: input_class, user_id: str = Depends(get_user_id)) -> StateResponse:
             # Handle new task creation or task retrieval
+            response_content = ""
             if message.task_id is None:
                 # New task
                 session_id, task_id = await state_manager.create_task(message.session_id, user_id)
                 task_state = await state_manager.get_task(task_id)
+                response_content = await TealAgentsV1Alpha1Handler.invoke(
+                    user_id,
+                    message
+                )
             else:
                 # Follow-on request
                 task_id = message.task_id
@@ -331,11 +343,11 @@ class Routes:
 
             # Return response with state identifiers
             return StateResponse(
-                session_id=session_id,
-                task_id=task_id,
-                request_id=request_id,
-                status=TaskStatus.COMPLETED,
-                content="Agent response",  # Replace with actual response
+                session_id=str(session_id),
+                task_id=str(task_id),
+                request_id=str(request_id),
+                status=TaskStatus.COMPLETED.value,
+                content=str(response_content),  # Replace with actual response
             )
 
         return router

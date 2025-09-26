@@ -29,8 +29,11 @@ from sk_agents.stateful import (
     InMemoryStateManager,
     MockAuthenticationManager,
     RedisStateManager,
-    StateManager,
-    UserMessage,
+    StateManager
+)
+
+from sk_agents.tealagents.models import (
+    UserMessage
 )
 from sk_agents.utils import initialize_plugin_loader
 
@@ -85,6 +88,7 @@ class AppV3:
         # Will be extended in future for Entra ID
         return MockAuthenticationManager()
 
+
     @staticmethod
     def run(name: str, version: str, app_config: AppConfig, config: BaseConfig, app: FastAPI):
         if config.apiVersion != "tealagents/v1alpha1":
@@ -115,6 +119,7 @@ class AppV3:
                 version=version,
                 description=description,
                 config=config,
+                app_config=app_config,
                 state_manager=state_manager,
                 authorizer=auth_manager,
                 auth_storage_manager=auth_storage_manager,

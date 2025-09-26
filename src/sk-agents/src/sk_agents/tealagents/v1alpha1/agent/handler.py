@@ -14,12 +14,13 @@ from semantic_kernel.contents.function_result_content import FunctionResultConte
 from semantic_kernel.contents.streaming_chat_message_content import StreamingChatMessageContent
 from semantic_kernel.contents.utils.author_role import AuthorRole
 from semantic_kernel.kernel import Kernel
+from ska_utils import AppConfig
 
 from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
 from sk_agents.exceptions import AgentInvokeException, AuthenticationException, PersistenceLoadError
 from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
 from sk_agents.hitl import hitl_manager
-from sk_agents.persistence.in_memory_persistence_manager import InMemoryPersistenceManager
+from sk_agents.persistence.persistence_factory import PersistenceFactory
 from sk_agents.ska_types import BaseConfig, BaseHandler, ContentType, TokenUsage
 from sk_agents.tealagents.models import (
     AgentTask,
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 class TealAgentsV1Alpha1Handler(BaseHandler):
-    def __init__(self, config: BaseConfig, agent_builder: AgentBuilder):
+    def __init__(self, config: BaseConfig, app_config: AppConfig, agent_builder: AgentBuilder):
         self.version = config.version
         self.name = config.name
         if hasattr(config, "spec"):
@@ -48,7 +49,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         else:
             raise ValueError("Invalid config")
         self.agent_builder = agent_builder
-        self.state = InMemoryPersistenceManager()
+        persistence_factory = PersistenceFactory(app_config=app_config)
+        self.state = persistence_factory.get_persistence_manager()
         self.authorizer = DummyAuthorizer()
 
     @staticmethod

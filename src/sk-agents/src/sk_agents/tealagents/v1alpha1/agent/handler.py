@@ -364,7 +364,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         # Execute the tool calls using asyncio.gather(),
         # just as the agent would have.
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
         kernel = agent.agent.kernel
 
         # Create ToolContent objects from the results
@@ -455,7 +455,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise PersistenceLoadError(f"Agent task with ID {task_id} not found in state.")
 
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
 
         # Prepare metadata
         completion_tokens: int = 0
@@ -562,7 +562,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise PersistenceLoadError(f"Agent task with ID {task_id} not found in state.")
 
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
 
         # Prepare metadata
         final_response = []

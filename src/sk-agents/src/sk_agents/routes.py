@@ -395,7 +395,7 @@ class Routes:
                 task_id=str(task_id),
                 request_id=str(request_id),
                 status=TaskStatus.COMPLETED.value,
-                content=str(response_content),  # Replace with actual response
+                content=response_content,  # Replace with actual response
             )
 
         return router

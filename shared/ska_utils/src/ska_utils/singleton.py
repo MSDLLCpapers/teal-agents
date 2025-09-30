@@ -3,8 +3,8 @@ from abc import ABCMeta
 
 
 # updated the old singleten class to make it thread safe
-class Singleton(ABCMeta):
-    _instances = {}
+class Singleton(ABCMeta, type):
+    _instances: dict = {}
     _lock = threading.Lock()
 
     def __call__(cls, *args, **kwargs):

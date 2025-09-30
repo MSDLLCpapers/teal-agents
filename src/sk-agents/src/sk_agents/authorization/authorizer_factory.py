@@ -1,9 +1,8 @@
-from ska_utils import AppConfig, ModuleLoader
+from ska_utils import AppConfig, ModuleLoader, Singleton
 
 from sk_agents.configs import TA_AUTHORIZER_CLASS, TA_AUTHORIZER_MODULE
 
 from .request_authorizer import RequestAuthorizer
-from .singleton import Singleton as Singleton
 
 
 class AuthorizerFactory(metaclass=Singleton):

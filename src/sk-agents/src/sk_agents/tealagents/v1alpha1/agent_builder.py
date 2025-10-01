@@ -19,13 +19,13 @@ class AgentBuilder:
         self.kernel_builder = kernel_builder
         self.authorization = authorization
 
-    def build_agent(
+    async def build_agent(
         self,
         agent_config: AgentConfig,
         extra_data_collector: ExtraDataCollector | None = None,
         output_type: str | None = None,
     ) -> SKAgent:
-        kernel = self.kernel_builder.build_kernel(
+        kernel = await self.kernel_builder.build_kernel(
             agent_config.model,
             agent_config.name,
             agent_config.plugins,

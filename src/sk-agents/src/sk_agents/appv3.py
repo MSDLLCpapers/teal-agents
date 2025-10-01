@@ -25,6 +25,7 @@ from sk_agents.configs import (
 )
 from sk_agents.routes import Routes
 from sk_agents.ska_types import BaseConfig
+from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.stateful import (
     InMemoryStateManager,
     MockAuthenticationManager,
@@ -35,6 +36,8 @@ from sk_agents.stateful import (
 from sk_agents.tealagents.models import (
     UserMessage
 )
+from sk_agents.tealagents.kernel_builder import KernelBuilder
+from sk_agents.tealagents.remote_plugin_loader import RemotePluginCatalog, RemotePluginLoader
 from sk_agents.utils import initialize_plugin_loader
 
 
@@ -88,6 +91,24 @@ class AppV3:
         # Will be extended in future for Entra ID
         return MockAuthenticationManager()
 
+
+    @staticmethod
+    def _create_chat_completions_builder(app_config: AppConfig):
+        return ChatCompletionBuilder(app_config)
+
+    @staticmethod
+    def _create_remote_plugin_loader(app_config: AppConfig):
+        remote_plugin_catalog = RemotePluginCatalog(app_config)
+        return RemotePluginLoader(remote_plugin_catalog)
+
+    @staticmethod
+    def _create_kernel_builder(app_config: AppConfig, authorization: str):
+        chat_completions = AppV3._create_chat_completions_builder(app_config)
+        remote_plugin_loader = AppV3._create_remote_plugin_loader(app_config)
+        kernel_builder = KernelBuilder(
+            chat_completions, remote_plugin_loader, app_config, authorization
+        )
+        return kernel_builder
 
     @staticmethod
     def run(name: str, version: str, app_config: AppConfig, config: BaseConfig, app: FastAPI):

@@ -6,14 +6,10 @@ from typing import Any
 
 from pydantic import UUID4, BaseModel, Field, validator
 from redis.asyncio import Redis
-from sk_agents.ska_types import (
-    InvokeResponse
-)
-from sk_agents.tealagents.models import (
-    RejectedToolResponse,
-    HitlResponse,
-    TealAgentsResponse
-)
+
+from sk_agents.ska_types import InvokeResponse
+from sk_agents.tealagents.models import HitlResponse, RejectedToolResponse, TealAgentsResponse
+
 
 class TaskStatus(Enum):
     RUNNING = "Running"
@@ -78,12 +74,7 @@ class StateResponse(BaseModel):
     task_id: UUID4
     request_id: UUID4
     status: TaskStatus
-    content: (
-        InvokeResponse
-        | RejectedToolResponse
-        | HitlResponse
-        | TealAgentsResponse
-    )
+    content: InvokeResponse | RejectedToolResponse | HitlResponse | TealAgentsResponse
 
 
 class StateManager(ABC):

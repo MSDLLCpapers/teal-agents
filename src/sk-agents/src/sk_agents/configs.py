@@ -50,12 +50,12 @@ TA_STATE_MANAGEMENT = Config(
 TA_AUTHORIZER_MODULE = Config(
     env_name="TA_AUTHORIZER_MODULE",
     is_required=False,
-    default_value=None,
+    default_value="src/sk_agents/authorization/dummy_authorizer.py",
 )
 TA_AUTHORIZER_CLASS = Config(
     env_name="TA_AUTHORIZER_CLASS",
     is_required=False,
-    default_value=None,
+    default_value="DummyAuthorizer",
 )
 
 TA_REDIS_HOST = Config(env_name="TA_REDIS_HOST", is_required=False, default_value=None)

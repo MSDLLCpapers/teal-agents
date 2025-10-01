@@ -77,11 +77,7 @@ class StateResponse(BaseModel):
     task_id: str
     request_id: str
     status: Literal["Running", "Paused", "Completed", "Failed"]
-    content: (
-        RejectedToolResponse
-        | HitlResponse
-        | TealAgentsResponse
-    )
+    content: RejectedToolResponse | HitlResponse | TealAgentsResponse
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
 
 

@@ -27,6 +27,7 @@ from sk_agents.skagents.v1.utils import (
 
 logger = logging.getLogger(__name__)
 
+
 class ChatAgents(BaseHandler):
     def __init__(self, config: BaseConfig, agent_builder: AgentBuilder, is_v2: bool = False):
         self.version = config.version

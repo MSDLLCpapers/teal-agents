@@ -30,13 +30,10 @@ from sk_agents.stateful import (
     InMemoryStateManager,
     MockAuthenticationManager,
     RedisStateManager,
-    StateManager
-)
-
-from sk_agents.tealagents.models import (
-    UserMessage
+    StateManager,
 )
 from sk_agents.tealagents.kernel_builder import KernelBuilder
+from sk_agents.tealagents.models import UserMessage
 from sk_agents.tealagents.remote_plugin_loader import RemotePluginCatalog, RemotePluginLoader
 from sk_agents.utils import initialize_plugin_loader
 
@@ -90,7 +87,6 @@ class AppV3:
         # For initial implementation, use mock authentication
         # Will be extended in future for Entra ID
         return MockAuthenticationManager()
-
 
     @staticmethod
     def _create_chat_completions_builder(app_config: AppConfig):
@@ -151,10 +147,7 @@ class AppV3:
 
         # Include the new resume routes
         app.include_router(
-            Routes.get_resume_routes(
-                config=config,
-                app_config=app_config
-            ),
+            Routes.get_resume_routes(config=config, app_config=app_config),
             prefix=f"/{name}/{version}",
         )
 

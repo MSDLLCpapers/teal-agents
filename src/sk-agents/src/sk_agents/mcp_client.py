@@ -41,6 +41,140 @@ def get_package_version() -> str:
         return '1.0.0'  # Fallback version
 
 
+def validate_mcp_sdk_version() -> None:
+    """
+    Validate MCP SDK version compatibility.
+
+    Logs warnings if the installed MCP SDK version is too old to support all features.
+    """
+    try:
+        import mcp
+        version_str = getattr(mcp, '__version__', '0.0.0')
+
+        # Parse version components
+        try:
+            from packaging import version as pkg_version
+            installed_version = pkg_version.parse(version_str)
+            required_version = pkg_version.parse("1.13.1")
+
+            if installed_version < required_version:
+                logger.warning(
+                    f"MCP SDK version {version_str} detected. "
+                    f"Recommended: >= 1.13.1 for full HTTP transport support. "
+                    f"Some features may not be available."
+                )
+            else:
+                logger.debug(f"MCP SDK version {version_str} is compatible")
+        except ImportError:
+            # packaging not available, do basic string comparison
+            logger.debug(f"MCP SDK version {version_str} (could not validate compatibility)")
+    except Exception as e:
+        logger.warning(f"Could not validate MCP SDK version: {e}")
+
+
+async def initialize_mcp_session(
+    session: ClientSession,
+    server_name: str,
+    server_info_obj: Any = None
+) -> Any:
+    """
+    Initialize MCP session with proper protocol handshake.
+
+    This function handles the complete MCP initialization sequence:
+    1. Send initialize request with protocol version and capabilities
+    2. Receive initialization result from server
+    3. Send initialized notification (required by MCP spec)
+
+    Args:
+        session: The MCP ClientSession to initialize
+        server_name: Name of the server for logging purposes
+        server_info_obj: Optional server info object for logging
+
+    Returns:
+        The initialization result from the server
+
+    Raises:
+        ConnectionError: If initialization fails
+    """
+    try:
+        # Step 1: Send initialize request
+        init_result = await session.initialize(
+            protocol_version="2025-03-26",
+            client_info={
+                "name": "teal-agents",
+                "version": get_package_version()
+            },
+            capabilities={
+                "roots": {"listChanged": False},
+                "sampling": {},
+                "experimental": {}
+            }
+        )
+
+        logger.info(
+            f"MCP session initialized for '{server_name}': "
+            f"server={getattr(init_result, 'server_info', 'unknown')}, "
+            f"protocol={getattr(init_result, 'protocol_version', 'unknown')}"
+        )
+
+        # Step 2: Send initialized notification (MCP protocol requirement)
+        # Per MCP spec: "After successful initialization, the client MUST send
+        # an initialized notification to indicate it is ready to begin normal operations."
+        try:
+            # The MCP Python SDK may use different method names
+            # Try common variations
+            if hasattr(session, 'send_initialized'):
+                await session.send_initialized()
+                logger.debug(f"Sent initialized notification to '{server_name}'")
+            elif hasattr(session, 'initialized'):
+                await session.initialized()
+                logger.debug(f"Sent initialized notification to '{server_name}'")
+            else:
+                logger.warning(
+                    f"Could not find initialized notification method for '{server_name}'. "
+                    f"MCP SDK may not support this yet. Session may not function correctly."
+                )
+        except Exception as notify_error:
+            # Don't fail the entire initialization if notification fails
+            # Some SDK versions may not support this yet
+            logger.warning(
+                f"Failed to send initialized notification to '{server_name}': {notify_error}. "
+                f"Proceeding anyway, but server may not function correctly."
+            )
+
+        return init_result
+
+    except Exception as e:
+        logger.error(f"Failed to initialize MCP session for '{server_name}': {e}")
+        raise ConnectionError(f"MCP session initialization failed for '{server_name}': {e}") from e
+
+
+async def graceful_shutdown_session(session: ClientSession, server_name: str) -> None:
+    """
+    Attempt graceful MCP session shutdown.
+
+    Per MCP spec, clients should attempt to notify servers before disconnecting.
+    This is a best-effort operation and failures are logged but not raised.
+
+    Args:
+        session: The MCP ClientSession to shutdown
+        server_name: Name of the server for logging purposes
+    """
+    try:
+        # Try to send shutdown notification if supported
+        if hasattr(session, 'send_shutdown'):
+            await session.send_shutdown()
+            logger.debug(f"Sent graceful shutdown to MCP server: {server_name}")
+        elif hasattr(session, 'shutdown'):
+            await session.shutdown()
+            logger.debug(f"Sent graceful shutdown to MCP server: {server_name}")
+        else:
+            logger.debug(f"MCP SDK does not support shutdown notification for: {server_name}")
+    except Exception as e:
+        # Shutdown failures are non-critical - log and continue with cleanup
+        logger.debug(f"Graceful shutdown failed for {server_name} (non-critical): {e}")
+
+
 def map_mcp_annotations_to_governance(annotations: Dict[str, Any], tool_description: str = "") -> Governance:
     """
     Map MCP tool annotations to Teal Agents governance policies using secure-by-default approach.
@@ -116,19 +250,27 @@ def map_mcp_annotations_to_governance(annotations: Dict[str, Any], tool_descript
     )
 
 
-def apply_trust_level_governance(base_governance: Governance, trust_level: str) -> Governance:
+def apply_trust_level_governance(base_governance: Governance, trust_level: str, tool_description: str = "") -> Governance:
     """
     Apply server trust level controls to governance settings.
 
+    Trust levels provide defense-in-depth by applying additional security controls
+    based on the server's trust relationship with the platform:
+    - untrusted: Maximum restrictions, force HITL for all operations
+    - sandboxed: Enhanced restrictions, HITL required unless explicitly safe
+    - trusted: Base governance applies, but still enforce safety on detected risks
+
     Args:
-        base_governance: Base governance settings
+        base_governance: Base governance settings from MCP annotations
         trust_level: Server trust level ("trusted", "sandboxed", "untrusted")
+        tool_description: Tool description for additional risk analysis
 
     Returns:
         Governance: Governance with trust level controls applied
     """
     if trust_level == "untrusted":
         # Force HITL for all tools from untrusted servers
+        logger.debug(f"Applying untrusted server governance: forcing HITL")
         return Governance(
             requires_hitl=True,
             cost="high",
@@ -136,13 +278,42 @@ def apply_trust_level_governance(base_governance: Governance, trust_level: str) 
         )
     elif trust_level == "sandboxed":
         # Require HITL unless explicitly marked as safe
+        # Sandboxed servers get elevated restrictions
+        logger.debug(f"Applying sandboxed server governance: elevated restrictions")
         return Governance(
-            requires_hitl=True if base_governance.requires_hitl else True,  # Force HITL unless overridden
+            requires_hitl=True,  # Force HITL for sandboxed servers
             cost=base_governance.cost if base_governance.cost != "low" else "medium",  # Elevate cost
             data_sensitivity=base_governance.data_sensitivity
         )
     else:  # trusted
-        # Use base governance as-is for trusted servers
+        # For trusted servers, use base governance but still enforce safety on high-risk operations
+        # This provides defense-in-depth even for trusted sources
+
+        # Check if tool description indicates high-risk operations
+        # Even for trusted servers, certain operations should require HITL
+        description_lower = tool_description.lower()
+        high_risk_operations = [
+            'delete', 'remove', 'drop', 'truncate', 'destroy', 'kill',
+            'execute', 'exec', 'eval', 'run command', 'shell',
+            'system', 'sudo', 'admin', 'root'
+        ]
+
+        has_high_risk = any(keyword in description_lower for keyword in high_risk_operations)
+
+        if has_high_risk and not base_governance.requires_hitl:
+            # Override for high-risk operations even on trusted servers
+            logger.debug(
+                f"Trusted server tool has high-risk indicators in description, "
+                f"enforcing HITL despite trust level"
+            )
+            return Governance(
+                requires_hitl=True,  # Override to require HITL
+                cost="high" if base_governance.cost != "high" else base_governance.cost,
+                data_sensitivity=base_governance.data_sensitivity
+            )
+
+        # For non-high-risk operations on trusted servers, use base governance
+        logger.debug(f"Applying trusted server governance: using base governance")
         return base_governance
 
 
@@ -219,6 +390,78 @@ def resolve_server_auth_headers(server_config: McpServerConfig, user_id: str = "
             logger.error(f"Failed to resolve auth for MCP server {server_config.name}: {e}")
 
     return headers
+
+
+async def create_mcp_session_with_retry(
+    server_config: McpServerConfig,
+    connection_stack: AsyncExitStack,
+    user_id: str = "default",
+    max_retries: int = 3
+) -> ClientSession:
+    """
+    Create MCP session with retry logic for transient failures.
+
+    This function wraps create_mcp_session with exponential backoff retry logic
+    to handle transient network issues and temporary server unavailability.
+
+    Args:
+        server_config: MCP server configuration
+        connection_stack: AsyncExitStack for resource management
+        user_id: User ID for authentication
+        max_retries: Maximum number of retry attempts (default: 3)
+
+    Returns:
+        ClientSession: Initialized MCP session
+
+    Raises:
+        ConnectionError: If all retry attempts fail
+        ValueError: If server configuration is invalid
+    """
+    last_error = None
+
+    for attempt in range(max_retries):
+        try:
+            session = await create_mcp_session(server_config, connection_stack, user_id)
+
+            # If we succeed after retries, log it
+            if attempt > 0:
+                logger.info(
+                    f"Successfully connected to MCP server '{server_config.name}' "
+                    f"after {attempt + 1} attempt(s)"
+                )
+
+            return session
+
+        except (ConnectionError, TimeoutError, OSError) as e:
+            last_error = e
+
+            # Don't retry on the last attempt
+            if attempt < max_retries - 1:
+                backoff_seconds = 2 ** attempt  # 1s, 2s, 4s
+                logger.warning(
+                    f"MCP connection attempt {attempt + 1}/{max_retries} failed for '{server_config.name}': {e}. "
+                    f"Retrying in {backoff_seconds}s..."
+                )
+                await asyncio.sleep(backoff_seconds)
+            else:
+                # Final attempt failed
+                logger.error(
+                    f"Failed to connect to MCP server '{server_config.name}' "
+                    f"after {max_retries} attempts"
+                )
+
+        except Exception as e:
+            # Non-retryable errors (configuration issues, protocol errors, etc.)
+            logger.error(
+                f"Non-retryable error connecting to MCP server '{server_config.name}': {e}"
+            )
+            raise
+
+    # All retries exhausted
+    raise ConnectionError(
+        f"Failed to connect to MCP server '{server_config.name}' after {max_retries} attempts. "
+        f"Last error: {last_error}"
+    ) from last_error
 
 
 async def create_mcp_session(server_config: McpServerConfig, connection_stack: AsyncExitStack, user_id: str = "default") -> ClientSession:

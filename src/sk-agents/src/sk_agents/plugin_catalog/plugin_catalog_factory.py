@@ -1,4 +1,3 @@
-
 from ska_utils import AppConfig, ModuleLoader, Singleton
 
 from sk_agents.configs import TA_PLUGIN_CATALOG_CLASS, TA_PLUGIN_CATALOG_MODULE, configs

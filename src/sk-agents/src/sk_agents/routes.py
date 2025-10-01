@@ -401,15 +401,19 @@ class Routes:
         return router
 
     @staticmethod
-    def get_resume_routes() -> APIRouter:
+    def get_resume_routes(
+        config: BaseConfig,
+        app_config: AppConfig
+    ) -> APIRouter:
         router = APIRouter()
 
         @router.post("/tealagents/v1alpha1/resume/{request_id}")
         async def resume(request_id: str, request: Request, body: ResumeRequest):
             authorization = request.headers.get("authorization", None)
+            teal_handler = Routes.get_task_handler(config, app_config, authorization)
             try:
-                return await TealAgentsV1Alpha1Handler.resume_task(
-                    request_id, authorization, body.model_dump(), stream=False
+                return await teal_handler.resume_task(
+                    authorization, request_id, body.model_dump(), stream=False
                 )
             except Exception as e:
                 logger.exception(f"Error in resume: {e}")

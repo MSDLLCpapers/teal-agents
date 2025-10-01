@@ -130,7 +130,10 @@ class AppV3:
 
         # Include the new resume routes
         app.include_router(
-            Routes.get_resume_routes(),
+            Routes.get_resume_routes(
+                config=config,
+                app_config=app_config
+            ),
             prefix=f"/{name}/{version}",
         )
 

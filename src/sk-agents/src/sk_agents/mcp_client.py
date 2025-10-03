@@ -13,9 +13,11 @@ WebSocket support will be added when it becomes available in the MCP SDK.
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Callable, Awaitable
 from contextlib import AsyncExitStack
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from datetime import datetime
 
 from mcp import ClientSession, StdioServerParameters
 from semantic_kernel.functions import kernel_function

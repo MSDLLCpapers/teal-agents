@@ -1,7 +1,7 @@
 # MCP Client Integration - Design & Implementation Specification
 
 **Version:** 2.0
-**Date:** 2025-01-20
+**Date:** 2025-10-02
 
 ## 1. Overview
 

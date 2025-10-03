@@ -6,7 +6,8 @@ The Teal Agents platform supports integration with Model Context Protocol (MCP) 
 
 The MCP client implementation provides:
 
-- **Automatic tool discovery**: Connect to MCP servers and automatically register their tools
+- **Stateless architecture**: Temporary connections for discovery and execution (no persistent connections)
+- **Automatic tool discovery**: Connect to MCP servers at session start to discover and materialize plugin classes
 - **Seamless integration**: MCP tools work like native plugins in the Semantic Kernel framework
 - **Configuration-driven**: Specify MCP servers in your agent configuration
 - **Error handling**: Graceful handling of connection failures and tool invocation errors
@@ -221,10 +222,10 @@ Once configured, MCP tools are automatically available to your agent. They appea
 For example, if you have a filesystem server named "filesystem" with a "read_file" tool, it would be registered as `filesystem_read_file`.
 
 **Tool Discovery Process:**
-1. Agent connects to MCP servers during initialization
-2. Tools are discovered and registered as Semantic Kernel functions
-3. Governance metadata is applied (automatic mapping + manual overrides)
-4. Tools become available for agent invocation
+1. **Session start**: MCP registry connects to servers temporarily, discovers tools, materializes plugin classes, then closes connections
+2. **Agent build**: Plugin classes are instantiated from registry (no connection needed)
+3. **Tool invocation**: Temporary connection created for execution, then closed
+4. Governance metadata is applied during discovery (automatic mapping + manual overrides)
 
 ## Error Handling
 
@@ -239,17 +240,17 @@ The MCP client includes robust error handling:
 
 The MCP integration consists of:
 
-1. **McpClient**: Main client class for connecting to MCP servers
-2. **McpTool**: Wrapper that makes MCP tools compatible with Semantic Kernel
-3. **McpPlugin**: Plugin wrapper that holds MCP tools
+1. **McpPluginRegistry**: Materializes plugin classes at session start (stateless discovery)
+2. **McpTool**: Stateless wrapper that stores config (not connections) for tool execution
+3. **McpPlugin**: Plugin wrapper that holds stateless tools with type annotations
 4. **Configuration**: Extended agent config to support MCP server specifications
 
 ### Key Classes
 
-- `McpClient`: Manages connections to multiple MCP servers
+- `McpPluginRegistry`: Discovers tools and creates plugin classes at session start
 - `McpServerConfig`: Pydantic model for server configuration
-- `McpPlugin`: Semantic Kernel plugin containing MCP tools
-- `McpClientManager`: Singleton manager for global client instance
+- `McpTool`: Stateless tool that creates temporary connections per invocation
+- `McpPlugin`: Semantic Kernel plugin with type annotations from JSON schema
 
 ## Dependencies
 
@@ -283,9 +284,10 @@ MCP operations are logged at appropriate levels:
 
 1. **Server naming**: Use descriptive names for your MCP servers
 2. **Error tolerance**: Design your prompts to handle cases where tools might be unavailable
-3. **Resource management**: MCP connections are managed automatically but consider the resource impact of multiple servers
+3. **Resource management**: Connections are stateless and temporary - no persistent connections or cleanup needed
 4. **Security**: Be cautious with filesystem and database access - only configure servers with appropriate permissions
 5. **Testing**: Test your MCP server configurations independently before integrating with agents
+6. **Discovery optimization**: Tool discovery happens once at session start - plan for this initial overhead
 
 ## Troubleshooting
 
@@ -336,13 +338,19 @@ node /path/to/my_mcp_server.js
 - **WebSocket transport**: Not yet available in the MCP Python SDK
 - **Custom transport protocols**: Only stdio and http are supported
 
+## Architecture Benefits
+
+The current stateless architecture provides:
+
+- **No memory leaks**: Python `async with` ensures automatic cleanup
+- **Simplified code**: No connection managers or session tracking needed
+- **Clear separation**: Discovery, instantiation, and execution are distinct phases
+- **Non-MCP alignment**: MCP tools work exactly like regular plugins
+
 ## Future Enhancements
 
 Planned improvements include:
 
-- **HTTP/SSE support**: When officially supported by MCP SDK
 - **WebSocket support**: When officially supported by MCP SDK
-- **Remote server connections**: HTTP and WebSocket transports for remote MCP servers
-- **Tool governance**: HITL and authorization integration
-- **Performance optimization**: Connection pooling and caching
-- **Dynamic discovery**: Runtime tool discovery and registration
+- **Performance optimization**: Connection caching for frequently-used tools
+- **Dynamic discovery**: Runtime tool discovery without session restart

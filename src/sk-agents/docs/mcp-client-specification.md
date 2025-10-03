@@ -1,74 +1,79 @@
 # MCP Client Integration - Design & Implementation Specification
 
-**Version:** 1.2
-**Date:** 2025-01-17
+**Version:** 2.0
+**Date:** 2025-01-20
 
 ## 1. Overview
 
-This specification describes the design and implementation of Model Context Protocol (MCP) client integration for the Teal Agents platform. The integration supports multiple transport protocols (stdio and HTTP) and allows agents to automatically connect to MCP servers, discover their tools, and register them as Semantic Kernel plugins.
+This specification describes the design and implementation of Model Context Protocol (MCP) client integration for the Teal Agents platform. The integration supports multiple transport protocols (stdio and HTTP) and uses a **stateless architecture** where plugin classes are materialized at session start, then instantiated per-request without persistent connections.
 
-**Latest Update:** Redesigned architecture to follow established ephemeral agent patterns. Added comprehensive authentication integration with OAuth2 support and tool governance capabilities.
+**Latest Update:** Complete refactoring to stateless plugin registry architecture. Removed ~450 lines of deprecated connection management code. MCP tools now work identically to non-MCP tools with temporary connections for discovery and execution.
 
 ### 1.1 Goals
 
 - **Seamless Integration**: MCP tools should work identically to native plugins
+- **Stateless Architecture**: No persistent connections, temporary connections for discovery and execution
 - **Pattern Alignment**: Follow established ephemeral agent-per-request patterns
 - **Configuration-Driven**: Server connections specified via agent configuration
-- **Automatic Discovery**: Tools are discovered and registered without manual intervention
+- **Automatic Discovery**: Tools discovered at session start and materialized as plugin classes
 - **Authentication Integration**: Leverage existing OAuth2 auth infrastructure
 - **Tool Governance**: Full HITL and governance policy integration
 - **Error Resilience**: Failed connections shouldn't prevent agent initialization
-- **Resource Management**: Session-scoped connection lifecycle with proper cleanup
+- **Resource Management**: Python `async with` ensures automatic cleanup
 
 ### 1.2 Non-Goals
 
-- Real-time tool discovery (tools discovered at connection time only)
+- Real-time tool discovery (tools discovered at session start only)
 - MCP server management/orchestration
-- Cross-session connection sharing (each session maintains isolated connections)
+- Persistent connections (all connections are temporary)
 
 ## 2. Architecture
 
 ### 2.1 Component Overview
 
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Agent Config  │───▶│   AgentBuilder   │───▶│ Agent Instance  │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-         │                       │                       │
-         │              ┌─────────────────┐              │
-         │              │ KernelBuilder   │              │
-         └─────────────▶│ - build_kernel()│              │
-                        └─────────────────┘              │
-                                 │                       │
-                     ┌─────────────────────┐            │
-                     │ Handler (Post-Agent)│            │
-                     │ - load_mcp_plugins()│            │
-                     └─────────────────────┘            │
-                                 │                       │
-                    ┌─────────────────────────┐         │
-                    │SessionMcpClientRegistry │         │
-                    │ - session_clients{}     │         │
-                    │ - cleanup_tasks{}       │◀────────┘
-                    └─────────────────────────┘
-                                 │
-                    ┌─────────────────────────────┐
-                    │        MCP Servers          │
-                    │ ┌─────────┐ ┌─────────────┐ │
-                    │ │ GitHub  │ │ FileSystem  │ │
-                    │ │ + Auth  │ │ + Tools     │ │
-                    │ └─────────┘ └─────────────┘ │
-                    └─────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                      SESSION START                          │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │ McpPluginRegistry.discover_and_materialize()         │   │
+│  │   - Temp connect to MCP servers                      │   │
+│  │   - Discover tools & register in catalog             │   │
+│  │   - Create McpPlugin CLASSES with stateless McpTools│   │
+│  │   - Close connections                                │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                   PER-REQUEST (AGENT BUILD)                 │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │ KernelBuilder.load_mcp_plugins()                     │   │
+│  │   - Get plugin CLASS from registry                   │   │
+│  │   - Instantiate plugin (no connection)               │   │
+│  │   - Add to kernel                                    │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                 TOOL INVOCATION (STATELESS)                 │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │ McpTool.invoke()                                     │   │
+│  │   - Create temp connection                           │   │
+│  │   - Execute tool                                     │   │
+│  │   - Close connection (automatic)                     │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### 2.2 Core Components
 
-1. **SessionMcpClientRegistry**: Session-scoped client management with automatic cleanup
-2. **McpClient**: Per-session orchestrator for MCP server connections
-3. **McpTool**: Wrapper that adapts MCP tools to Semantic Kernel functions
-4. **McpPlugin**: Plugin container for MCP tools with governance integration
-5. **McpServerConfig**: Configuration model with authentication and governance fields
-6. **KernelBuilder**: Extended with async MCP loading capability
-7. **AgentHandler**: Orchestrates MCP loading after agent construction
+1. **McpPluginRegistry**: Materializes plugin classes at session start (stateless discovery)
+2. **McpTool**: Stateless tool wrapper that stores config (not connections)
+3. **McpPlugin**: Plugin container with type annotations from JSON schema
+4. **McpServerConfig**: Configuration model with authentication and governance fields
+5. **KernelBuilder**: Instantiates plugins from registry at agent build time
+6. **AgentHandler**: Triggers MCP discovery at session start
 
 ## 3. Implementation Details
 

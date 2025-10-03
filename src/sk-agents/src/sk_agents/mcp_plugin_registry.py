@@ -18,34 +18,6 @@ from sk_agents.tealagents.v1alpha1.config import GovernanceOverride, McpServerCo
 logger = logging.getLogger(__name__)
 
 
-def apply_governance_overrides(
-    base_governance: Governance,
-    tool_name: str,
-    overrides: Dict[str, GovernanceOverride] | None
-) -> Governance:
-    """Apply manual governance overrides from config."""
-    if not overrides or tool_name not in overrides:
-        return base_governance
-
-    override = overrides[tool_name]
-
-    return Governance(
-        requires_hitl=override.requires_hitl if override.requires_hitl is not None else base_governance.requires_hitl,
-        cost=override.cost if override.cost is not None else base_governance.cost,
-        data_sensitivity=override.data_sensitivity if override.data_sensitivity is not None else base_governance.data_sensitivity
-    )
-
-
-def create_auth_if_needed(server_config: McpServerConfig) -> Oauth2PluginAuth | None:
-    """Create auth config if server requires OAuth2."""
-    if server_config.auth_server and server_config.scopes:
-        return Oauth2PluginAuth(
-            auth_server=server_config.auth_server,
-            scopes=server_config.scopes
-        )
-    return None
-
-
 class McpPluginRegistry:
     """
     Registry for MCP plugin classes.
@@ -62,6 +34,34 @@ class McpPluginRegistry:
 
     _plugin_classes: Dict[str, type] = {}  # Key: server_name, Value: McpPlugin class
     _lock = threading.Lock()
+
+    @staticmethod
+    def _apply_governance_overrides(
+        base_governance: Governance,
+        tool_name: str,
+        overrides: Dict[str, GovernanceOverride] | None
+    ) -> Governance:
+        """Apply manual governance overrides from config."""
+        if not overrides or tool_name not in overrides:
+            return base_governance
+
+        override = overrides[tool_name]
+
+        return Governance(
+            requires_hitl=override.requires_hitl if override.requires_hitl is not None else base_governance.requires_hitl,
+            cost=override.cost if override.cost is not None else base_governance.cost,
+            data_sensitivity=override.data_sensitivity if override.data_sensitivity is not None else base_governance.data_sensitivity
+        )
+
+    @staticmethod
+    def _create_auth_if_needed(server_config: McpServerConfig) -> Oauth2PluginAuth | None:
+        """Create auth config if server requires OAuth2."""
+        if server_config.auth_server and server_config.scopes:
+            return Oauth2PluginAuth(
+                auth_server=server_config.auth_server,
+                scopes=server_config.scopes
+            )
+        return None
 
     @classmethod
     async def discover_and_materialize(
@@ -151,14 +151,14 @@ class McpPluginRegistry:
             base_governance = map_mcp_annotations_to_governance(annotations)
 
             # Apply manual overrides from config
-            governance = apply_governance_overrides(
+            governance = cls._apply_governance_overrides(
                 base_governance,
                 tool_info.name,
                 server_config.tool_governance_overrides
             )
 
             # Create auth config if needed
-            auth = create_auth_if_needed(server_config)
+            auth = cls._create_auth_if_needed(server_config)
 
             # Create PluginTool for catalog
             plugin_tool = PluginTool(

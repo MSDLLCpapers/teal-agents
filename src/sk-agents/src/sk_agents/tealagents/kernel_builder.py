@@ -16,10 +16,6 @@ from sk_agents.tealagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.tealagents.remote_plugin_loader import RemotePluginLoader
 from sk_agents.tealagents.v1alpha1.config import McpServerConfig
 
-# Import MCP client lazily to avoid circular imports
-if TYPE_CHECKING:
-    from sk_agents.mcp_client import McpClient
-
 
 class KernelBuilder:
     def __init__(

@@ -40,17 +40,6 @@ from sk_agents.tealagents.v1alpha1.utils import get_token_usage_for_response, it
 
 logger = logging.getLogger(__name__)
 
-# Import session cleanup function
-async def cleanup_session_resources(session_id: str) -> None:
-    """Clean up session-scoped resources including MCP connections."""
-    try:
-        from sk_agents.mcp_client import cleanup_mcp_session
-        await cleanup_mcp_session(session_id)
-        logger.info(f"Successfully cleaned up session resources for: {session_id}")
-    except Exception as e:
-        logger.error(f"Error cleaning up session {session_id}: {e}")
-
-
 class TealAgentsV1Alpha1Handler(BaseHandler):
     # Track whether MCP discovery has been performed (class-level)
     _mcp_discovery_initialized = False
@@ -448,9 +437,6 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             agent_task.last_updated = datetime.now()
             await self.state.update(agent_task)
 
-            # Schedule session cleanup for canceled task (non-blocking)
-            asyncio.create_task(cleanup_session_resources(session_id))
-
             return RejectedToolResponse(
                 task_id=task_id, session_id=agent_task.session_id, request_id=request_id
             )
@@ -546,9 +532,6 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
         logger.info("Final response complete")
 
-        # Schedule session cleanup (non-blocking)
-        asyncio.create_task(cleanup_session_resources(session_id))
-
         return final_response_invoke
 
     async def invoke_stream(
@@ -584,9 +567,6 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
         logger.info("Building the final response")
         TealAgentsV1Alpha1Handler._build_chat_history(agent_task, chat_history)
-
-        # Schedule session cleanup for streaming (non-blocking)
-        asyncio.create_task(cleanup_session_resources(session_id))
 
         # Yield from the recursive stream
         async for response_chunk in self.recursion_invoke_stream(

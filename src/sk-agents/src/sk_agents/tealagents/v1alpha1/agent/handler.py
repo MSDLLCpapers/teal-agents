@@ -40,8 +40,22 @@ from sk_agents.tealagents.v1alpha1.utils import get_token_usage_for_response, it
 
 logger = logging.getLogger(__name__)
 
+# Import session cleanup function
+async def cleanup_session_resources(session_id: str) -> None:
+    """Clean up session-scoped resources including MCP connections."""
+    try:
+        from sk_agents.mcp_client import cleanup_mcp_session
+        await cleanup_mcp_session(session_id)
+        logger.info(f"Successfully cleaned up session resources for: {session_id}")
+    except Exception as e:
+        logger.error(f"Error cleaning up session {session_id}: {e}")
+
 
 class TealAgentsV1Alpha1Handler(BaseHandler):
+    # Track whether MCP discovery has been performed (class-level)
+    _mcp_discovery_initialized = False
+    _mcp_discovery_lock = None
+
     def __init__(self, config: BaseConfig, app_config: AppConfig, agent_builder: AgentBuilder):
         self.version = config.version
         self.name = config.name
@@ -53,6 +67,45 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         persistence_factory = PersistenceFactory(app_config=app_config)
         self.state = persistence_factory.get_persistence_manager()
         self.authorizer = DummyAuthorizer()
+
+        # Initialize lock if needed (asyncio.Lock() must be created in async context)
+        if TealAgentsV1Alpha1Handler._mcp_discovery_lock is None:
+            # Will be initialized in first async call
+            pass
+
+    async def _ensure_mcp_discovery(self, user_id: str) -> None:
+        """
+        Ensure MCP tool discovery has been performed.
+
+        This is called once per application/service lifetime to materialize
+        MCP plugin classes. Discovery happens only once globally.
+        """
+        # Initialize lock on first call
+        if TealAgentsV1Alpha1Handler._mcp_discovery_lock is None:
+            TealAgentsV1Alpha1Handler._mcp_discovery_lock = asyncio.Lock()
+
+        async with TealAgentsV1Alpha1Handler._mcp_discovery_lock:
+            if TealAgentsV1Alpha1Handler._mcp_discovery_initialized:
+                return  # Already initialized
+
+            mcp_servers = self.config.get_agent().mcp_servers
+            if not mcp_servers or len(mcp_servers) == 0:
+                TealAgentsV1Alpha1Handler._mcp_discovery_initialized = True
+                return  # No MCP servers configured
+
+            try:
+                from sk_agents.mcp_plugin_registry import McpPluginRegistry
+
+                logger.info(f"Starting MCP discovery for {len(mcp_servers)} servers")
+                await McpPluginRegistry.discover_and_materialize(mcp_servers, user_id)
+                logger.info("MCP discovery completed successfully")
+
+                TealAgentsV1Alpha1Handler._mcp_discovery_initialized = True
+
+            except Exception as e:
+                logger.error(f"MCP discovery failed: {e}")
+                # Don't mark as initialized so it can retry on next request
+                raise
 
     @staticmethod
     async def _invoke_function(kernel, fc_content: FunctionCallContent) -> FunctionResultContent:
@@ -394,6 +447,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             )
             agent_task.last_updated = datetime.now()
             await self.state.update(agent_task)
+
+            # Schedule session cleanup for canceled task (non-blocking)
+            asyncio.create_task(cleanup_session_resources(session_id))
+
             return RejectedToolResponse(
                 task_id=task_id, session_id=agent_task.session_id, request_id=request_id
             )
@@ -419,7 +476,16 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         # just as the agent would have.
         extra_data_collector = ExtraDataCollector()
         agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector, user_id=user_id)
-        agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+
+        # Load MCP plugins after agent construction to avoid async gap
+        if self.config.get_agent().mcp_servers:
+            await self.agent_builder.kernel_builder.load_mcp_plugins(
+                self.config.get_agent().mcp_servers,
+                agent.agent.kernel,
+                user_id,
+                session_id
+            )
+
         kernel = agent.agent.kernel
 
         # Create ToolContent objects from the results
@@ -449,6 +515,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         logger.info("Beginning processing invoke")
 
         user_id = await self.authenticate_user(token=auth_token)
+
+        # Ensure MCP discovery has been performed (happens once globally)
+        await self._ensure_mcp_discovery(user_id)
+
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
         agent_task = await self._manage_incoming_task(
@@ -475,6 +545,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             inputs=chat_history, session_id=session_id, request_id=request_id, task_id=task_id
         )
         logger.info("Final response complete")
+
+        # Schedule session cleanup (non-blocking)
+        asyncio.create_task(cleanup_session_resources(session_id))
+
         return final_response_invoke
 
     async def invoke_stream(
@@ -483,6 +557,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         # Initial setup
         logger.info("Beginning processing invoke")
         user_id = await self.authenticate_user(token=auth_token)
+
+        # Ensure MCP discovery has been performed (happens once globally)
+        await self._ensure_mcp_discovery(user_id)
+
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
         agent_task = await self._manage_incoming_task(
@@ -506,11 +584,17 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
         logger.info("Building the final response")
         TealAgentsV1Alpha1Handler._build_chat_history(agent_task, chat_history)
-        final_response_stream = self.recursion_invoke_stream(
+
+        # Schedule session cleanup for streaming (non-blocking)
+        asyncio.create_task(cleanup_session_resources(session_id))
+
+        # Yield from the recursive stream
+        async for response_chunk in self.recursion_invoke_stream(
             chat_history, session_id, task_id, request_id
-        )
+        ):
+            yield response_chunk
+
         logger.info("Final response complete")
-        return final_response_stream
 
     async def recursion_invoke(
         self, inputs: ChatHistory, session_id: str, task_id: str, request_id: str
@@ -522,9 +606,19 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         if not agent_task:
             raise PersistenceLoadError(f"Agent task with ID {task_id} not found in state.")
 
+        user_id = agent_task.user_id
         extra_data_collector = ExtraDataCollector()
         agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector, user_id=user_id)
         agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+
+        # Load MCP plugins after agent construction to avoid async gap
+        if self.config.get_agent().mcp_servers:
+            await self.agent_builder.kernel_builder.load_mcp_plugins(
+                self.config.get_agent().mcp_servers,
+                agent.agent.kernel,
+                user_id,
+                session_id
+            )
 
         # Prepare metadata
         completion_tokens: int = 0
@@ -630,9 +724,19 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         if not agent_task:
             raise PersistenceLoadError(f"Agent task with ID {task_id} not found in state.")
 
+        user_id = agent_task.user_id
         extra_data_collector = ExtraDataCollector()
         agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector, user_id=user_id)
         agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+
+        # Load MCP plugins after agent construction to avoid async gap
+        if self.config.get_agent().mcp_servers:
+            await self.agent_builder.kernel_builder.load_mcp_plugins(
+                self.config.get_agent().mcp_servers,
+                agent.agent.kernel,
+                user_id,
+                session_id
+            )
 
         # Prepare metadata
         final_response = []

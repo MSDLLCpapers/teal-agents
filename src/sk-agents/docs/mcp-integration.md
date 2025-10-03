@@ -85,11 +85,18 @@ Transport-specific requirements (transport is inferred if omitted):
 - **stdio**: requires **command** (optional: **args**, **env**)
 - **http**: requires **url** (optional: **headers**, **timeout**, **sse_read_timeout**)
 
+Authentication fields (optional):
+- **auth_server**: OAuth2 authorization server URL for automatic token management
+- **scopes**: List of required OAuth2 scopes
+
+Governance fields (optional):
+- **tool_governance_overrides**: Manual overrides for specific tool governance settings
+
 Note: The `transport` field is optional. If you provide both `command` and `url`, you must set `transport` to disambiguate.
 
 ## Example MCP Servers
 
-### Filesystem Server
+### Filesystem Server (Stdio)
 ```yaml
 mcp_servers:
   - name: filesystem
@@ -99,7 +106,7 @@ mcp_servers:
       - "/safe/directory"
 ```
 
-### SQLite Server
+### SQLite Server (Stdio)
 ```yaml
 mcp_servers:
   - name: sqlite
@@ -111,7 +118,20 @@ mcp_servers:
       - "/path/to/data.db"
 ```
 
-### Python MCP Server
+### GitHub Server (HTTP with OAuth2)
+```yaml
+mcp_servers:
+  - name: github
+    url: "https://api.github.com/mcp"
+    auth_server: "https://github.com/login/oauth"
+    scopes: ["repo", "read:user"]
+    tool_governance_overrides:
+      create_repository:
+        requires_hitl: false
+        cost: "medium"
+```
+
+### Python MCP Server (Local with Environment)
 ```yaml
 mcp_servers:
   - name: custom-tools
@@ -121,13 +141,90 @@ mcp_servers:
     env:
       PYTHONPATH: "/opt/mcp-tools"
       DEBUG: "true"
+    tool_governance_overrides:
+      execute_command:
+        requires_hitl: true
+        cost: "high"
 ```
+
+## Authentication & Authorization
+
+### OAuth2 Integration
+
+MCP servers that require authentication can integrate with the platform's OAuth2 infrastructure:
+
+```yaml
+mcp_servers:
+  - name: github
+    url: "https://api.github.com/mcp"
+    auth_server: "https://github.com/login/oauth"
+    scopes: ["repo", "read:user"]
+```
+
+**How it works:**
+1. The platform checks if the user has stored OAuth2 tokens for the specified `auth_server` and `scopes`
+2. If tokens exist, they're automatically used for MCP server authentication
+3. If tokens are missing, an auth challenge is returned to prompt user authentication
+4. Once authenticated, tokens are stored and reused for future requests
+
+### Manual Authentication Headers
+
+For servers requiring custom authentication, use the `headers` field:
+
+```yaml
+mcp_servers:
+  - name: api-server
+    url: "https://api.example.com/mcp"
+    headers:
+      Authorization: "Bearer ${API_TOKEN}"
+      X-API-Key: "${API_KEY}"
+```
+
+## Tool Governance
+
+### Automatic Governance Mapping
+
+MCP tools automatically inherit governance settings based on their annotations:
+
+- `destructiveHint: true` → `requires_hitl: true, cost: "high"`
+- `readOnlyHint: true` → `requires_hitl: false, cost: "low"`
+- Default → `requires_hitl: false, cost: "medium"`
+
+### Manual Governance Overrides
+
+Override automatic governance settings for specific tools:
+
+```yaml
+mcp_servers:
+  - name: github
+    url: "https://api.github.com/mcp"
+    tool_governance_overrides:
+      create_repository:
+        requires_hitl: false    # Override auto-inferred HITL requirement
+        cost: "medium"          # Override auto-inferred cost level
+        data_sensitivity: "proprietary"
+      delete_repository:
+        requires_hitl: true     # Force HITL approval
+        cost: "high"            # High cost operation
+        data_sensitivity: "sensitive"
+```
+
+**Governance Fields:**
+- `requires_hitl`: Whether human approval is required (boolean)
+- `cost`: Resource cost level (`"low"`, `"medium"`, `"high"`)
+- `data_sensitivity`: Data classification (`"public"`, `"proprietary"`, `"sensitive"`)
 
 ## Tool Usage
 
 Once configured, MCP tools are automatically available to your agent. They appear in the kernel with the format `<server_name>_<tool_name>` to avoid naming collisions.
 
 For example, if you have a filesystem server named "filesystem" with a "read_file" tool, it would be registered as `filesystem_read_file`.
+
+**Tool Discovery Process:**
+1. Agent connects to MCP servers during initialization
+2. Tools are discovered and registered as Semantic Kernel functions
+3. Governance metadata is applied (automatic mapping + manual overrides)
+4. Tools become available for agent invocation
 
 ## Error Handling
 

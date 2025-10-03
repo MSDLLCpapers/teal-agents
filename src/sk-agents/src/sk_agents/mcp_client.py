@@ -238,103 +238,245 @@ def get_transport_info(server_config: McpServerConfig) -> str:
 
 
 class McpTool:
-    """Wrapper for MCP tools to make them compatible with Semantic Kernel."""
+    """
+    Stateless wrapper for MCP tools to make them compatible with Semantic Kernel.
 
-    def __init__(self, name: str, description: str, input_schema: Dict[str, Any], client_session, server_name: str = None):
-        self.name = name
+    This class stores the server configuration and tool metadata, but does NOT
+    store active connections. Each invocation creates a temporary connection.
+    """
+
+    def __init__(
+        self,
+        tool_name: str,
+        description: str,
+        input_schema: Dict[str, Any],
+        output_schema: Dict[str, Any] | None,
+        server_config: "McpServerConfig",
+        server_name: str,
+        user_id: str
+    ):
+        """
+        Initialize stateless MCP tool.
+
+        Args:
+            tool_name: Name of the MCP tool
+            description: Tool description
+            input_schema: JSON schema for tool inputs
+            output_schema: JSON schema for tool outputs (optional)
+            server_config: MCP server configuration (for reconnection)
+            server_name: Name of the MCP server
+            user_id: User ID for authentication
+        """
+        self.tool_name = tool_name
         self.description = description
         self.input_schema = input_schema
-        self.client_session = client_session
+        self.output_schema = output_schema
+        self.server_config = server_config
         self.server_name = server_name
-        self.original_name = name
-        
+        self.user_id = user_id
+
     async def invoke(self, **kwargs) -> str:
-        """Invoke the MCP tool with the provided arguments."""
+        """
+        Invoke the MCP tool with stateless connection.
+
+        Creates a temporary connection, executes the tool, and closes the connection.
+        This follows the "connect_and_execute" pattern.
+        """
         try:
-            # Basic input validation if schema is available
+            # Validate inputs against schema
             if self.input_schema:
                 self._validate_inputs(kwargs)
-                
-            result = await self.client_session.call_tool(self.name, kwargs)
-            
-            # Handle different result types from MCP
-            if hasattr(result, 'content'):
-                if isinstance(result.content, list) and len(result.content) > 0:
-                    return str(result.content[0].text) if hasattr(result.content[0], 'text') else str(result.content[0])
-                return str(result.content)
-            elif hasattr(result, 'text'):
-                return result.text
-            else:
-                return str(result)
+
+            # Stateless execution: connect → execute → close
+            async with AsyncExitStack() as stack:
+                # Create temporary connection
+                session = await create_mcp_session(
+                    self.server_config,
+                    stack,
+                    self.user_id
+                )
+                await session.initialize()
+
+                logger.debug(f"Executing MCP tool: {self.server_name}.{self.tool_name}")
+
+                # Execute tool
+                result = await session.call_tool(self.tool_name, kwargs)
+
+                # Parse result
+                parsed_result = self._parse_result(result)
+
+                logger.debug(f"MCP tool {self.tool_name} completed successfully")
+
+                # Connection auto-closes when exiting context
+                return parsed_result
+
         except Exception as e:
-            logger.error(f"Error invoking MCP tool {self.name}: {e}")
-            
+            logger.error(f"Error invoking MCP tool {self.tool_name}: {e}")
+
             # Provide helpful error messages
             error_msg = str(e).lower()
             if 'timeout' in error_msg:
-                raise RuntimeError(f"MCP tool '{self.name}' timed out. Check server responsiveness.") from e
+                raise RuntimeError(f"MCP tool '{self.tool_name}' timed out. Check server responsiveness.") from e
             elif 'connection' in error_msg:
-                raise RuntimeError(f"MCP tool '{self.name}' connection failed. Check server availability.") from e
+                raise RuntimeError(f"MCP tool '{self.tool_name}' connection failed. Check server availability.") from e
             else:
-                raise RuntimeError(f"MCP tool '{self.name}' failed: {e}") from e
-            
+                raise RuntimeError(f"MCP tool '{self.tool_name}' failed: {e}") from e
+
+    def _parse_result(self, result: Any) -> str:
+        """Parse MCP result into string format."""
+        if hasattr(result, 'content'):
+            if isinstance(result.content, list) and len(result.content) > 0:
+                return str(result.content[0].text) if hasattr(result.content[0], 'text') else str(result.content[0])
+            return str(result.content)
+        elif hasattr(result, 'text'):
+            return result.text
+        else:
+            return str(result)
+
     def _validate_inputs(self, kwargs: Dict[str, Any]) -> None:
         """Basic input validation against the tool's JSON schema."""
         if not isinstance(self.input_schema, dict):
             return
-            
+
         properties = self.input_schema.get('properties', {})
         required = self.input_schema.get('required', [])
-        
+
         # Check required parameters
         for req_param in required:
             if req_param not in kwargs:
-                raise ValueError(f"Missing required parameter '{req_param}' for tool '{self.name}'")
-        
+                raise ValueError(f"Missing required parameter '{req_param}' for tool '{self.tool_name}'")
+
         # Warn about unexpected parameters
         for param in kwargs:
             if param not in properties:
-                logger.warning(f"Unexpected parameter '{param}' for tool '{self.name}'")
+                logger.warning(f"Unexpected parameter '{param}' for tool '{self.tool_name}'")
 
 
 class McpPlugin(BasePlugin):
-    """Plugin wrapper that holds MCP tools for Semantic Kernel integration."""
-    
-    def __init__(self, tools: List[McpTool], server_name: str = None, authorization: str | None = None, extra_data_collector=None):
+    """
+    Plugin wrapper that holds stateless MCP tools for Semantic Kernel integration.
+
+    This plugin creates kernel functions with proper type annotations from MCP JSON schemas,
+    allowing Semantic Kernel to expose full parameter information to the LLM.
+    """
+
+    def __init__(
+        self,
+        tools: List[McpTool],
+        server_name: str,
+        authorization: str | None = None,
+        extra_data_collector=None
+    ):
         super().__init__(authorization, extra_data_collector)
         self.tools = tools
         self.server_name = server_name
-        
+
         # Dynamically add kernel functions for each tool
         for tool in tools:
             self._add_tool_function(tool)
-    
+
     def _add_tool_function(self, tool: McpTool):
-        """Add a tool as a kernel function to this plugin."""
-        
+        """
+        Add a tool as a kernel function with proper type annotations.
+
+        Converts MCP JSON schema to Python type hints so SK can expose
+        full parameter information to the LLM.
+        """
+
         # Create a closure that captures the specific tool instance
         def create_tool_function(captured_tool: McpTool):
             # Create unique tool name to avoid collisions
-            unique_name = f"{self.server_name}_{captured_tool.name}" if self.server_name else captured_tool.name
-            
+            function_name = f"{self.server_name}_{captured_tool.tool_name}"
+
+            # Build type annotations from JSON schema
+            param_annotations = self._build_annotations(captured_tool.input_schema)
+
             @kernel_function(
-                name=unique_name,
-                description=f"[{self.server_name or 'MCP'}] {captured_tool.description}",
+                name=function_name,
+                description=f"[{self.server_name}] {captured_tool.description}",
             )
             async def tool_function(**kwargs):
                 return await captured_tool.invoke(**kwargs)
+
+            # Add type annotations for SK introspection
+            tool_function.__annotations__ = param_annotations
+
             return tool_function
-        
+
         # Create the function and set as attribute
         tool_function = create_tool_function(tool)
-        
+
         # Sanitize tool name for Python attribute
-        base_name = f"{self.server_name}_{tool.name}" if self.server_name else tool.name
-        attr_name = ''.join(c if c.isalnum() or c == '_' else '_' for c in base_name)
-        if not attr_name[0].isalpha() and attr_name[0] != '_':
-            attr_name = f'tool_{attr_name}'
-            
+        attr_name = self._sanitize_name(f"{self.server_name}_{tool.tool_name}")
+
         setattr(self, attr_name, tool_function)
+
+    def _build_annotations(self, input_schema: Dict[str, Any]) -> Dict[str, type]:
+        """
+        Convert MCP JSON schema to Python type annotations.
+
+        This allows Semantic Kernel to introspect the function signature
+        and expose full parameter information to the LLM.
+
+        Args:
+            input_schema: MCP tool's JSON schema for inputs
+
+        Returns:
+            Dictionary mapping parameter names to Python types
+        """
+        annotations = {}
+
+        if not input_schema or not isinstance(input_schema, dict):
+            annotations['return'] = str
+            return annotations
+
+        properties = input_schema.get('properties', {})
+        required = input_schema.get('required', [])
+
+        for param_name, param_schema in properties.items():
+            if not isinstance(param_schema, dict):
+                continue
+
+            # Get Python type from JSON schema type
+            param_type = self._json_type_to_python(param_schema.get('type', 'string'))
+
+            # Mark as optional if not required
+            # Note: SK will handle optional parameters appropriately
+            annotations[param_name] = param_type
+
+        # All MCP tools return strings currently
+        annotations['return'] = str
+
+        return annotations
+
+    @staticmethod
+    def _json_type_to_python(json_type: str) -> type:
+        """
+        Map JSON schema types to Python types.
+
+        Args:
+            json_type: JSON schema type string
+
+        Returns:
+            Corresponding Python type
+        """
+        type_map = {
+            'string': str,
+            'number': float,
+            'integer': int,
+            'boolean': bool,
+            'array': list,
+            'object': dict
+        }
+        return type_map.get(json_type, str)
+
+    @staticmethod
+    def _sanitize_name(name: str) -> str:
+        """Sanitize name for Python attribute."""
+        sanitized = ''.join(c if c.isalnum() or c == '_' else '_' for c in name)
+        if not sanitized[0].isalpha() and sanitized[0] != '_':
+            sanitized = f'tool_{sanitized}'
+        return sanitized
 
 
 class McpClient:
@@ -359,7 +501,7 @@ class McpClient:
         self._connection_stacks: Dict[str, AsyncExitStack] = {}
         self._connection_health: Dict[str, bool] = {}
         
-    async def connect_server(self, server_config: McpServerConfig, user_id: str | None = None) -> None:
+    async def connect_server(self, server_config: McpServerConfig, user_id: str | None = None, session_id: str = "default") -> None:
         """
         Connect to an MCP server and register its tools.
         
@@ -394,8 +536,8 @@ class McpClient:
             self._connection_stacks[server_config.name] = connection_stack
             self._connection_health[server_config.name] = True
             
-            # Discover and register tools
-            await self._discover_and_register_tools(server_config.name, session)
+            # Discover and register tools with session context
+            await self._discover_and_register_tools(server_config.name, session, session_id)
             
             logger.info(f"Successfully connected to MCP server: {server_config.name}")
             
@@ -484,7 +626,7 @@ class McpClient:
         except Exception as e:
             logger.warning(f"Failed to apply smart defaults for {server_config.name}: {e}")
 
-    async def _discover_and_register_tools(self, server_name: str, session) -> None:
+    async def _discover_and_register_tools(self, server_name: str, session, session_id: str = "default") -> None:
         """Discover tools from MCP server and register them directly in existing catalog."""
         try:
             # List available tools from the server
@@ -520,8 +662,8 @@ class McpClient:
 
                 # Create PluginTool for catalog registration (first-class citizen)
                 if catalog:
-                    # Create tool_id that matches HITL expectations
-                    tool_id = f"mcp_{server_name}-{server_name}_{tool_info.name}"
+                    # Create session-scoped tool_id that matches HITL expectations
+                    tool_id = f"mcp_{session_id}_{server_name}-{server_name}_{tool_info.name}"
 
                     # Map MCP annotations to governance and apply any overrides
                     annotations = getattr(tool_info, 'annotations', {}) or {}
@@ -547,9 +689,9 @@ class McpClient:
 
                 logger.info(f"Discovered tool: {tool_info.name} from server {server_name}")
 
-            # Register tools directly in existing catalog
+            # Register tools directly in existing catalog with session scope
             if catalog and plugin_tools:
-                plugin_id = f"mcp-{server_name}"
+                plugin_id = f"mcp-{session_id}-{server_name}"
 
                 # Create the MCP plugin
                 from sk_agents.plugin_catalog.models import McpPluginType, Plugin
@@ -639,15 +781,15 @@ class McpClient:
                 logger.error(f"Failed to register MCP plugin for server {server_name}: {e}")
                 raise
     
-    async def disconnect_server(self, server_name: str) -> None:
+    async def disconnect_server(self, server_name: str, session_id: str = "default") -> None:
         """Disconnect from an MCP server and clean up resources."""
         try:
-            # Clean up catalog registration - use existing catalog directly
+            # Clean up session-scoped catalog registration
             try:
                 catalog = PluginCatalogFactory().get_catalog()
-                plugin_id = f"mcp-{server_name}"
+                plugin_id = f"mcp-{session_id}-{server_name}"
                 if catalog.unregister_dynamic_plugin(plugin_id):
-                    logger.info(f"Unregistered MCP plugin '{plugin_id}' from catalog")
+                    logger.info(f"Unregistered session-scoped MCP plugin '{plugin_id}' from catalog")
             except Exception as e:
                 logger.warning(f"Could not unregister MCP plugin from catalog: {e}")
 
@@ -698,67 +840,92 @@ class McpClient:
         return list(self.connected_servers.keys())
 
 
-class McpClientManager:
-    """Thread-safe singleton manager for MCP client instances."""
-    
-    _instance: Optional['McpClientManager'] = None
-    _client: Optional[McpClient] = None
-    _lock: Optional[asyncio.Lock] = None
-    _thread_lock = threading.Lock()
-    
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-    
-    async def get_client(self) -> McpClient:
-        """Get or create the global MCP client instance (thread-safe)."""
-        if self._client is None:
-            # Initialize async lock if needed
-            if self._lock is None:
-                with self._thread_lock:
-                    if self._lock is None:
-                        self._lock = asyncio.Lock()
-                        
-            async with self._lock:
-                # Double-check after acquiring lock
-                if self._client is None:
-                    self._client = McpClient()
-        return self._client
-    
-    async def reset_client(self) -> None:
-        """Reset the global MCP client instance (thread-safe)."""
-        if self._lock is None:
-            with self._thread_lock:
-                if self._lock is None:
-                    self._lock = asyncio.Lock()
-                    
-        async with self._lock:
-            if self._client is not None:
-                await self._client.disconnect_all()
-                self._client = None
+class SessionMcpClientRegistry:
+    """Session-scoped registry for MCP client instances."""
+
+    _session_clients: Dict[str, McpClient] = {}
+    _session_locks: Dict[str, asyncio.Lock] = {}
+    _cleanup_tasks: Dict[str, asyncio.Task] = {}
+    _registry_lock = threading.Lock()
+
+    @classmethod
+    async def get_or_create_client(cls, session_id: str) -> McpClient:
+        """Get or create MCP client for specific session."""
+        # Ensure session lock exists
+        if session_id not in cls._session_locks:
+            with cls._registry_lock:
+                if session_id not in cls._session_locks:
+                    cls._session_locks[session_id] = asyncio.Lock()
+
+        # Get or create client for session
+        async with cls._session_locks[session_id]:
+            if session_id not in cls._session_clients:
+                cls._session_clients[session_id] = McpClient()
+                logger.info(f"Created new MCP client for session: {session_id}")
+
+                # Schedule automatic cleanup
+                cls._schedule_cleanup(session_id, delay_minutes=60)
+
+            return cls._session_clients[session_id]
+
+    @classmethod
+    async def cleanup_session(cls, session_id: str) -> None:
+        """Clean up MCP client and resources for a specific session."""
+        try:
+            # Cancel any scheduled cleanup
+            if session_id in cls._cleanup_tasks:
+                cleanup_task = cls._cleanup_tasks[session_id]
+                if not cleanup_task.done():
+                    cleanup_task.cancel()
+                del cls._cleanup_tasks[session_id]
+
+            # Clean up client if exists
+            if session_id in cls._session_clients:
+                client = cls._session_clients[session_id]
+                await client.disconnect_all()
+                del cls._session_clients[session_id]
+                logger.info(f"Cleaned up MCP client for session: {session_id}")
+
+            # Clean up session lock
+            if session_id in cls._session_locks:
+                del cls._session_locks[session_id]
+
+        except Exception as e:
+            logger.error(f"Error cleaning up session {session_id}: {e}")
+
+    @classmethod
+    def _schedule_cleanup(cls, session_id: str, delay_minutes: int = 60) -> None:
+        """Schedule automatic cleanup for abandoned sessions."""
+        async def cleanup_after_delay():
+            await asyncio.sleep(delay_minutes * 60)
+            logger.info(f"Auto-cleaning up abandoned session: {session_id}")
+            await cls.cleanup_session(session_id)
+
+        # Cancel existing cleanup task if any
+        if session_id in cls._cleanup_tasks:
+            existing_task = cls._cleanup_tasks[session_id]
+            if not existing_task.done():
+                existing_task.cancel()
+
+        # Schedule new cleanup
+        try:
+            task = asyncio.create_task(cleanup_after_delay())
+            cls._cleanup_tasks[session_id] = task
+        except RuntimeError:
+            # No event loop running, cleanup will happen when session explicitly ends
+            logger.debug(f"No event loop for auto-cleanup of session {session_id}")
+
+    @classmethod
+    def get_active_sessions(cls) -> List[str]:
+        """Get list of active session IDs."""
+        return list(cls._session_clients.keys())
 
 
-def get_mcp_client() -> McpClient:
-    """Get the global MCP client instance."""
-    manager = McpClientManager()
-    
-    # Try to get existing client first (fast path)
-    if manager._client is not None:
-        return manager._client
-    
-    # Need to create client - handle async context properly
-    try:
-        asyncio.get_running_loop()
-        # We're in an async context but called sync function
-        logger.warning(
-            "get_mcp_client() called from async context. "
-            "Consider using 'await McpClientManager().get_client()' instead."
-        )
-        # Create client synchronously for backward compatibility
-        if manager._client is None:
-            manager._client = McpClient()
-        return manager._client
-    except RuntimeError:
-        # No event loop, safe to use asyncio.run()
-        return asyncio.run(manager.get_client())
+async def get_mcp_client_for_session(session_id: str) -> McpClient:
+    """Get MCP client instance for specific session."""
+    return await SessionMcpClientRegistry.get_or_create_client(session_id)
+
+
+async def cleanup_mcp_session(session_id: str) -> None:
+    """Clean up MCP resources for specific session."""
+    await SessionMcpClientRegistry.cleanup_session(session_id)

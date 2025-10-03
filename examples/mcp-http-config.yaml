@@ -28,26 +28,36 @@ spec:
   temperature: 0.1
   
   mcp_servers:
-    # User management service
+    # User management service with OAuth2
     - name: user-management
       url: "https://auth.example.com/api/v2/mcp"
+      auth_server: "https://auth.example.com/oauth2"
+      scopes: ["user:read", "user:write"]
       timeout: 30
       headers:
-        Authorization: "Bearer ${USER_MGMT_API_KEY}"
         X-Service: "mcp-agent"
         Accept: "application/json"
-        
-    # Content management system
+      tool_governance_overrides:
+        delete_user:
+          requires_hitl: true
+          cost: "high"
+          data_sensitivity: "sensitive"
+
+    # Content management system with OAuth2
     - name: cms-api
-      url: "https://cms.example.com/api/v1/sse"
+      url: "https://cms.example.com/api/v1/mcp"
+      auth_server: "https://cms.example.com/oauth"
+      scopes: ["content:read", "content:write"]
       timeout: 45
-      sse_read_timeout: 300
       headers:
-        Authorization: "Bearer ${CMS_TOKEN}"
         Content-Type: "application/json"
         X-Client-ID: "mcp-integration"
-        
-    # Analytics service
+      tool_governance_overrides:
+        publish_content:
+          requires_hitl: true
+          cost: "medium"
+
+    # Analytics service - legacy manual auth
     - name: analytics
       url: "https://analytics-api.example.com/v3/mcp"
       timeout: 60
@@ -55,22 +65,31 @@ spec:
         Authorization: "Bearer ${ANALYTICS_API_KEY}"
         X-Analytics-Version: "v3.2"
         Accept: "application/json"
-        
-    # Third-party integrations
-    - name: external-service
-      url: "https://external-api.partner.com/mcp/v1/sse"
-      timeout: 120  # Longer timeout for external services
-      sse_read_timeout: 600
-      headers:
-        Authorization: "Bearer ${PARTNER_API_TOKEN}"
-        X-Integration-Type: "mcp"
-        User-Agent: "TealAgents-MCP/1.0"
-        
-    # Internal microservice
+      tool_governance_overrides:
+        export_data:
+          requires_hitl: true
+          data_sensitivity: "sensitive"
+
+    # GitHub integration
+    - name: github
+      url: "https://api.github.com/mcp"
+      auth_server: "https://github.com/login/oauth"
+      scopes: ["repo", "read:org"]
+      tool_governance_overrides:
+        create_repository:
+          requires_hitl: false
+          cost: "medium"
+        delete_repository:
+          requires_hitl: true
+          cost: "high"
+          data_sensitivity: "sensitive"
+
+    # Internal microservice with OAuth2
     - name: internal-service
       url: "https://internal.example.com/mcp-api/v1"
+      auth_server: "https://internal.example.com/oauth2"
+      scopes: ["internal:api"]
       timeout: 15  # Fast internal network
       headers:
-        Authorization: "Bearer ${INTERNAL_SERVICE_KEY}"
         X-Internal-Client: "mcp-agent"
         X-Request-Priority: "high"

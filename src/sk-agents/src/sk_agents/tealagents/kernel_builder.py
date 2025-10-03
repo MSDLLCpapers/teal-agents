@@ -57,20 +57,8 @@ class KernelBuilder:
             kernel = self._parse_plugins(plugins, kernel, authorization, extra_data_collector)
             kernel = self._load_remote_plugins(remote_plugins, kernel)
             
-            # Handle MCP plugins - check if we're in an async context
-            if mcp_servers:
-                try:
-                    # Try to get the current event loop
-                    loop = asyncio.get_running_loop()
-                    # We're in an async context, need to handle this differently
-                    # For now, log a warning and skip MCP plugins
-                    self.logger.warning(
-                        "MCP plugins cannot be loaded in sync context when event loop is already running. "
-                        "Consider using async agent initialization."
-                    )
-                except RuntimeError:
-                    # No event loop running, safe to use asyncio.run()
-                    kernel = asyncio.run(self._load_mcp_plugins(mcp_servers, kernel, user_id))
+            # MCP plugins will be loaded separately in async context by handler
+            # Remove sync MCP loading to avoid event loop conflicts
             
             return kernel
         except Exception as e:
@@ -112,54 +100,50 @@ class KernelBuilder:
             self.logger.exception(f"Could not load remote plugings. -{e}")
             raise
 
-    async def _load_mcp_plugins(self, mcp_servers: list[McpServerConfig] | None, kernel: Kernel, user_id: str | None = None) -> Kernel:
-        """Load MCP plugins by connecting to MCP servers and registering their tools."""
+    async def load_mcp_plugins(self, mcp_servers: list[McpServerConfig] | None, kernel: Kernel, user_id: str | None = None, session_id: str | None = None) -> Kernel:
+        """
+        Load MCP plugins by instantiating them from the plugin registry.
+
+        This mirrors the non-MCP plugin pattern:
+        1. Get plugin CLASS from registry (like loading from file)
+        2. Instantiate plugin
+        3. Register with kernel
+
+        Note: MCP tools must be discovered first via McpPluginRegistry.discover_and_materialize()
+        at session start.
+        """
         if mcp_servers is None or len(mcp_servers) < 1:
             return kernel
-        
+
         try:
-            # Lazy import to avoid circular imports
-            from sk_agents.mcp_client import get_mcp_client
-            mcp_client = get_mcp_client()
-            
-            # Connect to all servers concurrently for better performance
-            connection_tasks = []
+            from sk_agents.mcp_plugin_registry import McpPluginRegistry
+
             for server_config in mcp_servers:
-                task = self._connect_single_mcp_server(mcp_client, server_config, kernel, user_id)
-                connection_tasks.append(task)
-            
-            if connection_tasks:
-                # Wait for all connections, but don't fail if some servers fail
-                results = await asyncio.gather(*connection_tasks, return_exceptions=True)
-                
-                # Log any connection failures
-                for i, result in enumerate(results):
-                    if isinstance(result, Exception):
-                        server_name = mcp_servers[i].name
-                        self.logger.error(f"Failed to connect to MCP server {server_name}: {result}")
-            
+                # Get MCP plugin class from registry (like loading from file for non-MCP)
+                plugin_class = McpPluginRegistry.get_plugin_class(server_config.name)
+
+                if plugin_class is None:
+                    self.logger.warning(
+                        f"MCP plugin class for {server_config.name} not found in registry. "
+                        f"Ensure McpPluginRegistry.discover_and_materialize() was called at session start."
+                    )
+                    continue
+
+                # Instantiate plugin (same pattern as non-MCP!)
+                # Note: authorization passed from handler, extra_data_collector from context
+                plugin_instance = plugin_class(
+                    authorization=self.authorization,
+                    extra_data_collector=None  # Can be passed if needed
+                )
+
+                # Register with kernel (same pattern as non-MCP!)
+                kernel.add_plugin(plugin_instance, f"mcp_{server_config.name}")
+                self.logger.info(f"Registered MCP plugin instance for server: {server_config.name}")
+
             return kernel
-            
+
         except Exception as e:
             self.logger.exception(f"Could not load MCP plugins. - {e}")
-            raise
-            
-    async def _connect_single_mcp_server(self, mcp_client, server_config: McpServerConfig, kernel: Kernel, user_id: str | None = None) -> None:
-        """Connect to a single MCP server and register its plugin."""
-        try:
-            self.logger.info(f"Connecting to MCP server: {server_config.name}")
-            await mcp_client.connect_server(server_config, user_id)
-            
-            # Get the plugin for this server and register it with the kernel
-            plugin = mcp_client.get_plugin(server_config.name)
-            if plugin:
-                kernel.add_plugin(plugin, f"mcp_{server_config.name}")
-                self.logger.info(f"Registered MCP plugin for server: {server_config.name}")
-            else:
-                self.logger.warning(f"No plugin created for MCP server: {server_config.name}")
-                
-        except Exception as e:
-            self.logger.error(f"Failed to load MCP server {server_config.name}: {e}")
             raise
 
     @staticmethod

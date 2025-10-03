@@ -52,39 +52,51 @@ spec:
       env:
         PYTHONPATH: "/opt/mcp-servers"
     
-    # HTTP Transport (remote server connections)
+    # HTTP Transport (remote server connections with OAuth2)
     - name: remote-database
-      transport: http
       url: "https://mcp-api.example.com/database/mcp"
+      auth_server: "https://api.example.com/oauth2"
+      scopes: ["database:read", "database:write"]
       timeout: 45.0
       headers:
-        Authorization: "Bearer ${DATABASE_TOKEN}"
         X-Client-Version: "1.0"
-        
-    - name: live-data-feed
-      transport: http
-      url: "https://data-stream.example.com/sse"
+      tool_governance_overrides:
+        drop_table:
+          requires_hitl: true
+          cost: "high"
+          data_sensitivity: "sensitive"
+
+    - name: github-integration
+      url: "https://api.github.com/mcp"
+      auth_server: "https://github.com/login/oauth"
+      scopes: ["repo", "read:user"]
       timeout: 30.0
-      sse_read_timeout: 600.0  # Longer timeout for data streams
+      tool_governance_overrides:
+        create_repository:
+          requires_hitl: false
+          cost: "medium"
+        delete_repository:
+          requires_hitl: true
+          cost: "high"
+
+    # HTTP Transport (legacy manual auth for compatibility)
+    - name: live-data-feed
+      url: "https://data-stream.example.com/mcp"
+      timeout: 30.0
       headers:
         Authorization: "Bearer ${STREAM_API_KEY}"
-    
-    # HTTP Transport (REST API integrations)
-    - name: user-service
-      transport: http
-      url: "https://api.example.com/users/v1/mcp"
-      timeout: 30.0
-      headers:
-        Authorization: "Bearer ${USER_SERVICE_API_KEY}"
-        X-Service-Version: "v1"
-        User-Agent: "TealAgents-MCP/1.1"
-        
+        X-Client-Type: "mcp-agent"
+
     - name: analytics-api
-      transport: http
-      url: "https://analytics.example.com/api/v2/sse"
+      url: "https://analytics.example.com/api/v2/mcp"
+      auth_server: "https://analytics.example.com/oauth"
+      scopes: ["analytics:read", "analytics:export"]
       timeout: 60.0
-      sse_read_timeout: 300.0
       headers:
-        Authorization: "Bearer ${ANALYTICS_TOKEN}"
         Content-Type: "application/json"
         X-Client-ID: "multi-transport-agent"
+      tool_governance_overrides:
+        export_sensitive_data:
+          requires_hitl: true
+          cost: "high"
+          data_sensitivity: "sensitive"

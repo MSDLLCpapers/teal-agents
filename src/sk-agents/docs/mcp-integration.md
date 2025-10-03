@@ -338,6 +338,7 @@ node /path/to/my_mcp_server.js
 - **WebSocket transport**: Not yet available in the MCP Python SDK
 - **Custom transport protocols**: Only stdio and http are supported
 
+<<<<<<< HEAD
 ## Architecture Benefits
 
 The current stateless architecture provides:
@@ -354,3 +355,5 @@ Planned improvements include:
 - **WebSocket support**: When officially supported by MCP SDK
 - **Performance optimization**: Connection caching for frequently-used tools
 - **Dynamic discovery**: Runtime tool discovery without session restart
+=======
+>>>>>>> 0af0a46 (minor changes to doc, for different future enhancement plan)

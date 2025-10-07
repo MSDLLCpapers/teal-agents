@@ -54,13 +54,17 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         self.authorizer = DummyAuthorizer()
 
     @staticmethod
-    async def _invoke_function(kernel, fc_content: FunctionCallContent) -> FunctionResultContent:
+    async def _invoke_function(kernel: Kernel, fc_content: FunctionCallContent) -> FunctionResultContent:
         """Helper to execute a single tool function call."""
         function = kernel.get_function(
             fc_content.plugin_name,
             fc_content.function_name,
         )
-        function_result = await function(kernel, fc_content.to_kernel_arguments())
+        kernel_argument = fc_content.to_kernel_arguments()
+        if kernel_argument == "{}":
+            function_result = await function.invoke(kernel, kernel_argument)
+        else:
+            function_result = await function.invoke()
         return FunctionResultContent.from_function_call_content_and_result(
             fc_content, function_result
         )
@@ -117,14 +121,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         if inputs.session_id:
             session_id = inputs.session_id
         else:
-            session_id = str(uuid.uuid4().hex)
+            session_id = str(uuid.uuid4())
 
         if inputs.task_id:
             task_id = inputs.task_id
         else:
-            task_id = str(uuid.uuid4().hex)
+            task_id = str(uuid.uuid4())
 
-        request_id = str(uuid.uuid4().hex)
+        request_id = str(uuid.uuid4())
 
         return session_id, task_id, request_id
 
@@ -359,7 +363,17 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         if tool_calls_in_task_items is None:
             raise AgentInvokeException(f"Pending tool calls no found for request ID: {request_id}")
         _pending_tools = list(tool_calls_in_task_items)  # [fc for fc in tool_calls_in_task_items]
-        pending_tools = [FunctionCallContent(**function_call) for function_call in _pending_tools]
+        pending_tools = []
+        for function_call in _pending_tools:
+            fc_content = FunctionCallContent(**function_call)
+            if (
+                fc_content.arguments is None
+                or fc_content.arguments == "{}"
+                or fc_content.arguments == {}
+                or (isinstance(fc_content.arguments, str) and fc_content.arguments.strip() == "")
+            ):
+                fc_content.arguments = None
+        pending_tools.append(fc_content)
 
         # Execute the tool calls using asyncio.gather(),
         # just as the agent would have.
@@ -396,6 +410,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         user_id = await self.authenticate_user(token=auth_token)
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
+        inputs.session_id = session_id
+        inputs.task_id = task_id
         agent_task = await self._manage_incoming_task(
             task_id, session_id, user_id, request_id, inputs
         )

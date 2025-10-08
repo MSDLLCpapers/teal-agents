@@ -61,10 +61,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             fc_content.function_name,
         )
         kernel_argument = fc_content.to_kernel_arguments()
-        if kernel_argument == "{}":
-            function_result = await function.invoke(kernel, kernel_argument)
-        else:
-            function_result = await function.invoke()
+        function_result = await function.invoke(kernel, kernel_argument)
         return FunctionResultContent.from_function_call_content_and_result(
             fc_content, function_result
         )

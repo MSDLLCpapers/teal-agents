@@ -360,17 +360,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         if tool_calls_in_task_items is None:
             raise AgentInvokeException(f"Pending tool calls no found for request ID: {request_id}")
         _pending_tools = list(tool_calls_in_task_items)  # [fc for fc in tool_calls_in_task_items]
-        pending_tools = []
-        for function_call in _pending_tools:
-            fc_content = FunctionCallContent(**function_call)
-            if (
-                fc_content.arguments is None
-                or fc_content.arguments == "{}"
-                or fc_content.arguments == {}
-                or (isinstance(fc_content.arguments, str) and fc_content.arguments.strip() == "")
-            ):
-                fc_content.arguments = None
-        pending_tools.append(fc_content)
+        pending_tools = [FunctionCallContent(**function_call) for function_call in _pending_tools]
 
         # Execute the tool calls using asyncio.gather(),
         # just as the agent would have.

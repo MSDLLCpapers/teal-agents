@@ -102,34 +102,33 @@ class RedisTaskPersistenceManager(TaskPersistenceManager):
 
     async def create(self, task: AgentTask) -> None:
         """Create a new task in Redis."""
-        with self._lock:
-            try:
-                task_key = self._get_task_key(task.task_id)
+        try:
+            task_key = self._get_task_key(task.task_id)
 
-                # Check if task already exists
-                if self.redis_client.exists(task_key):
-                    raise PersistenceCreateError(
-                        message=f"Task with ID '{task.task_id}' already exists."
-                    )
-
-                # Serialize and store the task
-                serialized_task = self._serialize_task(task)
-                self.redis_client.setex(task_key, self.ttl, serialized_task)
-
-                # Update request_id indexes
-                for item in task.items:
-                    request_index_key = self._get_request_index_key(item.request_id)
-                    self.redis_client.sadd(request_index_key, task.task_id)
-                    self.redis_client.expire(request_index_key, self.ttl)
-
-            except redis.RedisError as e:
+            # Check if task already exists
+            if self.redis_client.exists(task_key):
                 raise PersistenceCreateError(
-                    message=f"Failed to create task '{task.task_id}' in Redis: {e}"
-                ) from e
-            except Exception as e:
-                raise PersistenceCreateError(
-                    message=f"Unexpected error creating task '{task.task_id}': {e}"
-                ) from e
+                    message=f"Task with ID '{task.task_id}' already exists."
+                )
+
+            # Serialize and store the task
+            serialized_task = self._serialize_task(task)
+            self.redis_client.setex(task_key, self.ttl, serialized_task)
+
+            # Update request_id indexes
+            for item in task.items:
+                request_index_key = self._get_request_index_key(item.request_id)
+                self.redis_client.sadd(request_index_key, task.task_id)
+                self.redis_client.expire(request_index_key, self.ttl)
+
+        except redis.RedisError as e:
+            raise PersistenceCreateError(
+                message=f"Failed to create task '{task.task_id}' in Redis: {e}"
+            ) from e
+        except Exception as e:
+            raise PersistenceCreateError(
+                message=f"Unexpected error creating task '{task.task_id}': {e}"
+            ) from e
 
     async def load(self, task_id: str) -> AgentTask | None:
         """Load a task from Redis by task_id."""
@@ -160,98 +159,95 @@ class RedisTaskPersistenceManager(TaskPersistenceManager):
 
     async def update(self, task: AgentTask) -> None:
         """Update an existing task in Redis."""
-        with self._lock:
-            try:
-                task_key = self._get_task_key(task.task_id)
+        try:
+            task_key = self._get_task_key(task.task_id)
 
-                # Check if task exists
-                old_task_str = self.redis_client.get(task_key)
-                if old_task_str is None:
-                    raise PersistenceUpdateError(
-                        f"Task with ID '{task.task_id}' does not exist for update."
-                    )
-
-                # Deserialize old task to clean up old request_id indexes
-                old_task = self._deserialize_task(old_task_str)
-
-                # Remove old request_id associations
-                for item in old_task.items:
-                    request_index_key = self._get_request_index_key(item.request_id)
-                    self.redis_client.srem(request_index_key, task.task_id)
-
-                # Update the task
-                serialized_task = self._serialize_task(task)
-                self.redis_client.setex(task_key, self.ttl, serialized_task)
-
-                # Add new request_id associations
-                for item in task.items:
-                    request_index_key = self._get_request_index_key(item.request_id)
-                    self.redis_client.sadd(request_index_key, task.task_id)
-                    self.redis_client.expire(request_index_key, self.ttl)
-
-            except redis.RedisError as e:
+            # Check if task exists
+            old_task_str = self.redis_client.get(task_key)
+            if old_task_str is None:
                 raise PersistenceUpdateError(
-                    message=f"Failed to update task '{task.task_id}' in Redis: {e}"
-                ) from e
-            except Exception as e:
-                raise PersistenceUpdateError(
-                    message=f"Unexpected error updating task '{task.task_id}': {e}"
-                ) from e
+                    f"Task with ID '{task.task_id}' does not exist for update."
+                )
+
+            # Deserialize old task to clean up old request_id indexes
+            old_task = self._deserialize_task(old_task_str)
+
+            # Remove old request_id associations
+            for item in old_task.items:
+                request_index_key = self._get_request_index_key(item.request_id)
+                self.redis_client.srem(request_index_key, task.task_id)
+
+            # Update the task
+            serialized_task = self._serialize_task(task)
+            self.redis_client.setex(task_key, self.ttl, serialized_task)
+
+            # Add new request_id associations
+            for item in task.items:
+                request_index_key = self._get_request_index_key(item.request_id)
+                self.redis_client.sadd(request_index_key, task.task_id)
+                self.redis_client.expire(request_index_key, self.ttl)
+
+        except redis.RedisError as e:
+            raise PersistenceUpdateError(
+                message=f"Failed to update task '{task.task_id}' in Redis: {e}"
+            ) from e
+        except Exception as e:
+            raise PersistenceUpdateError(
+                message=f"Unexpected error updating task '{task.task_id}': {e}"
+            ) from e
 
     async def delete(self, task_id: str) -> None:
         """Delete a task from Redis."""
-        with self._lock:
-            try:
-                task_key = self._get_task_key(task_id)
+        try:
+            task_key = self._get_task_key(task_id)
 
-                # Get the task first to clean up request_id indexes
-                task_str = self.redis_client.get(task_key)
-                if task_str is None:
-                    raise PersistenceDeleteError(
-                        message=f"Task with ID '{task_id}' does not exist for deletion."
-                    )
-
-                task = self._deserialize_task(task_str)
-
-                # Remove from request_id indexes
-                for item in task.items:
-                    request_index_key = self._get_request_index_key(item.request_id)
-                    self.redis_client.srem(request_index_key, task_id)
-
-                # Delete the task
-                self.redis_client.delete(task_key)
-
-            except redis.RedisError as e:
+            # Get the task first to clean up request_id indexes
+            task_str = self.redis_client.get(task_key)
+            if task_str is None:
                 raise PersistenceDeleteError(
-                    message=f"Failed to delete task '{task_id}' from Redis: {e}"
-                ) from e
-            except Exception as e:
-                raise PersistenceDeleteError(
-                    message=f"Unexpected error deleting task '{task_id}': {e}"
-                ) from e
+                    message=f"Task with ID '{task_id}' does not exist for deletion."
+                )
+
+            task = self._deserialize_task(task_str)
+
+            # Remove from request_id indexes
+            for item in task.items:
+                request_index_key = self._get_request_index_key(item.request_id)
+                self.redis_client.srem(request_index_key, task_id)
+
+            # Delete the task
+            self.redis_client.delete(task_key)
+
+        except redis.RedisError as e:
+            raise PersistenceDeleteError(
+                message=f"Failed to delete task '{task_id}' from Redis: {e}"
+            ) from e
+        except Exception as e:
+            raise PersistenceDeleteError(
+                message=f"Unexpected error deleting task '{task_id}': {e}"
+            ) from e
 
     async def load_by_request_id(self, request_id: str) -> AgentTask | None:
         """Load a task by request_id."""
-        with self._lock:
-            try:
-                request_index_key = self._get_request_index_key(request_id)
-                task_ids = self.redis_client.smembers(request_index_key)
+        try:
+            request_index_key = self._get_request_index_key(request_id)
+            task_ids = self.redis_client.smembers(request_index_key)
 
-                if not task_ids:
-                    return None
+            if not task_ids:
+                return None
 
-                # If multiple tasks have the same request_id, return the first one
-                task_id = next(iter(task_ids))
-                return await self.load(task_id)
+            # If multiple tasks have the same request_id, return the first one
+            task_id = next(iter(task_ids))
+            return await self.load(task_id)
 
-            except redis.RedisError as e:
-                raise PersistenceLoadError(
-                    message=f"Failed to load task by request_id '{request_id}' from Redis: {e}"
-                ) from e
-            except Exception as e:
-                raise PersistenceLoadError(
-                    message=f"Unexpected error loading task by request_id '{request_id}': {e}"
-                ) from e
+        except redis.RedisError as e:
+            raise PersistenceLoadError(
+                message=f"Failed to load task by request_id '{request_id}' from Redis: {e}"
+            ) from e
+        except Exception as e:
+            raise PersistenceLoadError(
+                message=f"Unexpected error loading task by request_id '{request_id}': {e}"
+            ) from e
 
     def health_check(self) -> bool:
         """Check if Redis connection is healthy."""
@@ -268,18 +264,17 @@ class RedisTaskPersistenceManager(TaskPersistenceManager):
         Returns:
             Number of keys deleted.
         """
-        with self._lock:
-            try:
-                # Get all task keys
-                task_keys = self.redis_client.keys("task_persistence:task:*")
-                request_index_keys = self.redis_client.keys("task_persistence:request_index:*")
+        try:
+            # Get all task keys
+            task_keys = self.redis_client.keys("task_persistence:task:*")
+            request_index_keys = self.redis_client.keys("task_persistence:request_index:*")
 
-                all_keys = task_keys + request_index_keys
+            all_keys = task_keys + request_index_keys
 
-                if not all_keys:
-                    return 0
+            if not all_keys:
+                return 0
 
-                return self.redis_client.delete(*all_keys)
+            return self.redis_client.delete(*all_keys)
 
-            except redis.RedisError as e:
-                raise RuntimeError(f"Failed to clear all tasks from Redis: {e}") from e
+        except redis.RedisError as e:
+            raise RuntimeError(f"Failed to clear all tasks from Redis: {e}") from e

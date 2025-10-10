@@ -9,17 +9,17 @@ from sk_agents.ska_types import ExtraData, MultiModalItem, TokenUsage
 
 
 class UserMessage(BaseModel):
-    session_id: str | None = None
     task_id: str | None = None
+    session_id: str | None = None
     items: list[MultiModalItem]
     user_context: dict[str, str] | None = None
 
 
 class AgentTaskItem(BaseModel):
     task_id: str
+    request_id: str
     role: Literal["user", "assistant"]
     item: MultiModalItem
-    request_id: str
     updated: datetime
     # Store serialized FunctionCallContent
     pending_tool_calls: list[dict] | None = None
@@ -37,8 +37,8 @@ class AgentTask(BaseModel):
 
 
 class TealAgentsResponse(BaseModel):
-    session_id: str
     task_id: str
+    session_id: str
     request_id: str
     output: str
     model_config = ConfigDict(extra="allow", arbitrary_types_allowed=True)
@@ -48,8 +48,8 @@ class TealAgentsResponse(BaseModel):
 
 
 class TealAgentsPartialResponse(BaseModel):
-    session_id: str
     task_id: str
+    session_id: str
     request_id: str
     output_partial: str
     source: str | None = None

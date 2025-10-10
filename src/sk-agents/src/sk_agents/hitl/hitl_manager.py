@@ -25,7 +25,6 @@ def check_for_intervention(tool_call: FunctionCallContent) -> bool:
             f"Requires HITL: {tool.governance.requires_hitl}"
         )
         return tool.governance.requires_hitl
-
     # Default to no intervention if tool is not in the catalog
     return False
 

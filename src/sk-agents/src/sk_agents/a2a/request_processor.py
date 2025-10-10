@@ -1,3 +1,7 @@
+# DEPRECATION NOTICE: A2A (Agent-to-Agent) functionality is being deprecated
+# as part of the framework migration evaluation. This module is maintained for
+# backward compatibility only. New development should avoid using A2A functionality.
+
 from a2a.server.agent_execution import RequestContext
 from a2a.server.events import EventQueue
 from a2a.types import (

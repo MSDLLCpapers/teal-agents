@@ -1,4 +1,8 @@
 """
+DEPRECATION NOTICE: A2A (Agent-to-Agent) functionality is being deprecated
+as part of the framework migration evaluation. This module is maintained for
+backward compatibility only. New development should avoid using A2A functionality.
+
 Redis implementation of the TaskStore interface.
 This implementation uses Redis as the persistent store for Task objects.
 """

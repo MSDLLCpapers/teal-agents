@@ -54,7 +54,9 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         self.authorizer = DummyAuthorizer()
 
     @staticmethod
-    async def _invoke_function(kernel: Kernel, fc_content: FunctionCallContent) -> FunctionResultContent:
+    async def _invoke_function(
+        kernel: Kernel, fc_content: FunctionCallContent
+    ) -> FunctionResultContent:
         """Helper to execute a single tool function call."""
         function = kernel.get_function(
             fc_content.plugin_name,

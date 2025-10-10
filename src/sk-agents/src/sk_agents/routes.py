@@ -37,12 +37,18 @@ from sk_agents.skagents import handle as skagents_handle
 from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.state import StateManager
 from sk_agents.tealagents.kernel_builder import KernelBuilder
-from sk_agents.tealagents.models import ResumeRequest, StateResponse, TaskStatus, UserMessage
+from sk_agents.tealagents.models import (
+    HitlResponse,
+    ResumeRequest,
+    StateResponse,
+    TaskStatus,
+    UserMessage,
+)
 from sk_agents.tealagents.remote_plugin_loader import RemotePluginCatalog, RemotePluginLoader
 from sk_agents.tealagents.v1alpha1.agent.handler import TealAgentsV1Alpha1Handler
 from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
 from sk_agents.utils import docstring_parameter, get_sse_event_for_response
-from sk_agents.tealagents.models import ( HitlResponse )
+
 logger = logging.getLogger(__name__)
 
 
@@ -372,9 +378,7 @@ class Routes:
             authorization = request.headers.get("authorization", None)
             teal_handler = Routes.get_task_handler(config, app_config, authorization)
             try:
-                return await teal_handler.resume_task(
-                    authorization, request_id, body, stream=False
-                )
+                return await teal_handler.resume_task(authorization, request_id, body, stream=False)
             except Exception as e:
                 logger.exception(f"Error in resume: {e}")
                 raise HTTPException(status_code=500, detail="Internal Server Error") from e

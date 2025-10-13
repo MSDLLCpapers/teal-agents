@@ -334,7 +334,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         except Exception as e:
             raise Exception(f"Agent in resume request is not in Paused state: {e}") from e
 
-        if action_status.action == "reject":
+        if action_status.action != "approve":
             agent_task.status = "Canceled"
             agent_task.items.append(
                 TealAgentsV1Alpha1Handler._rejected_task_item(

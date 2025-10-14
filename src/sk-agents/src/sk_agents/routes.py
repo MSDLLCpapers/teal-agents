@@ -37,7 +37,13 @@ from sk_agents.skagents import handle as skagents_handle
 from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.state import StateManager
 from sk_agents.tealagents.kernel_builder import KernelBuilder
-from sk_agents.tealagents.models import ResumeRequest, StateResponse, TaskStatus, UserMessage
+from sk_agents.tealagents.models import (
+    HitlResponse,
+    ResumeRequest,
+    StateResponse,
+    TaskStatus,
+    UserMessage,
+)
 from sk_agents.tealagents.remote_plugin_loader import RemotePluginCatalog, RemotePluginLoader
 from sk_agents.tealagents.v1alpha1.agent.handler import TealAgentsV1Alpha1Handler
 from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
@@ -353,33 +359,16 @@ class Routes:
         async def chat(message: input_class, user_id: str = Depends(get_user_id)) -> StateResponse:
             # Handle new task creation or task retrieval
             teal_handler = Routes.get_task_handler(config, app_config, user_id)
-            response_content = ""
-            if message.task_id is None:
-                # New task
-                session_id, task_id = await state_manager.create_task(message.session_id, user_id)
-                task_state = await state_manager.get_task(task_id)
-                response_content = await teal_handler.invoke(user_id, message)
-            else:
-                # Follow-on request
-                task_id = message.task_id
-                task_state = await state_manager.get_task(task_id)
-                # Verify user ownership
-                if task_state.user_id != user_id:
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Not authorized to access this task",
-                    )
-                session_id = task_state.session_id
-
-            # Create a new request
-            request_id = await state_manager.create_request(task_id)
-
+            response_content = await teal_handler.invoke(user_id, message)
             # Return response with state identifiers
+            status = TaskStatus.COMPLETED.value
+            if type(response_content) is HitlResponse:
+                status = TaskStatus.PAUSED.value
             return StateResponse(
-                session_id=str(session_id),
-                task_id=str(task_id),
-                request_id=str(request_id),
-                status=TaskStatus.COMPLETED.value,
+                session_id=response_content.session_id,
+                task_id=response_content.task_id,
+                request_id=response_content.request_id,
+                status=status,
                 content=response_content,  # Replace with actual response
             )
 
@@ -394,9 +383,7 @@ class Routes:
             authorization = request.headers.get("authorization", None)
             teal_handler = Routes.get_task_handler(config, app_config, authorization)
             try:
-                return await teal_handler.resume_task(
-                    authorization, request_id, body.model_dump(), stream=False
-                )
+                return await teal_handler.resume_task(authorization, request_id, body, stream=False)
             except Exception as e:
                 logger.exception(f"Error in resume: {e}")
                 raise HTTPException(status_code=500, detail="Internal Server Error") from e
@@ -408,7 +395,7 @@ class Routes:
             async def event_generator():
                 try:
                     async for content in TealAgentsV1Alpha1Handler.resume_task(
-                        request_id, authorization, body.model_dump(), stream=True
+                        request_id, authorization, body, stream=True
                     ):
                         yield get_sse_event_for_response(content)
                 except Exception as e:

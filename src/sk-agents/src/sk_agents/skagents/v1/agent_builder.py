@@ -40,9 +40,18 @@ class AgentBuilder:
 
         settings = kernel.get_prompt_execution_settings_from_service_id(agent_config.name)
         settings.function_choice_behavior = FunctionChoiceBehavior.Auto()
+
+        # Build extension data incrementally to avoid overwriting values
+        extension_data = {}
         if agent_config.temperature:
-            settings.extension_data = {"temperature": float(agent_config.temperature)}
+            extension_data["temperature"] = float(agent_config.temperature)
+        if agent_config.max_tokens:
+            extension_data["max_tokens"] = int(agent_config.max_tokens)
+
+        if extension_data:
+            settings.extension_data = extension_data
             settings.unpack_extension_data()
+
         if so_supported and output_type:
             type_loader = get_type_loader()
             settings.response_format = type_loader.get_type(output_type)

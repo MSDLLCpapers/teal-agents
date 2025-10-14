@@ -14,12 +14,13 @@ from semantic_kernel.contents.function_result_content import FunctionResultConte
 from semantic_kernel.contents.streaming_chat_message_content import StreamingChatMessageContent
 from semantic_kernel.contents.utils.author_role import AuthorRole
 from semantic_kernel.kernel import Kernel
+from ska_utils import AppConfig
 
 from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
 from sk_agents.exceptions import AgentInvokeException, AuthenticationException, PersistenceLoadError
 from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
 from sk_agents.hitl import hitl_manager
-from sk_agents.persistence.in_memory_persistence_manager import InMemoryPersistenceManager
+from sk_agents.persistence.persistence_factory import PersistenceFactory
 from sk_agents.ska_types import BaseConfig, BaseHandler, ContentType, TokenUsage
 from sk_agents.tealagents.models import (
     AgentTask,
@@ -40,7 +41,7 @@ logger = logging.getLogger(__name__)
 
 
 class TealAgentsV1Alpha1Handler(BaseHandler):
-    def __init__(self, config: BaseConfig, agent_builder: AgentBuilder):
+    def __init__(self, config: BaseConfig, app_config: AppConfig, agent_builder: AgentBuilder):
         self.version = config.version
         self.name = config.name
         if hasattr(config, "spec"):
@@ -48,17 +49,21 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         else:
             raise ValueError("Invalid config")
         self.agent_builder = agent_builder
-        self.state = InMemoryPersistenceManager()
+        persistence_factory = PersistenceFactory(app_config=app_config)
+        self.state = persistence_factory.get_persistence_manager()
         self.authorizer = DummyAuthorizer()
 
     @staticmethod
-    async def _invoke_function(kernel, fc_content: FunctionCallContent) -> FunctionResultContent:
+    async def _invoke_function(
+        kernel: Kernel, fc_content: FunctionCallContent
+    ) -> FunctionResultContent:
         """Helper to execute a single tool function call."""
         function = kernel.get_function(
             fc_content.plugin_name,
             fc_content.function_name,
         )
-        function_result = await function(kernel, fc_content.to_kernel_arguments())
+        kernel_argument = fc_content.to_kernel_arguments()
+        function_result = await function.invoke(kernel, kernel_argument)
         return FunctionResultContent.from_function_call_content_and_result(
             fc_content, function_result
         )
@@ -115,14 +120,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         if inputs.session_id:
             session_id = inputs.session_id
         else:
-            session_id = str(uuid.uuid4().hex)
+            session_id = str(uuid.uuid4())
 
         if inputs.task_id:
             task_id = inputs.task_id
         else:
-            task_id = str(uuid.uuid4().hex)
+            task_id = str(uuid.uuid4())
 
-        request_id = str(uuid.uuid4().hex)
+        request_id = str(uuid.uuid4())
 
         return session_id, task_id, request_id
 
@@ -329,7 +334,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         except Exception as e:
             raise Exception(f"Agent in resume request is not in Paused state: {e}") from e
 
-        if action_status.action == "reject":
+        if action_status.action != "approve":
             agent_task.status = "Canceled"
             agent_task.items.append(
                 TealAgentsV1Alpha1Handler._rejected_task_item(
@@ -362,7 +367,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         # Execute the tool calls using asyncio.gather(),
         # just as the agent would have.
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
         kernel = agent.agent.kernel
 
         # Create ToolContent objects from the results
@@ -389,9 +394,13 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         self, auth_token: str, inputs: UserMessage
     ) -> TealAgentsResponse | HitlResponse:
         # Initial setup
+        logger.info("Beginning processing invoke")
+
         user_id = await self.authenticate_user(token=auth_token)
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
+        inputs.session_id = session_id
+        inputs.task_id = task_id
         agent_task = await self._manage_incoming_task(
             task_id, session_id, user_id, request_id, inputs
         )
@@ -405,17 +414,18 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             inputs=inputs, chat_history=chat_history
         )
         TealAgentsV1Alpha1Handler._build_chat_history(agent_task, chat_history)
-
+        logger.info("Building the final response")
         final_response_invoke = await self.recursion_invoke(
             inputs=chat_history, session_id=session_id, request_id=request_id, task_id=task_id
         )
-
+        logger.info("Final response complete")
         return final_response_invoke
 
     async def invoke_stream(
         self, auth_token: str, inputs: UserMessage
     ) -> AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse]:
         # Initial setup
+        logger.info("Beginning processing invoke")
         user_id = await self.authenticate_user(token=auth_token)
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
@@ -431,10 +441,12 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         TealAgentsV1Alpha1Handler._augment_with_user_context(
             inputs=inputs, chat_history=chat_history
         )
+        logger.info("Building the final response")
         TealAgentsV1Alpha1Handler._build_chat_history(agent_task, chat_history)
         final_response_stream = self.recursion_invoke_stream(
             chat_history, session_id, task_id, request_id
         )
+        logger.info("Final response complete")
         return final_response_stream
 
     async def recursion_invoke(
@@ -448,7 +460,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise PersistenceLoadError(f"Agent task with ID {task_id} not found in state.")
 
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
 
         # Prepare metadata
         completion_tokens: int = 0
@@ -555,7 +567,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise PersistenceLoadError(f"Agent task with ID {task_id} not found in state.")
 
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
 
         # Prepare metadata
         final_response = []

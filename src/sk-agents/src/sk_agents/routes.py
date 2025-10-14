@@ -20,6 +20,7 @@ from opentelemetry.propagate import extract
 from ska_utils import AppConfig, get_telemetry
 
 from sk_agents.a2a import A2AAgentExecutor
+from sk_agents.auth_storage.secure_auth_storage_manager import SecureAuthStorageManager
 from sk_agents.authorization.request_authorizer import RequestAuthorizer
 from sk_agents.configs import (
     TA_AGENT_BASE_URL,
@@ -35,8 +36,17 @@ from sk_agents.ska_types import (
 from sk_agents.skagents import handle as skagents_handle
 from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.state import StateManager
-from sk_agents.tealagents.models import ResumeRequest, StateResponse, TaskStatus, UserMessage
+from sk_agents.tealagents.kernel_builder import KernelBuilder
+from sk_agents.tealagents.models import (
+    HitlResponse,
+    ResumeRequest,
+    StateResponse,
+    TaskStatus,
+    UserMessage,
+)
+from sk_agents.tealagents.remote_plugin_loader import RemotePluginCatalog, RemotePluginLoader
 from sk_agents.tealagents.v1alpha1.agent.handler import TealAgentsV1Alpha1Handler
+from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
 from sk_agents.utils import docstring_parameter, get_sse_event_for_response
 
 logger = logging.getLogger(__name__)
@@ -93,6 +103,30 @@ class Routes:
         )
 
     @staticmethod
+    def _create_chat_completions_builder(app_config: AppConfig):
+        return ChatCompletionBuilder(app_config)
+
+    @staticmethod
+    def _create_remote_plugin_loader(app_config: AppConfig):
+        remote_plugin_catalog = RemotePluginCatalog(app_config)
+        return RemotePluginLoader(remote_plugin_catalog)
+
+    @staticmethod
+    def _create_kernel_builder(app_config: AppConfig, authorization: str):
+        chat_completions = Routes._create_chat_completions_builder(app_config)
+        remote_plugin_loader = Routes._create_remote_plugin_loader(app_config)
+        kernel_builder = KernelBuilder(
+            chat_completions, remote_plugin_loader, app_config, authorization
+        )
+        return kernel_builder
+
+    @staticmethod
+    def _create_agent_builder(app_config: AppConfig, authorization: str):
+        kernel_builder = Routes._create_kernel_builder(app_config, authorization)
+        agent_builder = AgentBuilder(kernel_builder, authorization)
+        return agent_builder
+
+    @staticmethod
     def get_request_handler(
         config: BaseConfig,
         app_config: AppConfig,
@@ -108,6 +142,15 @@ class Routes:
         )
 
     @staticmethod
+    def get_task_handler(
+        config: BaseConfig,
+        app_config: AppConfig,
+        authorization: str,
+    ) -> TealAgentsV1Alpha1Handler:
+        agent_builder = Routes._create_agent_builder(app_config, authorization)
+        return TealAgentsV1Alpha1Handler(config, app_config, agent_builder)
+
+    @staticmethod
     def get_a2a_routes(
         name: str,
         version: str,
@@ -118,6 +161,11 @@ class Routes:
         task_store: TaskStore,
         state_manager: StateManager,
     ) -> APIRouter:
+        """
+        DEPRECATION NOTICE: A2A (Agent-to-Agent) routes are being deprecated
+        as part of the framework migration evaluation. This method is maintained for
+        backward compatibility only. New development should avoid using A2A functionality.
+        """
         a2a_app = A2AStarletteApplication(
             agent_card=Routes.get_agent_card(config, app_config),
             http_handler=Routes.get_request_handler(
@@ -282,8 +330,10 @@ class Routes:
         version: str,
         description: str,
         config: BaseConfig,
+        app_config: AppConfig,
         state_manager: StateManager,
         authorizer: RequestAuthorizer,
+        auth_storage_manager: SecureAuthStorageManager,
         input_class: type[UserMessage],
     ) -> APIRouter:
         """
@@ -300,7 +350,7 @@ class Routes:
             return user_id
 
         @router.post(
-            "/chat",
+            "",
             response_model=StateResponse,
             summary="Send a message to the agent",
             response_description="Agent response with state identifiers",
@@ -308,47 +358,32 @@ class Routes:
         )
         async def chat(message: input_class, user_id: str = Depends(get_user_id)) -> StateResponse:
             # Handle new task creation or task retrieval
-            if message.task_id is None:
-                # New task
-                session_id, task_id = await state_manager.create_task(message.session_id, user_id)
-                task_state = await state_manager.get_task(task_id)
-            else:
-                # Follow-on request
-                task_id = message.task_id
-                task_state = await state_manager.get_task(task_id)
-                # Verify user ownership
-                if task_state.user_id != user_id:
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Not authorized to access this task",
-                    )
-                session_id = task_state.session_id
-
-            # Create a new request
-            request_id = await state_manager.create_request(task_id)
-
+            teal_handler = Routes.get_task_handler(config, app_config, user_id)
+            response_content = await teal_handler.invoke(user_id, message)
             # Return response with state identifiers
+            status = TaskStatus.COMPLETED.value
+            if type(response_content) is HitlResponse:
+                status = TaskStatus.PAUSED.value
             return StateResponse(
-                session_id=session_id,
-                task_id=task_id,
-                request_id=request_id,
-                status=TaskStatus.COMPLETED,
-                content="Agent response",  # Replace with actual response
+                session_id=response_content.session_id,
+                task_id=response_content.task_id,
+                request_id=response_content.request_id,
+                status=status,
+                content=response_content,  # Replace with actual response
             )
 
         return router
 
     @staticmethod
-    def get_resume_routes() -> APIRouter:
+    def get_resume_routes(config: BaseConfig, app_config: AppConfig) -> APIRouter:
         router = APIRouter()
 
         @router.post("/tealagents/v1alpha1/resume/{request_id}")
         async def resume(request_id: str, request: Request, body: ResumeRequest):
             authorization = request.headers.get("authorization", None)
+            teal_handler = Routes.get_task_handler(config, app_config, authorization)
             try:
-                return await TealAgentsV1Alpha1Handler.resume_task(
-                    request_id, authorization, body.model_dump(), stream=False
-                )
+                return await teal_handler.resume_task(authorization, request_id, body, stream=False)
             except Exception as e:
                 logger.exception(f"Error in resume: {e}")
                 raise HTTPException(status_code=500, detail="Internal Server Error") from e
@@ -360,7 +395,7 @@ class Routes:
             async def event_generator():
                 try:
                     async for content in TealAgentsV1Alpha1Handler.resume_task(
-                        request_id, authorization, body.model_dump(), stream=True
+                        request_id, authorization, body, stream=True
                     ):
                         yield get_sse_event_for_response(content)
                 except Exception as e:

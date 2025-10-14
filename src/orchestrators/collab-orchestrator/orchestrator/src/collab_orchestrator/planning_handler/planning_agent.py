@@ -1,3 +1,5 @@
+import logging
+
 from pydantic import BaseModel
 
 from collab_orchestrator.agents import BaseAgent, InvokableAgent
@@ -7,6 +9,7 @@ from collab_orchestrator.co_types import (
     InvokeResponse,
 )
 
+logger = logging.getLogger(__name__)
 
 class PlanningBaseAgent(BaseModel):
     name: str
@@ -53,5 +56,6 @@ class PlanningAgent(InvokableAgent):
             overall_goal=overall_goal,
             agent_list=planning_task_agents,
         )
+        logger.info("Building response")
         response: InvokeResponse = await self.invoke(request)
         return GeneratePlanResponse(**response["output_pydantic"])

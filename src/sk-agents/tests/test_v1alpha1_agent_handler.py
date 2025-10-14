@@ -8,6 +8,7 @@ from semantic_kernel.contents.chat_history import ChatHistory
 from semantic_kernel.contents.function_call_content import FunctionCallContent
 from semantic_kernel.contents.utils.author_role import AuthorRole
 
+from sk_agents.configs import TA_PERSISTENCE_CLASS, TA_PERSISTENCE_MODULE
 from sk_agents.exceptions import AgentInvokeException, AuthenticationException
 from sk_agents.ska_types import BaseConfig, ContentType, MultiModalItem, TokenUsage
 from sk_agents.tealagents.models import (
@@ -51,9 +52,24 @@ def mock_agent_builder():
 
 
 @pytest.fixture
-def teal_agents_handler(mock_config, mock_agent_builder):
+def mock_app_config():
+    """Provides a mock AppConfig instance."""
+    mock_config = MagicMock()
+    # Configure the mock to return default values for persistence configs
+    mock_config.get.side_effect = lambda key: {
+        TA_PERSISTENCE_MODULE.env_name: TA_PERSISTENCE_MODULE.default_value,
+        TA_PERSISTENCE_CLASS.env_name: TA_PERSISTENCE_CLASS.default_value,
+    }.get(key, MagicMock())  # Return MagicMock for other keys
+
+    return mock_config
+
+
+@pytest.fixture
+def teal_agents_handler(mock_config, mock_agent_builder, mock_app_config):
     """Provides an initialized TealAgentsV1Alpha1Handler instance."""
-    return TealAgentsV1Alpha1Handler(config=mock_config, agent_builder=mock_agent_builder)
+    return TealAgentsV1Alpha1Handler(
+        config=mock_config, app_config=mock_app_config, agent_builder=mock_agent_builder
+    )
 
 
 @pytest.fixture

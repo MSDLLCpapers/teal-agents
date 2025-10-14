@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from redis.asyncio import Redis
 from ska_utils import AppConfig, strtobool
 
+from sk_agents.auth_storage.auth_storage_factory import AuthStorageFactory
 from sk_agents.configs import (
     TA_REDIS_DB,
     TA_REDIS_HOST,
@@ -24,13 +25,16 @@ from sk_agents.configs import (
 )
 from sk_agents.routes import Routes
 from sk_agents.ska_types import BaseConfig
+from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.stateful import (
     InMemoryStateManager,
     MockAuthenticationManager,
     RedisStateManager,
     StateManager,
-    UserMessage,
 )
+from sk_agents.tealagents.kernel_builder import KernelBuilder
+from sk_agents.tealagents.models import UserMessage
+from sk_agents.tealagents.remote_plugin_loader import RemotePluginCatalog, RemotePluginLoader
 from sk_agents.utils import initialize_plugin_loader
 
 
@@ -74,10 +78,33 @@ class AppV3:
                 return InMemoryStateManager()
 
     @staticmethod
+    def _get_auth_storage_manager(app_config: AppConfig):
+        auth_storage_factory = AuthStorageFactory(app_config)
+        return auth_storage_factory.get_auth_storage_manager()
+
+    @staticmethod
     def _get_auth_manager(app_config: AppConfig):
         # For initial implementation, use mock authentication
         # Will be extended in future for Entra ID
         return MockAuthenticationManager()
+
+    @staticmethod
+    def _create_chat_completions_builder(app_config: AppConfig):
+        return ChatCompletionBuilder(app_config)
+
+    @staticmethod
+    def _create_remote_plugin_loader(app_config: AppConfig):
+        remote_plugin_catalog = RemotePluginCatalog(app_config)
+        return RemotePluginLoader(remote_plugin_catalog)
+
+    @staticmethod
+    def _create_kernel_builder(app_config: AppConfig, authorization: str):
+        chat_completions = AppV3._create_chat_completions_builder(app_config)
+        remote_plugin_loader = AppV3._create_remote_plugin_loader(app_config)
+        kernel_builder = KernelBuilder(
+            chat_completions, remote_plugin_loader, app_config, authorization
+        )
+        return kernel_builder
 
     @staticmethod
     def run(name: str, version: str, app_config: AppConfig, config: BaseConfig, app: FastAPI):
@@ -94,6 +121,7 @@ class AppV3:
         # Create state and auth managers
         state_manager = AppV3._get_state_manager(app_config)
         auth_manager = AppV3._get_auth_manager(app_config)
+        auth_storage_manager = AppV3._get_auth_storage_manager(app_config)
 
         # Get description from metadata if available
         if config.metadata is not None and config.metadata.description is not None:
@@ -108,8 +136,10 @@ class AppV3:
                 version=version,
                 description=description,
                 config=config,
+                app_config=app_config,
                 state_manager=state_manager,
                 authorizer=auth_manager,
+                auth_storage_manager=auth_storage_manager,
                 input_class=UserMessage,
             ),
             prefix=f"/{name}/{version}",
@@ -117,7 +147,7 @@ class AppV3:
 
         # Include the new resume routes
         app.include_router(
-            Routes.get_resume_routes(),
+            Routes.get_resume_routes(config=config, app_config=app_config),
             prefix=f"/{name}/{version}",
         )
 

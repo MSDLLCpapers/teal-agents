@@ -7,6 +7,9 @@ from typing import Any
 from pydantic import UUID4, BaseModel, Field, validator
 from redis.asyncio import Redis
 
+from sk_agents.ska_types import InvokeResponse
+from sk_agents.tealagents.models import HitlResponse, RejectedToolResponse, TealAgentsResponse
+
 
 class TaskStatus(Enum):
     RUNNING = "Running"
@@ -71,7 +74,7 @@ class StateResponse(BaseModel):
     task_id: UUID4
     request_id: UUID4
     status: TaskStatus
-    content: Any
+    content: InvokeResponse | RejectedToolResponse | HitlResponse | TealAgentsResponse
 
 
 class StateManager(ABC):
@@ -196,7 +199,7 @@ class AuthenticationManager(ABC):
     """Abstract base class for authentication management"""
 
     @abstractmethod
-    async def authenticate(self, token: str) -> str:
+    async def authorize_request(self, token: str) -> str:
         """Authenticate a token and return the user ID"""
         pass
 
@@ -209,7 +212,7 @@ class AuthenticationManager(ABC):
 class MockAuthenticationManager(AuthenticationManager):
     """Mock implementation of authentication manager for development"""
 
-    async def authenticate(self, token: str) -> str:
+    async def authorize_request(self, token: str) -> str:
         # In mock implementation, just return the token as the user ID
         # In real implementation, this would validate the token with Entra ID
         return token or "anonymous-user"

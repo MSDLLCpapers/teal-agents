@@ -1,4 +1,9 @@
 # Teal Agents Platform
+
+## ⚠️ Deprecation Notice
+
+**A2A (Agent-to-Agent) Functionality Deprecated**: As part of ongoing framework migration evaluation, A2A functionality is being deprecated. The A2A feature set was experimental and never fully fleshed out or stabilized. While existing A2A implementations will continue to function for backward compatibility, new development should avoid using A2A functionality.
+
 ## Overview
 The Agent Platform aims to provide two major sets of functionality:
 1. A core framework for creating and deploying individual agents

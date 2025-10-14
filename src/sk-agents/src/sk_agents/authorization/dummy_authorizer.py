@@ -1,4 +1,4 @@
-from .request_authorizer import RequestAuthorizer
+from sk_agents.authorization.request_authorizer import RequestAuthorizer
 
 
 class DummyAuthorizer(RequestAuthorizer):

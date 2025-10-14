@@ -141,7 +141,7 @@ class Telemetry:
     def _enable_logging(self) -> None:
         exporter: LogExporter
         if self.logging_endpoint:
-            exporter = OTLPLogExporter(endpoint=self.endpoint)
+            exporter = OTLPLogExporter(endpoint=self.logging_endpoint)
         else:
             exporter = ConsoleLogExporter()
 
@@ -158,7 +158,7 @@ class Telemetry:
     def _enable_metrics(self) -> None:
         exporter: MetricExporter
         if self.metrics_endpoint:
-            exporter = OTLPMetricExporter(endpoint=self.endpoint)
+            exporter = OTLPMetricExporter(endpoint=self.metrics_endpoint)
         else:
             exporter = ConsoleMetricExporter()
 

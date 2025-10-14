@@ -83,6 +83,8 @@ try:
         case AppVersion.V1:
             AppV1.run(name, version, app_config, config, app)
         case AppVersion.V2:
+            # DEPRECATION NOTICE: AppV2 and its A2A functionality is deprecated.
+            # Maintained for backward compatibility only. Avoid A2A for new development.
             AppV2.run(name, version, app_config, config, app)
         case AppVersion.V3:
             AppV3.run(name, version, app_config, config, app)

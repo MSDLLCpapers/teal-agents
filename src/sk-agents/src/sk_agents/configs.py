@@ -24,6 +24,10 @@ TA_STRUCTURED_OUTPUT_TRANSFORMER_MODEL = Config(
     is_required=False,
     default_value="gpt-4o",
 )
+
+# DEPRECATION NOTICE: A2A (Agent-to-Agent) configuration options are deprecated
+# as part of the framework migration evaluation. These configs are maintained for
+# backward compatibility only.
 TA_A2A_ENABLED = Config(env_name="TA_A2A_ENABLED", is_required=True, default_value="false")
 TA_AGENT_BASE_URL = Config(
     env_name="TA_AGENT_BASE_URL",

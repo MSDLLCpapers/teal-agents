@@ -161,6 +161,11 @@ class Routes:
         task_store: TaskStore,
         state_manager: StateManager,
     ) -> APIRouter:
+        """
+        DEPRECATION NOTICE: A2A (Agent-to-Agent) routes are being deprecated
+        as part of the framework migration evaluation. This method is maintained for
+        backward compatibility only. New development should avoid using A2A functionality.
+        """
         a2a_app = A2AStarletteApplication(
             agent_card=Routes.get_agent_card(config, app_config),
             http_handler=Routes.get_request_handler(

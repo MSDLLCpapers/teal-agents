@@ -11,6 +11,10 @@ approach to the creation of agents. The majority of setup is performed in an
 agent's configuration file and you have the option to add in custom code to
 enhance your agent's capability.
 
+## ⚠️ Deprecation Notice
+
+**A2A (Agent-to-Agent) Functionality Deprecated**: As part of ongoing framework migration evaluation, A2A functionality in AppV2 (`skagents/v2alpha1`) is being deprecated. The A2A feature set was experimental and never fully fleshed out or stabilized for production use. While existing A2A implementations will continue to function for backward compatibility, new development should avoid using A2A functionality. The A2A feature set is no longer actively developed or enhanced.
+
 ## Prerequisites
 - Python 3.11 or higher
 - An appropriate API key for the LLM of your choice

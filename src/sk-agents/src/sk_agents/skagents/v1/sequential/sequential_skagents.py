@@ -213,14 +213,15 @@ class SequentialSkagents(BaseHandler):
                         request_id=request_id,
                         output_partial=content,
                     )
-            stream_span.set_attribute("completion_tokens", completion_tokens)
-            stream_span.set_attribute("prompt_tokens", prompt_tokens)
-            stream_span.set_attribute("total_tokens", total_tokens)
-            average_ttft = sum(average_ttft_ms) / len(average_ttft_ms) if average_ttft_ms else 0
-            stream_span.add_event(
-                "agent_time_to_first_token",
-                attributes={"first_token_time_ms": average_ttft},
-            )
+            if stream_span:
+                stream_span.set_attribute("completion_tokens", completion_tokens)
+                stream_span.set_attribute("prompt_tokens", prompt_tokens)
+                stream_span.set_attribute("total_tokens", total_tokens)
+                average_ttft = sum(average_ttft_ms) / len(average_ttft_ms) if average_ttft_ms else 0
+                stream_span.add_event(
+                    "agent_time_to_first_token",
+                    attributes={"first_token_time_ms": average_ttft},
+                )
             logger.info(
                 f"{self.name}:{self.version} responded with {total_tokens} tokens. "
                 f"Session-id {session_id}, Request-id {request_id}"
@@ -293,16 +294,17 @@ class SequentialSkagents(BaseHandler):
                         f"for Session-id {session_id}, Request-id {request_id}, "
                         f"Task description {task.description}. Error: {str(e)}"
                     ) from e
-            invoke_span.set_attribute("completion_tokens", completion_tokens)
-            invoke_span.set_attribute("prompt_tokens", prompt_tokens)
-            invoke_span.set_attribute("total_tokens", total_tokens)
-            average_response_time = (
-                sum(average_ttft_ms) / len(average_ttft_ms) if average_ttft_ms else 0
-            )
-            invoke_span.add_event(
-                "agent_response_time_ms",
-                attributes={"response_time_ms": average_response_time},
-            )
+            if invoke_span:
+                invoke_span.set_attribute("completion_tokens", completion_tokens)
+                invoke_span.set_attribute("prompt_tokens", prompt_tokens)
+                invoke_span.set_attribute("total_tokens", total_tokens)
+                average_response_time = (
+                    sum(average_ttft_ms) / len(average_ttft_ms) if average_ttft_ms else 0
+                )
+                invoke_span.add_event(
+                    "agent_response_time_ms",
+                    attributes={"response_time_ms": average_response_time},
+                )
             logger.info(
                 f"{self.name}:{self.version} responded with {total_tokens} tokens. "
                 f"Session-id {session_id}, Request-id {request_id}"

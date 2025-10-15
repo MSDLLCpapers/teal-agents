@@ -122,13 +122,14 @@ class ChatAgents(BaseHandler):
                         )
             # Build the final response with InvokeResponse
             logger.info("Building the final response with InvokeRespons")
-            stream_span.set_attribute("completion_tokens", completion_tokens)
-            stream_span.set_attribute("prompt_tokens", prompt_tokens)
-            stream_span.set_attribute("total_tokens", total_tokens)
-            stream_span.add_event(
-                "agent_time_to_first_token",
-                attributes={"first_token_time_ms": titme_to_first_token_ms},
-            )
+            if stream_span:
+                stream_span.set_attribute("completion_tokens", completion_tokens)
+                stream_span.set_attribute("prompt_tokens", prompt_tokens)
+                stream_span.set_attribute("total_tokens", total_tokens)
+                stream_span.add_event(
+                    "agent_time_to_first_token",
+                    attributes={"first_token_time_ms": titme_to_first_token_ms},
+                )
             final_response = "".join(final_response)
             response = InvokeResponse(
                 session_id=session_id,
@@ -186,13 +187,14 @@ class ChatAgents(BaseHandler):
                 total_tokens += call_usage.total_tokens
 
             logger.info("Building the final response with InvokeRespons")
-            invoke_span.set_attribute("completion_tokens", completion_tokens)
-            invoke_span.set_attribute("prompt_tokens", prompt_tokens)
-            invoke_span.set_attribute("total_tokens", total_tokens)
-            invoke_span.add_event(
-                "agent_response_time_ms",
-                attributes={"response_time_ms": titme_to_first_token_ms},
-            )
+            if invoke_span:
+                invoke_span.set_attribute("completion_tokens", completion_tokens)
+                invoke_span.set_attribute("prompt_tokens", prompt_tokens)
+                invoke_span.set_attribute("total_tokens", total_tokens)
+                invoke_span.add_event(
+                    "agent_response_time_ms",
+                    attributes={"response_time_ms": titme_to_first_token_ms},
+                )
             response = InvokeResponse(
                 session_id=session_id,
                 source=f"{self.name}:{self.version}",

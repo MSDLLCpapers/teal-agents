@@ -82,7 +82,7 @@ watch:
 nav:
   - Chat Completion Overview: index.md
   - Code Modules Reference: reference.md
-  - Human-in-the-Loop: 
+  - Human-in-the-Loop:
       - Requiring Human Consent: hitl/hitl.md
       - Managing Task State: hitl/persistence.md
       - Cataloging Agent Tools: hitl/plugin_catalog.md
@@ -98,3 +98,4 @@ nav:
       - Multi-Modal: demos/08_multi_modal/README.md
       - Simple Chatbot: demos/09_chat_simple/README.md
       - Advanced Chatbot: demos/10_chat_plugins/README.md
+      - Human-in-the-Loop: demos/11_hitl/README.md

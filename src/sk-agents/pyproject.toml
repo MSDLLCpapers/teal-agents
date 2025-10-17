@@ -3,7 +3,7 @@ name = "sk-agents"
 dynamic = ["version"]
 description = "Teal Agents - Core Agent Framework"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12, <3.14"
 dependencies = [
     "semantic-kernel==1.33.0",
     "pyyaml",

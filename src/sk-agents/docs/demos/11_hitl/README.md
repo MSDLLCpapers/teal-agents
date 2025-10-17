@@ -1,4 +1,3 @@
-````markdown
 # Human-in-the-Loop (HITL) Agent Demo
 
 This demo showcases how to configure an agent with **Human-in-the-Loop (HITL)** capabilities, which allows you to require human approval before sensitive or high-risk plugin functions are executed by the AI agent.

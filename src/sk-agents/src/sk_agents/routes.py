@@ -27,6 +27,7 @@ from sk_agents.configs import (
     TA_PROVIDER_ORG,
     TA_PROVIDER_URL,
 )
+from sk_agents.persistence.task_persistence_manager import TaskPersistenceManager
 from sk_agents.ska_types import (
     BaseConfig,
     BaseHandler,
@@ -146,9 +147,10 @@ class Routes:
         config: BaseConfig,
         app_config: AppConfig,
         authorization: str,
+        state_manager: TaskPersistenceManager,
     ) -> TealAgentsV1Alpha1Handler:
         agent_builder = Routes._create_agent_builder(app_config, authorization)
-        return TealAgentsV1Alpha1Handler(config, app_config, agent_builder)
+        return TealAgentsV1Alpha1Handler(config, app_config, agent_builder, state_manager)
 
     @staticmethod
     def get_a2a_routes(
@@ -331,7 +333,7 @@ class Routes:
         description: str,
         config: BaseConfig,
         app_config: AppConfig,
-        state_manager: StateManager,
+        state_manager: TaskPersistenceManager,
         authorizer: RequestAuthorizer,
         auth_storage_manager: SecureAuthStorageManager,
         input_class: type[UserMessage],
@@ -358,7 +360,7 @@ class Routes:
         )
         async def chat(message: input_class, user_id: str = Depends(get_user_id)) -> StateResponse:
             # Handle new task creation or task retrieval
-            teal_handler = Routes.get_task_handler(config, app_config, user_id)
+            teal_handler = Routes.get_task_handler(config, app_config, user_id, state_manager)
             response_content = await teal_handler.invoke(user_id, message)
             # Return response with state identifiers
             status = TaskStatus.COMPLETED.value
@@ -375,13 +377,15 @@ class Routes:
         return router
 
     @staticmethod
-    def get_resume_routes(config: BaseConfig, app_config: AppConfig) -> APIRouter:
+    def get_resume_routes(
+        config: BaseConfig, app_config: AppConfig, state_manager: TaskPersistenceManager
+    ) -> APIRouter:
         router = APIRouter()
 
         @router.post("/tealagents/v1alpha1/resume/{request_id}")
         async def resume(request_id: str, request: Request, body: ResumeRequest):
             authorization = request.headers.get("authorization", None)
-            teal_handler = Routes.get_task_handler(config, app_config, authorization)
+            teal_handler = Routes.get_task_handler(config, app_config, authorization, state_manager)
             try:
                 return await teal_handler.resume_task(authorization, request_id, body, stream=False)
             except Exception as e:
@@ -391,11 +395,12 @@ class Routes:
         @router.post("/tealagents/v1alpha1/resume/{request_id}/sse")
         async def resume_sse(request_id: str, request: Request, body: ResumeRequest):
             authorization = request.headers.get("authorization", None)
+            teal_handler = Routes.get_task_handler(config, app_config, authorization, state_manager)
 
             async def event_generator():
                 try:
-                    async for content in TealAgentsV1Alpha1Handler.resume_task(
-                        request_id, authorization, body, stream=True
+                    async for content in teal_handler.resume_task(
+                        authorization, request_id, body, stream=True
                     ):
                         yield get_sse_event_for_response(content)
                 except Exception as e:

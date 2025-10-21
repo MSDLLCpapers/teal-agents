@@ -20,7 +20,7 @@ from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
 from sk_agents.exceptions import AgentInvokeException, AuthenticationException, PersistenceLoadError
 from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
 from sk_agents.hitl import hitl_manager
-from sk_agents.persistence.persistence_factory import PersistenceFactory
+from sk_agents.persistence.task_persistence_manager import TaskPersistenceManager
 from sk_agents.ska_types import BaseConfig, BaseHandler, ContentType, TokenUsage
 from sk_agents.tealagents.models import (
     AgentTask,
@@ -41,7 +41,13 @@ logger = logging.getLogger(__name__)
 
 
 class TealAgentsV1Alpha1Handler(BaseHandler):
-    def __init__(self, config: BaseConfig, app_config: AppConfig, agent_builder: AgentBuilder):
+    def __init__(
+        self,
+        config: BaseConfig,
+        app_config: AppConfig,
+        agent_builder: AgentBuilder,
+        state_manager: TaskPersistenceManager,
+    ):
         self.version = config.version
         self.name = config.name
         if hasattr(config, "spec"):
@@ -49,8 +55,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         else:
             raise ValueError("Invalid config")
         self.agent_builder = agent_builder
-        persistence_factory = PersistenceFactory(app_config=app_config)
-        self.state = persistence_factory.get_persistence_manager()
+        self.state = state_manager
         self.authorizer = DummyAuthorizer()
 
     @staticmethod

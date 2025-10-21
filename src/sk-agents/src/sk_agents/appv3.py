@@ -19,19 +19,13 @@ from sk_agents.configs import (
     TA_REDIS_PORT,
     TA_REDIS_PWD,
     TA_REDIS_SSL,
-    TA_REDIS_TTL,
     TA_SERVICE_CONFIG,
-    TA_STATE_MANAGEMENT,
 )
+from sk_agents.persistence.persistence_factory import PersistenceFactory
 from sk_agents.routes import Routes
 from sk_agents.ska_types import BaseConfig
 from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
-from sk_agents.stateful import (
-    InMemoryStateManager,
-    MockAuthenticationManager,
-    RedisStateManager,
-    StateManager,
-)
+from sk_agents.stateful import MockAuthenticationManager
 from sk_agents.tealagents.kernel_builder import KernelBuilder
 from sk_agents.tealagents.models import UserMessage
 from sk_agents.tealagents.remote_plugin_loader import RemotePluginCatalog, RemotePluginLoader
@@ -65,17 +59,9 @@ class AppV3:
         )
 
     @staticmethod
-    def _get_state_manager(app_config: AppConfig) -> StateManager:
-        state_store = app_config.get(TA_STATE_MANAGEMENT.env_name)
-        match state_store:
-            case AppV3.StateStores.REDIS.value:
-                redis_ttl = app_config.get(TA_REDIS_TTL.env_name)
-                return RedisStateManager(
-                    redis_client=AppV3._get_redis_client(app_config),
-                    ttl=int(redis_ttl) if redis_ttl else None,
-                )
-            case _:
-                return InMemoryStateManager()
+    def _get_state_manager(app_config: AppConfig):
+        persistence_factory = PersistenceFactory(app_config)
+        return persistence_factory.get_persistence_manager()
 
     @staticmethod
     def _get_auth_storage_manager(app_config: AppConfig):
@@ -147,7 +133,9 @@ class AppV3:
 
         # Include the new resume routes
         app.include_router(
-            Routes.get_resume_routes(config=config, app_config=app_config),
+            Routes.get_resume_routes(
+                config=config, app_config=app_config, state_manager=state_manager
+            ),
             prefix=f"/{name}/{version}",
         )
 

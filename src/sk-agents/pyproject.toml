@@ -108,7 +108,7 @@ exclude = ["src/sk_agents/routes.py","src/sk_agents/a2a_event_handler.py"]
 
 [tool.coverage.run]
 source = ["src/sk_agents"]
-omit = ["*/tests/*", "test_*", "__init__.py"]
+omit = ["*/tests/*", "test_*", "__init__.py", "__about__.py"]
 
 [tool.coverage.report]
 show_missing = true

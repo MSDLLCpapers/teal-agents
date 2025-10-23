@@ -1,5 +1,3 @@
-"""Tests for PersistenceFactory including in-memory and custom implementations."""
-
 from unittest.mock import MagicMock, patch
 
 import pytest

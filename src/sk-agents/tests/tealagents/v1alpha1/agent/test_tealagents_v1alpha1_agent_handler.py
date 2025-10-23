@@ -572,7 +572,6 @@ async def test_invoke_intervention_required(
     # Invoke the handler
     result = await teal_agents_handler.invoke(auth_token=auth_token, inputs=user_message)
 
-    # Assertions
     assert isinstance(result, HitlResponse)
     assert result.task_id == "test-task-id"
     assert result.session_id == "test-session-id"

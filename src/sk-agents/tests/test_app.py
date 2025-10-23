@@ -69,7 +69,7 @@ def test_app_v1_initialization_successful(
     Tests if the application initializes correctly for API version v1,
     calling the appropriate AppV1 runner.
     """
-    # Arrange: Create mocks BEFORE importing app
+    # Create mocks BEFORE importing app
     mock_fastapi_instance = MagicMock()
     mock_fastapi_class = mocker.patch("fastapi.FastAPI", return_value=mock_fastapi_instance)
 
@@ -84,10 +84,10 @@ def test_app_v1_initialization_successful(
     )
     mock_parse_yaml.return_value = mock_config_v1
 
-    # Act: Now import the module (this runs the app setup logic)
+    # Now import the module (this runs the app setup logic)
     import sk_agents.app  # noqa: F401
 
-    # Assert: Verify FastAPI was constructed with expected URLs
+    # Verify FastAPI was constructed with expected URLs
     mock_fastapi_class.assert_called_once_with(
         openapi_url="/test-service-v1/1.2.3/openapi.json",
         docs_url="/test-service-v1/1.2.3/docs",
@@ -111,7 +111,7 @@ def test_app_v2_initialization_successful(
     Tests if the application initializes correctly for API version v2,
     calling the appropriate AppV2 runner.
     """
-    # Arrange: Set up mocks BEFORE importing app
+    # Set up mocks BEFORE importing app
     mock_fastapi_instance = MagicMock()
     mock_fastapi_class = mocker.patch("fastapi.FastAPI", return_value=mock_fastapi_instance)
 
@@ -126,10 +126,10 @@ def test_app_v2_initialization_successful(
     )
     mock_parse_yaml.return_value = mock_config_v2
 
-    # Act: Trigger app logic via import
+    # Trigger app logic via import
     import sk_agents.app  # noqa: F401
 
-    # Assert: Check FastAPI and AppV2 interactions
+    # Check FastAPI and AppV2 interactions
     mock_fastapi_class.assert_called_once_with(
         openapi_url="/test-service-v2/2.0.0/openapi.json",
         docs_url="/test-service-v2/2.0.0/docs",
@@ -153,7 +153,7 @@ def test_app_v3_initialization_successful(
     Tests if the application initializes correctly for API version v3,
     calling the appropriate AppV3 runner.
     """
-    # Arrange: Set up mocks BEFORE importing app
+    # Set up mocks BEFORE importing app
     mock_fastapi_instance = MagicMock()
     mock_fastapi_class = mocker.patch("fastapi.FastAPI", return_value=mock_fastapi_instance)
 
@@ -168,10 +168,10 @@ def test_app_v3_initialization_successful(
     )
     mock_parse_yaml.return_value = mock_config_v3
 
-    # Act: Trigger app logic via import
+    # Trigger app logic via import
     import sk_agents.app  # noqa: F401
 
-    # Assert: Check FastAPI and AppV3 interactions
+    # Check FastAPI and AppV3 interactions
     mock_fastapi_class.assert_called_once_with(
         openapi_url="/test-service-v3/2.0.0/openapi.json",
         docs_url="/test-service-v3/2.0.0/docs",
@@ -192,10 +192,8 @@ def test_config_file_not_found(mock_app_config):
     """
     Tests if the application raises FileNotFoundError when the config file path is not set.
     """
-    # Arrange
     mock_app_config.return_value.get.return_value = None
 
-    # Act & Assert
     with pytest.raises(FileNotFoundError, match="Configuration file not found"):
         import sk_agents.app  # noqa: F401
 
@@ -204,11 +202,9 @@ def test_yaml_parsing_fails(mock_app_config, mock_parse_yaml):
     """
     Tests if the application raises an exception when YAML parsing fails.
     """
-    # Arrange
     mock_app_config.return_value.get.return_value = "/fake/path/to/bad_config.yaml"
     mock_parse_yaml.side_effect = Exception("Invalid YAML format")
 
-    # Act & Assert
     with pytest.raises(Exception, match="Invalid YAML format"):
         import sk_agents.app  # noqa: F401
 
@@ -217,14 +213,12 @@ def test_invalid_api_version_format(mock_app_config, mock_parse_yaml):
     """
     Tests if the application raises a ValueError for an incorrectly formatted apiVersion.
     """
-    # Arrange
     mock_app_config.return_value.get.return_value = "/fake/path/to/config.yaml"
     mock_config_invalid_api = MockBaseConfig(
         apiVersion="invalid-format", version="1.0.0", service_name="test-service"
     )
     mock_parse_yaml.return_value = mock_config_invalid_api
 
-    # Act & Assert
     # CORRECTED: The original ValueError from .split() is re-raised.
     # We now match against the standard Python error message for this operation.
     with pytest.raises(ValueError, match="not enough values to unpack"):
@@ -235,7 +229,6 @@ def test_missing_service_name_in_config(mock_app_config, mock_parse_yaml):
     """
     Tests if the application raises a ValueError if the service name is not defined.
     """
-    # Arrange
     mock_app_config.return_value.get.return_value = "/fake/path/to/config.yaml"
     # Simulate a config where 'service_name' (for v1) is None
     mock_config_no_name = MockBaseConfig(
@@ -243,7 +236,6 @@ def test_missing_service_name_in_config(mock_app_config, mock_parse_yaml):
     )
     mock_parse_yaml.return_value = mock_config_no_name
 
-    # Act & Assert
     with pytest.raises(ValueError, match="Service name is not defined in the configuration file."):
         import sk_agents.app  # noqa: F401
 
@@ -252,7 +244,7 @@ def test_missing_service_version_in_config(mock_app_config, mock_parse_yaml):
     """
     Tests if the application raises a ValueError if the service version is not defined.
     """
-    # Arrange: set up a config with missing version
+    # Set up a config with missing version
     mock_app_config.return_value.get.return_value = "/fake/path/to/config.yaml"
     mock_config_missing_version = MockBaseConfig(
         apiVersion="skagents/v2alpha1",  # or v1alpha1
@@ -261,7 +253,7 @@ def test_missing_service_version_in_config(mock_app_config, mock_parse_yaml):
     )
     mock_parse_yaml.return_value = mock_config_missing_version
 
-    # Act & Assert: expect ValueError
+    # Expect ValueError
     with pytest.raises(ValueError, match="Service version is not defined"):
         import sk_agents.app  # noqa: F401
 
@@ -270,7 +262,7 @@ def test_invalid_api_version_in_config(mock_app_config, mock_parse_yaml):
     """
     Tests if the application raises a ValueError if the apiVersion is invalid.
     """
-    # Arrange: set up a config with invalid apiVersion
+    # Set up a config with invalid apiVersion
     mock_app_config.return_value.get.return_value = "/fake/path/to/config.yaml"
     mock_config_missing_version = MockBaseConfig(
         apiVersion="invalid/v2alpha1",  # or v1alpha1
@@ -279,6 +271,6 @@ def test_invalid_api_version_in_config(mock_app_config, mock_parse_yaml):
     )
     mock_parse_yaml.return_value = mock_config_missing_version
 
-    # Act & Assert: expect ValueError
+    # Expect ValueError
     with pytest.raises(ValueError, match="Invalid apiVersion defined in the configuration file."):
         import sk_agents.app  # noqa: F401

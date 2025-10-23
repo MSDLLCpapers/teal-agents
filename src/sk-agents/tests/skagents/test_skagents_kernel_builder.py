@@ -23,7 +23,6 @@ def test_build_kernel_success(mock_load, mock_parse, mock_create):
 
     builder = KernelBuilder(chat_completion_builder, remote_plugin_loader, app_config)
 
-    # Act
     result = builder.build_kernel(
         model_name="gpt-4",
         service_id="openai",
@@ -33,7 +32,6 @@ def test_build_kernel_success(mock_load, mock_parse, mock_create):
         extra_data_collector=None,
     )
 
-    # Assert
     assert result is kernel
     mock_create.assert_called_once_with("gpt-4", "openai")
     mock_parse.assert_called_once()
@@ -42,79 +40,64 @@ def test_build_kernel_success(mock_load, mock_parse, mock_create):
 
 @patch.object(KernelBuilder, "_create_base_kernel", side_effect=Exception("base kernel failed"))
 def test_build_kernel_failure(mock_create_base_kernel, caplog):
-    # Arrange
     chat_completion_builder = MagicMock()
     remote_plugin_loader = MagicMock()
     app_config = MagicMock(spec=AppConfig)
 
     builder = KernelBuilder(chat_completion_builder, remote_plugin_loader, app_config)
 
-    # Act
     with caplog.at_level("WARNING"):
         with pytest.raises(Exception, match="base kernel failed"):
             builder.build_kernel(
                 model_name="test-model", service_id="test-service", plugins=[], remote_plugins=[]
             )
-    # Assert
     assert "Could build kernel with service ID test-service." in caplog.text
 
 
 def test_get_model_type_for_name_success():
-    # Arrange
     mock_builder = MagicMock()
     mock_builder.get_model_type_for_name.return_value = "mock-type"
     kernel_builder = KernelBuilder(mock_builder, MagicMock(), MagicMock())
 
-    # Act
     result = kernel_builder.get_model_type_for_name("test-model")
 
-    # Assert
     assert result == "mock-type"
     mock_builder.get_model_type_for_name.assert_called_once_with("test-model")
 
 
 def test_get_model_type_for_name_failure(caplog):
-    # Arrange
     mock_builder = MagicMock()
     mock_builder.get_model_type_for_name.side_effect = Exception("lookup error")
     kernel_builder = KernelBuilder(mock_builder, MagicMock(), MagicMock())
 
-    # Act
     with caplog.at_level("WARNING"):
         with pytest.raises(Exception, match="lookup error"):
             kernel_builder.get_model_type_for_name("bad-model")
 
-    # Assert
     assert "Could not get model type for bad-model." in caplog.text
 
 
 def test_model_supports_structured_output_success():
-    # Arrange
     mock_builder = MagicMock()
     mock_builder.model_supports_structured_output.return_value = True
     kernel_builder = KernelBuilder(mock_builder, MagicMock(), MagicMock())
 
-    # Act
     result = kernel_builder.model_supports_structured_output("some-model")
 
-    # Assert
     assert result is True
     mock_builder.model_supports_structured_output.assert_called_once_with("some-model")
 
 
 def test_model_supports_structured_output_failure():
-    # Arrange
     mock_builder = MagicMock()
     mock_builder.model_supports_structured_output.side_effect = Exception("Failure")
     kernel_builder = KernelBuilder(mock_builder, MagicMock(), MagicMock())
 
-    # Act & Assert
     with pytest.raises(Exception, match="Failure"):
         kernel_builder.model_supports_structured_output("bad-model")
 
 
 def test_create_base_kernel_success():
-    # Arrange
     mock_chat_completion = MagicMock()
     mock_builder = MagicMock()
     mock_builder.get_chat_completion_for_model.return_value = mock_chat_completion
@@ -125,10 +108,8 @@ def test_create_base_kernel_success():
         app_config=MagicMock(),
     )
 
-    # Act
     kernel = builder._create_base_kernel("test-model", "test-service")
 
-    # Assert
     assert isinstance(kernel, Kernel)
     mock_builder.get_chat_completion_for_model.assert_called_once_with(
         service_id="test-service", model_name="test-model"
@@ -137,7 +118,6 @@ def test_create_base_kernel_success():
 
 
 def test_create_base_kernel_failure(caplog):
-    # Arrange
     mock_builder = MagicMock()
     mock_builder.get_chat_completion_for_model.side_effect = Exception(
         "fail to get chat completion"
@@ -148,12 +128,10 @@ def test_create_base_kernel_failure(caplog):
         app_config=MagicMock(),
     )
 
-    # Act
     with pytest.raises(Exception, match="fail to get chat completion"):
         with caplog.at_level("WARNING"):
             kernel = builder._create_base_kernel("bad-model", "bad-service")
 
-        # Assert
         assert kernel is None
     assert "Could not create base kernel with service id bad-service." in caplog.text
 

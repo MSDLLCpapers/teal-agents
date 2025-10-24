@@ -62,6 +62,23 @@ TA_AUTHORIZER_CLASS = Config(
     default_value="DummyAuthorizer",
 )
 
+# Microsoft Entra ID (Azure AD) Authentication
+TA_ENTRA_TENANT_ID = Config(
+    env_name="TA_ENTRA_TENANT_ID",
+    is_required=False,
+    default_value=None,
+)
+TA_ENTRA_CLIENT_ID = Config(
+    env_name="TA_ENTRA_CLIENT_ID",
+    is_required=False,
+    default_value=None,
+)
+TA_ENTRA_AUTHORITY = Config(
+    env_name="TA_ENTRA_AUTHORITY",
+    is_required=False,
+    default_value=None,
+)
+
 TA_REDIS_HOST = Config(env_name="TA_REDIS_HOST", is_required=False, default_value=None)
 TA_REDIS_PORT = Config(env_name="TA_REDIS_PORT", is_required=False, default_value=None)
 TA_REDIS_DB = Config(env_name="TA_REDIS_DB", is_required=False, default_value=None)
@@ -133,6 +150,9 @@ configs: list[Config] = [
     TA_PERSISTENCE_CLASS,
     TA_AUTHORIZER_CLASS,
     TA_AUTHORIZER_MODULE,
+    TA_ENTRA_TENANT_ID,
+    TA_ENTRA_CLIENT_ID,
+    TA_ENTRA_AUTHORITY,
     TA_PLUGIN_CATALOG_CLASS,
     TA_PLUGIN_CATALOG_MODULE,
     TA_PLUGIN_CATALOG_FILE,

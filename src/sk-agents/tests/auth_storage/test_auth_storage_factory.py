@@ -1,5 +1,3 @@
-"""Tests for AuthStorageFactory including in-memory and Redis implementations."""
-
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, Mock, patch
 
@@ -146,6 +144,79 @@ class TestAuthStorageFactoryBasics:
 
         with pytest.raises(ValueError, match="Custom Auth Storage Manager class name not provided"):
             AuthStorageFactory(mock_app_config)
+
+    def test_missing_both_module_and_class_env_variables_uses_default(self, mock_app_config):
+        """Test that when both module and class env variables are missing, factory uses default."""
+
+        def mock_get(key):
+            # Module KeyError caught first, returns None
+            # Then class KeyError caught, but module is None so returns None, None
+            raise KeyError(key)
+
+        mock_app_config.get.side_effect = mock_get
+
+        factory = AuthStorageFactory(mock_app_config)
+        manager = factory.get_auth_storage_manager()
+
+        # Should use default in-memory implementation
+        assert isinstance(manager, InMemorySecureAuthStorageManager)
+
+    def test_empty_module_with_missing_class_uses_default(self, mock_app_config):
+        """Test that when module is None/empty and class KeyError, returns default."""
+
+        def mock_get(key):
+            if key == TA_AUTH_STORAGE_MANAGER_MODULE.env_name:
+                return None  # Module is explicitly None
+            else:
+                # Class lookup raises KeyError
+                raise KeyError(key)
+
+        mock_app_config.get.side_effect = mock_get
+
+        factory = AuthStorageFactory(mock_app_config)
+        manager = factory.get_auth_storage_manager()
+
+        # Should use default in-memory implementation (line 62 coverage)
+        assert isinstance(manager, InMemorySecureAuthStorageManager)
+
+    @patch("sk_agents.authorization.authorizer_factory.ModuleLoader.load_module")
+    def test_custom_class_without_app_config_parameter_fallback(
+        self, mock_load_module, mock_app_config
+    ):
+        """Test that when custom class doesn't accept app_config, fallback to no-arg init."""
+        from sk_agents.auth_storage.secure_auth_storage_manager import (
+            SecureAuthStorageManager,
+        )
+
+        # Create a custom manager that doesn't accept app_config
+        class CustomManagerNoConfig(SecureAuthStorageManager):
+            def __init__(self):  # No app_config parameter
+                self.storage = {}
+
+            def store(self, user_id: str, key: str, data):
+                self.storage[(user_id, key)] = data
+
+            def retrieve(self, user_id: str, key: str):
+                return self.storage.get((user_id, key))
+
+            def delete(self, user_id: str, key: str):
+                self.storage.pop((user_id, key), None)
+
+        mock_app_config.get.side_effect = lambda key: {
+            TA_AUTH_STORAGE_MANAGER_MODULE.env_name: "dummy_module",
+            TA_AUTH_STORAGE_MANAGER_CLASS.env_name: "CustomManagerNoConfig",
+        }.get(key)
+
+        dummy_module = MagicMock()
+        dummy_module.CustomManagerNoConfig = CustomManagerNoConfig
+        mock_load_module.return_value = dummy_module
+
+        factory = AuthStorageFactory(mock_app_config)
+        manager = factory.get_auth_storage_manager()
+
+        # Should successfully create instance without app_config
+        assert isinstance(manager, CustomManagerNoConfig)
+        assert hasattr(manager, "storage")
 
 
 class TestRedisIntegration:

@@ -108,7 +108,6 @@ def test_load_remote_plugin_success(mock_kernel_class, mock_async_client_class, 
     mock_kernel.add_plugin_from_openapi.assert_called_once()
     call_kwargs = mock_kernel.add_plugin_from_openapi.call_args.kwargs
 
-    # Assertions
     assert call_kwargs["plugin_name"] == remote_plugin.plugin_name
     assert call_kwargs["openapi_document_path"] == remote_plugin.openapi_json_path
     assert isinstance(call_kwargs["execution_settings"].http_client, AsyncClient)

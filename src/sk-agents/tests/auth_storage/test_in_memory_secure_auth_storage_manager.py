@@ -3,10 +3,10 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from src.sk_agents.auth_storage.in_memory_secure_auth_storage_manager import (
+from sk_agents.auth_storage.in_memory_secure_auth_storage_manager import (
     InMemorySecureAuthStorageManager,
 )
-from src.sk_agents.auth_storage.models import OAuth2AuthData
+from sk_agents.auth_storage.models import OAuth2AuthData
 
 
 @pytest.fixture

@@ -3,8 +3,8 @@ import os
 import pytest
 from ska_utils import AppConfig
 
-from src.sk_agents.configs import configs
-from src.sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
+from sk_agents.configs import configs
+from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
 
 
 @pytest.fixture()

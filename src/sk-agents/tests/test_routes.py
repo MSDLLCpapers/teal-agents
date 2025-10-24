@@ -173,37 +173,29 @@ def create_websocket_routes_and_client(
 
 
 def test_get_url_returns_correct_format():
-    # Arrange
     mock_app_config = MagicMock()
     mock_app_config.get.return_value = "http://localhost"
 
-    # Act
     url = Routes.get_url("my-agent", "1.0", mock_app_config)
 
-    # Assert
     assert url == "http://localhost/my-agent/1.0/a2a"
     mock_app_config.get.assert_called_once_with(TA_AGENT_BASE_URL.env_name)
 
 
 def test_get_url_raises_value_error_when_base_url_missing():
-    # Arrange
     mock_app_config = MagicMock()
     mock_app_config.get.return_value = None
 
-    # Act & Assert
     with pytest.raises(ValueError, match="Base URL is not provided in the app config."):
         Routes.get_url("my-agent", "1.0", mock_app_config)
 
 
 def test_get_provider_returns_agent_provider():
-    # Arrange
     mock_app_config = MagicMock()
     mock_app_config.get.side_effect = ["my-org", "https://provider.url"]
 
-    # Act
     provider = Routes.get_provider(mock_app_config)
 
-    # Assert
     assert isinstance(provider, AgentProvider)
     assert provider.organization == "my-org"
     assert provider.url == "https://provider.url"
@@ -213,7 +205,6 @@ def test_get_provider_returns_agent_provider():
 
 
 def test_get_agent_card_success():
-    # Arrange
     skill = ConfigSkill(
         id="skill1",
         name="Skill One",
@@ -236,10 +227,8 @@ def test_get_agent_card_success():
         TA_PROVIDER_URL.env_name: "http://provider.url",
     }.get(key, None)
 
-    # Act
     agent_card = Routes.get_agent_card(config, app_config)
 
-    # Assert
     assert isinstance(agent_card, AgentCard)
     assert agent_card.name == config.name
     assert agent_card.version == str(config.version)
@@ -264,13 +253,11 @@ def test_get_agent_card_success():
 
 
 def test_get_agent_card_raises_without_metadata():
-    # Arrange
     config = BaseConfig(
         name="agent_name", version="1.0", metadata=None, apiVersion="v1", service_name="svc"
     )
     app_config = MagicMock()
 
-    # Act & Assert
     with pytest.raises(ValueError, match="Agent card metadata is not provided in the config."):
         Routes.get_agent_card(config, app_config)
 
@@ -460,7 +447,6 @@ def test_handle_a2a_invocation(
     # Perform a POST to trigger handle_a2a
     response = client.post("/a2a", json={"some": "data"})
 
-    # Assertions
     assert response.status_code == 200
     assert response.json() == {"result": "success"}
     mock_a2a_app_instance._handle_requests.assert_awaited_once()
@@ -513,7 +499,6 @@ def test_handle_get_agent_card_route(
     # Send GET request to agent card route
     response = client.get("/a2a/.well-known/agent.json")
 
-    # Assertions
     assert response.status_code == 200
     assert response.json() == {"agent": "mocked_card"}
     mock_a2a_app_instance._handle_get_agent_card.assert_awaited_once()

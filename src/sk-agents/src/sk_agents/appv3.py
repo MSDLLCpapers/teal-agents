@@ -139,6 +139,10 @@ class AppV3:
             prefix=f"/{name}/{version}",
         )
 
+        # Include authentication routes (Arcade OAuth verifier, etc.)
+        from sk_agents.auth_routes import get_auth_routes
+        app.include_router(get_auth_routes())
+
         # Make config and other essentials available to request handlers
         app.state.config = config
         app.state.app_config = app_config

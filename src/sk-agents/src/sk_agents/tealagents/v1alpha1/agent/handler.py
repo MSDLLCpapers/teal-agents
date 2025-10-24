@@ -57,6 +57,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         self.agent_builder = agent_builder
         self.state = state_manager
         self.authorizer = DummyAuthorizer()
+        
+        # Per-user MCP discovery tracking
+        # Each user gets independent discovery of their authorized tools
+        self._mcp_discovery_per_user: dict[str, bool] = {}
+        self._mcp_discovery_lock = asyncio.Lock()
 
     @staticmethod
     async def _invoke_function(
@@ -119,6 +124,74 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise AuthenticationException(
                 message=(f"Unable to authenticate user, exception message: {e}")
             ) from e
+
+    async def _ensure_mcp_discovery(self, user_id: str) -> None:
+        """
+        Ensure MCP tool discovery has been performed for THIS specific user.
+        
+        Discovery happens per-user, allowing each user to have their own
+        personalized tool set based on their Arcade authorizations.
+        
+        Args:
+            user_id: Unique user identifier (from auth token)
+        """
+        async with self._mcp_discovery_lock:
+            # Check if discovery already completed for THIS user
+            if user_id in self._mcp_discovery_per_user:
+                logger.debug(f"MCP discovery already completed for user: {user_id}")
+                return
+            
+            mcp_servers = self.config.get_agent().mcp_servers
+            if not mcp_servers or len(mcp_servers) == 0:
+                self._mcp_discovery_per_user[user_id] = True
+                return
+            
+            try:
+                from sk_agents.mcp_plugin_registry import McpPluginRegistry
+                
+                logger.info(
+                    f"Starting MCP discovery for user: {user_id} ({len(mcp_servers)} servers)",
+                    extra={
+                        "user_id": user_id,
+                        "mcp_server_count": len(mcp_servers),
+                        "event": "mcp_discovery_start"
+                    }
+                )
+                
+                await McpPluginRegistry.discover_and_materialize(mcp_servers, user_id)
+                
+                logger.info(
+                    f"MCP discovery completed successfully for user: {user_id}",
+                    extra={"user_id": user_id, "event": "mcp_discovery_complete"}
+                )
+                
+                self._mcp_discovery_per_user[user_id] = True
+                
+            except Exception as e:
+                logger.error(
+                    f"MCP discovery failed for user {user_id}: {e}",
+                    extra={"user_id": user_id, "event": "mcp_discovery_failed"}
+                )
+                raise
+
+    def clear_user_mcp_cache(self, user_id: str) -> None:
+        """
+        Clear MCP cache for user to trigger re-discovery.
+        Call this after user authorizes new providers via OAuth.
+        
+        Args:
+            user_id: User whose cache to clear
+        """
+        if user_id in self._mcp_discovery_per_user:
+            del self._mcp_discovery_per_user[user_id]
+        
+        from sk_agents.mcp_plugin_registry import McpPluginRegistry
+        McpPluginRegistry.clear_user_plugins(user_id)
+        
+        logger.info(
+            f"Cleared MCP cache for user: {user_id}",
+            extra={"user_id": user_id, "event": "mcp_cache_cleared"}
+        )
 
     @staticmethod
     def handle_state_id(inputs: UserMessage) -> tuple[str, str, str]:
@@ -402,6 +475,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         logger.info("Beginning processing invoke")
 
         user_id = await self.authenticate_user(token=auth_token)
+        
+        # Ensure MCP discovery for this specific user
+        await self._ensure_mcp_discovery(user_id)
+        
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
         inputs.session_id = session_id
@@ -432,6 +509,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         # Initial setup
         logger.info("Beginning processing invoke")
         user_id = await self.authenticate_user(token=auth_token)
+        
+        # Ensure MCP discovery for this specific user
+        await self._ensure_mcp_discovery(user_id)
+        
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
         agent_task = await self._manage_incoming_task(

@@ -23,6 +23,13 @@ class Governance(BaseModel):
     data_sensitivity: Literal["public", "proprietary", "confidential", "sensitive"]
 
 
+class GovernanceOverride(BaseModel):
+    """Optional governance overrides for MCP tools. Only specified fields will override auto-inferred values."""
+    requires_hitl: bool | None = None
+    cost: Literal["low", "medium", "high"] | None = None
+    data_sensitivity: Literal["public", "proprietary", "confidential", "sensitive"] | None = None
+
+
 # PluginAuth Models
 class Oauth2PluginAuth(BaseModel):
     auth_type: Literal["oauth2"] = "oauth2"

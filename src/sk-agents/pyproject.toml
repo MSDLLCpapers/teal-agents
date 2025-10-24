@@ -23,6 +23,7 @@ dependencies = [
     "google-ai-generativelanguage>=0.6.15",
     "PyJWT[crypto]>=2.8.0",
     "arcadepy>=1.0.0",
+    "mcp>=1.0.0",
 ]
 
 [project.urls]

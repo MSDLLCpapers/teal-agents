@@ -71,6 +71,7 @@ class AgentConfig(BaseModel):
     model: str
     system_prompt: str
     temperature: float | None = Field(None, ge=0.0, le=1.0)
+    max_tokens: int | None = None
     plugins: list[str] | None = None
     remote_plugins: list[str] | None = None
     mcp_servers: list[McpServerConfig] | None = None

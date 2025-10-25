@@ -78,3 +78,24 @@ validation:
 
 watch:
   - "src/sk_agents"
+
+nav:
+  - Chat Completion Overview: index.md
+  - Code Modules Reference: reference.md
+  - Human-in-the-Loop:
+      - Requiring Human Consent: hitl/hitl.md
+      - Managing Task State: hitl/persistence.md
+      - Cataloging Agent Tools: hitl/plugin_catalog.md
+      - Authorizing on Behalf of Users: hitl/authorization.md
+      - Storing Authenthication Credentials: hitl/auth_storage.md
+  - Demos:
+      - Getting Started: demos/01_getting_started/README.md
+      - Input and Output: demos/02_input_output/README.md
+      - Plugins: demos/03_plugins/README.md
+      - Remote Plugins: demos/04_remote_plugins/README.md
+      - Deploying from Github: demos/06_deployment_github/README.md
+      - Task Output: demos/07_task_output/README.md
+      - Multi-Modal: demos/08_multi_modal/README.md
+      - Simple Chatbot: demos/09_chat_simple/README.md
+      - Advanced Chatbot: demos/10_chat_plugins/README.md
+      - Human-in-the-Loop: demos/11_hitl/README.md

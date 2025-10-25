@@ -34,10 +34,27 @@ from ska_utils.strtobool import strtobool
 TA_TELEMETRY_ENABLED = Config(
     env_name="TA_TELEMETRY_ENABLED", is_required=True, default_value="true"
 )
-TA_OTEL_ENDPOINT = Config(env_name="TA_OTEL_ENDPOINT", is_required=False, default_value=None)
-TA_LOG_LEVEL = Config(env_name="TA_LOG_LEVEL", is_required=False, default_value="info")
+TA_OTEL_ENDPOINT = Config(
+    env_name="TA_OTEL_ENDPOINT", is_required=False, default_value=None
+)
+TA_OTEL_LOGGING_ENDPOINT = Config(
+    env_name="TA_OTEL_LOGGING_ENDPOINT", is_required=False, default_value=None
+)
+TA_OTEL_METRICS_ENDPOINT = Config(
+    env_name="TA_OTEL_METRICS_ENDPOINT", is_required=False, default_value=None
+)
 
-TELEMETRY_CONFIGS: list[Config] = [TA_TELEMETRY_ENABLED, TA_OTEL_ENDPOINT, TA_LOG_LEVEL]
+TA_LOG_LEVEL = Config(
+    env_name="TA_LOG_LEVEL", is_required=False, default_value="info"
+)
+
+TELEMETRY_CONFIGS: list[Config] = [
+    TA_TELEMETRY_ENABLED,
+    TA_OTEL_ENDPOINT,
+    TA_LOG_LEVEL,
+    TA_OTEL_LOGGING_ENDPOINT,
+    TA_OTEL_METRICS_ENDPOINT
+]
 
 AppConfig.add_configs(TELEMETRY_CONFIGS)
 
@@ -46,9 +63,19 @@ class Telemetry:
     def __init__(self, service_name: str, app_config: AppConfig):
         self.service_name = service_name
         self._handler: LoggingHandler | None = None
-        self.resource = Resource.create({ResourceAttributes.SERVICE_NAME: self.service_name})
-        self._telemetry_enabled = strtobool(str(app_config.get(TA_TELEMETRY_ENABLED.env_name)))
+        self.resource = Resource.create(
+            {ResourceAttributes.SERVICE_NAME: self.service_name}
+        )
+        self._telemetry_enabled = strtobool(
+            str(app_config.get(TA_TELEMETRY_ENABLED.env_name))
+        )
         self.endpoint = app_config.get(TA_OTEL_ENDPOINT.env_name)
+        self.logging_endpoint = app_config.get(
+            TA_OTEL_LOGGING_ENDPOINT.env_name
+        )
+        self.metrics_endpoint = app_config.get(
+            TA_OTEL_METRICS_ENDPOINT.env_name
+        )
         self._check_enable_telemetry()
         self.tracer: trace.Tracer | None = self._get_tracer()
 
@@ -113,13 +140,15 @@ class Telemetry:
 
     def _enable_logging(self) -> None:
         exporter: LogExporter
-        if self.endpoint:
-            exporter = OTLPLogExporter(endpoint=self.endpoint)
+        if self.logging_endpoint:
+            exporter = OTLPLogExporter(endpoint=self.logging_endpoint)
         else:
             exporter = ConsoleLogExporter()
 
         logger_provider = LoggerProvider(resource=self.resource)
-        logger_provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
+        logger_provider.add_log_record_processor(
+            BatchLogRecordProcessor(exporter)
+        )
         set_logger_provider(logger_provider)
 
         logger = logging.getLogger()
@@ -128,16 +157,19 @@ class Telemetry:
 
     def _enable_metrics(self) -> None:
         exporter: MetricExporter
-        if self.endpoint:
-            exporter = OTLPMetricExporter(endpoint=self.endpoint)
+        if self.metrics_endpoint:
+            exporter = OTLPMetricExporter(endpoint=self.metrics_endpoint)
         else:
             exporter = ConsoleMetricExporter()
 
         meter_provider = MeterProvider(
-            metric_readers=[PeriodicExportingMetricReader(exporter, export_interval_millis=5000)],
+            metric_readers=[PeriodicExportingMetricReader(
+                exporter, export_interval_millis=5000)
+            ],
             resource=self.resource,
             views=[
-                # Dropping all instrument names except for those starting with "semantic_kernel"
+                # Dropping all instrument names except
+                # for those starting with "semantic_kernel"
                 View(instrument_name="*", aggregation=DropAggregation()),
                 View(instrument_name="semantic_kernel*"),
             ],

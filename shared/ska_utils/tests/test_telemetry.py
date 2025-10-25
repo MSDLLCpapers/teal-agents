@@ -13,6 +13,7 @@ def app_config():
     config.get.side_effect = {
         "TA_TELEMETRY_ENABLED": "true",
         "TA_OTEL_ENDPOINT": "http://localhost:4317",
+        "TA_OTEL_METRICS_ENDPOINT": "http://localhost:4317",
         "TA_LOG_LEVEL": "info",
     }.get
     return config
@@ -157,7 +158,7 @@ def test_enable_metrics(app_config):
         patch("ska_utils.telemetry.set_meter_provider") as mock_set_meter_provider,
     ):
         telemetry._enable_metrics()
-        mock_otlp_exporter.assert_called_once_with(endpoint=telemetry.endpoint)
+        mock_otlp_exporter.assert_called_once_with(endpoint=telemetry.metrics_endpoint)
         mock_meter_provider.assert_called_once()
         mock_set_meter_provider.assert_called_once()
 

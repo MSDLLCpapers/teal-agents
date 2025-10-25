@@ -35,6 +35,10 @@ from sk_agents.state import InMemoryStateManager, RedisStateManager, StateManage
 from sk_agents.utils import initialize_plugin_loader
 
 
+# DEPRECATION NOTICE: AppV2 and its A2A (Agent-to-Agent) functionality is being deprecated
+# as part of the framework migration evaluation. New development should avoid using A2A
+# functionality. Existing A2A functionality will continue to work but is no longer actively
+# developed.
 class AppV2:
     class StateStores(Enum):
         IN_MEMORY = "in-memory"
@@ -186,6 +190,9 @@ class AppV2:
             prefix=f"/{name}/{version}",
         )
         if a2a_enabled:
+            # DEPRECATION NOTICE: A2A (Agent-to-Agent) functionality is deprecated.
+            # This code path is maintained for backward compatibility only.
+            # Avoid using A2A functionality for new development.
             chat_completion_builder = ChatCompletionBuilder(app_config)
             chat_completion_builder.get_chat_completion_for_model(
                 "test-to-confirm-model-availability",

@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from src.sk_agents.auth_storage.models import OAuth2AuthData
+from sk_agents.auth_storage.models import OAuth2AuthData
 
 
 def test_oauth2_auth_data_valid_model():

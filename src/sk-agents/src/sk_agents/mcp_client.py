@@ -697,6 +697,45 @@ class McpPlugin(BasePlugin):
 
     This plugin creates kernel functions with proper type annotations from MCP JSON schemas,
     allowing Semantic Kernel to expose full parameter information to the LLM.
+
+    MCP-Specific Design Note:
+    -------------------------
+    Unlike standard plugins, MCP plugins require a user_id parameter. This is necessary because:
+
+    1. **Per-User Authentication**: MCP tools connect to external services that require OAuth2
+       authentication. Tokens are stored per-user in AuthStorage and must be resolved at
+       invocation time.
+
+    2. **Dynamic Token Resolution**: Each MCP tool invocation calls resolve_server_auth_headers()
+       which uses user_id to retrieve the current user's OAuth2 token from AuthStorage.
+
+    3. **Multi-User Support**: The same MCP plugin class can be instantiated multiple times
+       (once per user request), each with a different user_id for proper token isolation.
+
+    This differs from standard plugins which typically use static authorization headers
+    or no authentication at all.
+
+    Args:
+        tools: List of stateless MCP tools discovered from the server
+        server_name: Name of the MCP server (used for logging and namespacing)
+        user_id: User ID for OAuth2 token resolution (REQUIRED for MCP)
+        authorization: Optional standard authorization header (rarely used with MCP)
+        extra_data_collector: Optional collector for extra response data
+
+    Raises:
+        ValueError: If user_id is not provided (MCP requirement)
+
+    Example:
+        >>> # Discovery creates plugin class at session start
+        >>> plugin_class = McpPluginRegistry.get_plugin_class("github")
+        >>>
+        >>> # Instantiation happens per-request with user_id
+        >>> plugin_instance = plugin_class(
+        ...     user_id="user123",
+        ...     authorization="Bearer ...",
+        ...     extra_data_collector=collector
+        ... )
+        >>> kernel.add_plugin(plugin_instance, "mcp_github")
     """
 
     def __init__(
@@ -708,7 +747,10 @@ class McpPlugin(BasePlugin):
         extra_data_collector=None
     ):
         if not user_id:
-            raise ValueError("MCP plugins require a user_id for per-request auth context")
+            raise ValueError(
+                "MCP plugins require a user_id for per-request OAuth2 token resolution. "
+                "This is needed to retrieve user-specific tokens from AuthStorage."
+            )
 
         super().__init__(authorization, extra_data_collector)
         self.tools = tools

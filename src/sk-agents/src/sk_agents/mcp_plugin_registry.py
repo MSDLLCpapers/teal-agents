@@ -147,8 +147,8 @@ class McpPluginRegistry:
                 logger.warning("Plugin catalog not available, skipping catalog registration")
                 return
 
-            # Create consistent tool_id format
-            tool_id = f"mcp_{server_config.name}-{server_config.name}_{tool_info.name}"
+            # Create consistent tool_id format: mcp_{server_name}_{tool_name}
+            tool_id = f"mcp_{server_config.name}_{tool_info.name}"
 
             # Map MCP annotations to governance
             annotations = getattr(tool_info, 'annotations', {}) or {}

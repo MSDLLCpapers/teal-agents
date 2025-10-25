@@ -208,7 +208,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                     request_id=request_id,
                     message=f"Authentication required for {len(missing_auth_servers)} MCP server(s).",
                     auth_challenges=missing_auth_servers,
-                    resume_url=f"/api/v1alpha1/agents/resume/{request_id}"
+                    resume_url=f"/tealagents/v1alpha1/resume/{request_id}"
                 )
 
             return None
@@ -600,8 +600,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         user_id = agent_task.user_id
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector, user_id=user_id)
-        agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        agent = await self.agent_builder.build_agent(
+            self.config.get_agent(),
+            extra_data_collector,
+            user_id=user_id
+        )
 
         # Load MCP plugins after agent construction to avoid async gap
         if self.config.get_agent().mcp_servers:
@@ -718,8 +721,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         user_id = agent_task.user_id
         extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector, user_id=user_id)
-        agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        agent = await self.agent_builder.build_agent(
+            self.config.get_agent(),
+            extra_data_collector,
+            user_id=user_id
+        )
 
         # Load MCP plugins after agent construction to avoid async gap
         if self.config.get_agent().mcp_servers:

@@ -146,8 +146,8 @@ class KernelBuilder:
             self.logger.exception(f"Could not load MCP plugins. - {e}")
             raise
 
-    @staticmethod
     def _parse_plugins(
+        self,
         plugin_names: list[str],
         kernel: Kernel,
         authorization: str | None = None,
@@ -160,8 +160,9 @@ class KernelBuilder:
         plugins = plugin_loader.get_plugins(plugin_names)
 
         for plugin_name, plugin_class in plugins.items():
-            # Get plugin-specific authorization (with token cache if available)
-            plugin_authorization = await self._get_plugin_authorization(plugin_name, authorization)
+            # For non-MCP plugins, use original authorization directly
+            # (MCP plugins handle auth differently via user_id)
+            plugin_authorization = authorization
 
             # Create and add the plugin to the kernel
             kernel.add_plugin(plugin_class(plugin_authorization, extra_data_collector), plugin_name)

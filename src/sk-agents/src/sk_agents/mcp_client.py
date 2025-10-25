@@ -392,8 +392,8 @@ def resolve_server_auth_headers(server_config: McpServerConfig, user_id: str = "
 
             if auth_data and isinstance(auth_data, OAuth2AuthData):
                 # Check if token is still valid
-                from datetime import datetime
-                if auth_data.expires_at > datetime.utcnow():
+                from datetime import datetime, timezone
+                if auth_data.expires_at > datetime.now(timezone.utc):
                     # Add authorization header
                     headers["Authorization"] = f"Bearer {auth_data.access_token}"
                     logger.info(f"Resolved auth headers for MCP server: {server_config.name}")

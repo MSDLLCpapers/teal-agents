@@ -238,12 +238,17 @@ def resolve_server_auth_headers(server_config: McpServerConfig, user_id: str) ->
     auth_storage_factory = AuthStorageFactory(app_config)
     auth_storage = auth_storage_factory.get_auth_storage_manager()
 
-    # Generate composite key for OAuth2 token lookup
-    composite_key = f"{server_config.auth_server}|{sorted(server_config.scopes)}"
+    headers: Dict[str, str] = {}
+    if server_config.headers:
+        headers.update({k: v for k, v in server_config.headers.items() if k.lower() != "authorization"})
+
+    composite_key = build_auth_storage_key(server_config.auth_server, server_config.scopes)
     auth_data = auth_storage.retrieve(user_id, composite_key)
 
     if auth_data and isinstance(auth_data, OAuth2AuthData):
-        return {"Authorization": f"Bearer {auth_data.access_token}"}
+        headers["Authorization"] = f"Bearer {auth_data.access_token}"
+
+    return headers
 ```
 
 ### 4.2 Auth Challenge Flow
@@ -311,11 +316,13 @@ spec:
         
     # HTTP transport (remote servers)
     - name: http-server
+      transport: http
       url: "https://api.example.com/mcp"      # Required: HTTP/SSE endpoint URL
+      auth_server: "https://api.example.com/oauth2"
+      scopes: ["api.read", "api.write"]
       timeout: 30.0                 # Optional: connection timeout (seconds)
       sse_read_timeout: 300.0       # Optional: SSE read timeout (seconds)
-      headers:                      # Optional: HTTP headers for auth/config
-        Authorization: "Bearer ${API_KEY}"
+      headers:                      # Optional: non-sensitive HTTP headers
         User-Agent: "TealAgents-MCP/1.1"
         X-Client-Version: "1.0"
   
@@ -369,10 +376,11 @@ mcp_servers:
 ```yaml
 mcp_servers:
   - name: custom-api
+    transport: http
     url: "https://api.example.com/mcp"
     headers:
-      Authorization: "Bearer ${API_TOKEN}"
       X-API-Version: "v1"
+      X-Client: "teal-agents"
     timeout: 30.0
     auth_server: "https://auth.example.com/oauth2"
     scopes: ["read", "write"]

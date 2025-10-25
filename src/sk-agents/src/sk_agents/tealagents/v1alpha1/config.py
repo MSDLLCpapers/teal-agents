@@ -19,7 +19,7 @@ class McpServerConfig(BaseModel):
     
     # HTTP transport fields
     url: Optional[str] = None
-    headers: Optional[Dict[str, str]] = None  # Legacy support - auth should use auth_server/scopes
+    headers: Optional[Dict[str, str]] = None  # Non-sensitive headers only
     timeout: Optional[float] = None  # Will be set automatically if not provided
     sse_read_timeout: Optional[float] = None  # Will be set automatically if not provided
 
@@ -57,6 +57,17 @@ class McpServerConfig(BaseModel):
                 self.timeout = 30.0  # Default timeout
             if self.sse_read_timeout is None:
                 self.sse_read_timeout = 300.0  # Default SSE read timeout
+
+            if not self.auth_server or not self.scopes:
+                raise ValueError(
+                    "HTTP MCP servers require auth_server and scopes for OAuth-based authentication"
+                )
+
+            if self.headers and any(key.lower() == "authorization" for key in self.headers):
+                raise ValueError(
+                    "Static Authorization headers are no longer supported for MCP HTTP servers. "
+                    "Configure OAuth via auth_server/scopes."
+                )
 
         # Validate auth configuration
         if self.auth_server and not self.auth_server.startswith(('http://', 'https://')):

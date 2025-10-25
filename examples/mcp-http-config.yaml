@@ -30,6 +30,7 @@ spec:
   mcp_servers:
     # User management service with OAuth2
     - name: user-management
+      transport: http
       url: "https://auth.example.com/api/v2/mcp"
       auth_server: "https://auth.example.com/oauth2"
       scopes: ["user:read", "user:write"]
@@ -45,6 +46,7 @@ spec:
 
     # Content management system with OAuth2
     - name: cms-api
+      transport: http
       url: "https://cms.example.com/api/v1/mcp"
       auth_server: "https://cms.example.com/oauth"
       scopes: ["content:read", "content:write"]
@@ -59,10 +61,12 @@ spec:
 
     # Analytics service - legacy manual auth
     - name: analytics
+      transport: http
       url: "https://analytics-api.example.com/v3/mcp"
       timeout: 60
+      auth_server: "https://analytics-api.example.com/oauth2"
+      scopes: ["analytics.read", "analytics.write"]
       headers:
-        Authorization: "Bearer ${ANALYTICS_API_KEY}"
         X-Analytics-Version: "v3.2"
         Accept: "application/json"
       tool_governance_overrides:
@@ -72,6 +76,7 @@ spec:
 
     # GitHub integration
     - name: github
+      transport: http
       url: "https://api.github.com/mcp"
       auth_server: "https://github.com/login/oauth"
       scopes: ["repo", "read:org"]
@@ -86,6 +91,7 @@ spec:
 
     # Internal microservice with OAuth2
     - name: internal-service
+      transport: http
       url: "https://internal.example.com/mcp-api/v1"
       auth_server: "https://internal.example.com/oauth2"
       scopes: ["internal:api"]

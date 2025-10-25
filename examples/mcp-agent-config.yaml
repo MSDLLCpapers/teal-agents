@@ -58,6 +58,7 @@ spec:
     # Remote HTTP servers with OAuth2 authentication
     # GitHub API - OAuth2 integrated server with governance
     - name: github
+      transport: http
       url: "https://api.github.com/mcp"
       auth_server: "https://github.com/login/oauth"
       scopes: ["repo", "read:user"]
@@ -73,14 +74,17 @@ spec:
 
     # Weather service - manual header authentication
     - name: weather-service
+      transport: http
       url: "https://weather-mcp.example.com/mcp"
       timeout: 30
+      auth_server: "https://auth.weather.example.com/oauth2"
+      scopes: ["forecast.read"]
       headers:
-        Authorization: "Bearer ${WEATHER_API_KEY}"
         User-Agent: "TealAgents-MCP/1.0"
 
     # Analytics API - remote service with custom governance
     - name: analytics-api
+      transport: http
       url: "https://analytics.example.com/mcp"
       timeout: 45
       auth_server: "https://analytics.example.com/oauth2"

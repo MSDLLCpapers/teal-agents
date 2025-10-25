@@ -54,6 +54,7 @@ spec:
     
     # HTTP Transport (remote server connections with OAuth2)
     - name: remote-database
+      transport: http
       url: "https://mcp-api.example.com/database/mcp"
       auth_server: "https://api.example.com/oauth2"
       scopes: ["database:read", "database:write"]
@@ -67,6 +68,7 @@ spec:
           data_sensitivity: "sensitive"
 
     - name: github-integration
+      transport: http
       url: "https://api.github.com/mcp"
       auth_server: "https://github.com/login/oauth"
       scopes: ["repo", "read:user"]
@@ -81,13 +83,16 @@ spec:
 
     # HTTP Transport (legacy manual auth for compatibility)
     - name: live-data-feed
+      transport: http
       url: "https://data-stream.example.com/mcp"
       timeout: 30.0
+      auth_server: "https://data-stream.example.com/oauth2"
+      scopes: ["stream.read"]
       headers:
-        Authorization: "Bearer ${STREAM_API_KEY}"
         X-Client-Type: "mcp-agent"
 
     - name: analytics-api
+      transport: http
       url: "https://analytics.example.com/api/v2/mcp"
       auth_server: "https://analytics.example.com/oauth"
       scopes: ["analytics:read", "analytics:export"]

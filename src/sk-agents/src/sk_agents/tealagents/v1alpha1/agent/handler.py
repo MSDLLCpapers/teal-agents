@@ -174,7 +174,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         try:
             from sk_agents.auth_storage.auth_storage_factory import AuthStorageFactory
-            from sk_agents.mcp_client import resolve_server_auth_headers
+            from sk_agents.mcp_client import build_auth_storage_key
             from ska_utils import AppConfig
 
             auth_storage_factory = AuthStorageFactory(AppConfig())
@@ -185,7 +185,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             for server_config in mcp_servers:
                 if server_config.auth_server and server_config.scopes:
                     # Check if we have valid auth for this server
-                    composite_key = f"{server_config.auth_server}|{'|'.join(sorted(server_config.scopes))}"
+                    composite_key = build_auth_storage_key(
+                        server_config.auth_server,
+                        server_config.scopes
+                    )
                     auth_data = auth_storage.retrieve(user_id, composite_key)
 
                     if not auth_data:

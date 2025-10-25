@@ -10,7 +10,13 @@ import threading
 from contextlib import AsyncExitStack
 from typing import Any, Dict, List
 
-from sk_agents.mcp_client import McpPlugin, McpTool, create_mcp_session, map_mcp_annotations_to_governance
+from sk_agents.mcp_client import (
+    McpPlugin,
+    McpTool,
+    apply_trust_level_governance,
+    create_mcp_session,
+    map_mcp_annotations_to_governance,
+)
 from sk_agents.plugin_catalog.models import Governance, Oauth2PluginAuth, PluginTool
 from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
 from sk_agents.tealagents.v1alpha1.config import GovernanceOverride, McpServerConfig
@@ -100,7 +106,6 @@ class McpPluginRegistry:
         async with AsyncExitStack() as stack:
             # Create temp connection
             session = await create_mcp_session(server_config, stack, user_id)
-            await session.initialize()
 
             # List available tools
             tools_result = await session.list_tools()
@@ -117,7 +122,6 @@ class McpPluginRegistry:
                     output_schema=getattr(tool_info, 'outputSchema', None),
                     server_config=server_config,
                     server_name=server_config.name,
-                    user_id=user_id
                 )
                 mcp_tools.append(mcp_tool)
 
@@ -149,10 +153,15 @@ class McpPluginRegistry:
             # Map MCP annotations to governance
             annotations = getattr(tool_info, 'annotations', {}) or {}
             base_governance = map_mcp_annotations_to_governance(annotations)
+            governance_with_trust = apply_trust_level_governance(
+                base_governance,
+                server_config.trust_level,
+                tool_info.description or ""
+            )
 
             # Apply manual overrides from config
             governance = cls._apply_governance_overrides(
-                base_governance,
+                governance_with_trust,
                 tool_info.name,
                 server_config.tool_governance_overrides
             )
@@ -189,10 +198,11 @@ class McpPluginRegistry:
         """
         def create_class(tools_list, srv_name):
             class DynamicMcpPlugin(McpPlugin):
-                def __init__(self, authorization=None, extra_data_collector=None):
+                def __init__(self, user_id: str, authorization=None, extra_data_collector=None):
                     super().__init__(
                         tools=tools_list,
                         server_name=srv_name,
+                        user_id=user_id,
                         authorization=authorization,
                         extra_data_collector=extra_data_collector
                     )

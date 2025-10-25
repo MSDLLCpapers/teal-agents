@@ -111,6 +111,9 @@ class KernelBuilder:
         if mcp_servers is None or len(mcp_servers) < 1:
             return kernel
 
+        if not user_id:
+            raise ValueError("user_id is required when loading MCP plugins")
+
         try:
             from sk_agents.mcp_plugin_registry import McpPluginRegistry
 
@@ -128,6 +131,7 @@ class KernelBuilder:
                 # Instantiate plugin (same pattern as non-MCP!)
                 # Note: authorization passed from handler, extra_data_collector from context
                 plugin_instance = plugin_class(
+                    user_id=user_id,
                     authorization=self.authorization,
                     extra_data_collector=None  # Can be passed if needed
                 )

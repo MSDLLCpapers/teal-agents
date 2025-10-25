@@ -60,11 +60,14 @@ spec:
       env:
         NODE_ENV: production
     
-    # HTTP transport (minimal config)
+    # HTTP transport (OAuth2 required)
     - name: user-management
+      transport: http
       url: "https://auth.example.com/api/v2/mcp"
+      auth_server: "https://auth.example.com/oauth2"
+      scopes: ["user:read", "user:write"]
       headers:
-        Authorization: "Bearer ${USER_MGMT_API_KEY}"
+        X-Service: "user-management"
 
     - name: sqlite
       command: python3
@@ -84,7 +87,7 @@ All MCP servers require:
 
 Transport-specific requirements (transport is inferred if omitted):
 - **stdio**: requires **command** (optional: **args**, **env**)
-- **http**: requires **url** (optional: **headers**, **timeout**, **sse_read_timeout**)
+- **http**: requires **url**, **auth_server**, and **scopes** (optional: **headers** for non-sensitive metadata, **timeout**, **sse_read_timeout**)
 
 Authentication fields (optional):
 - **auth_server**: OAuth2 authorization server URL for automatic token management
@@ -168,17 +171,20 @@ mcp_servers:
 3. If tokens are missing, an auth challenge is returned to prompt user authentication
 4. Once authenticated, tokens are stored and reused for future requests
 
-### Manual Authentication Headers
+### Custom HTTP Headers
 
-For servers requiring custom authentication, use the `headers` field:
+Use the `headers` field for non-sensitive metadata like routing hints or feature flags. Authentication must use OAuth2 tokens resolved from `auth_server` + `scopes`.
 
 ```yaml
 mcp_servers:
   - name: api-server
+    transport: http
     url: "https://api.example.com/mcp"
+    auth_server: "https://auth.example.com/oauth2"
+    scopes: ["read", "write"]
     headers:
-      Authorization: "Bearer ${API_TOKEN}"
-      X-API-Key: "${API_KEY}"
+      X-API-Version: "v1"
+      X-Client-ID: "mcp-agent"
 ```
 
 ## Tool Governance
@@ -198,7 +204,10 @@ Override automatic governance settings for specific tools:
 ```yaml
 mcp_servers:
   - name: github
+    transport: http
     url: "https://api.github.com/mcp"
+    auth_server: "https://github.com/login/oauth"
+    scopes: ["repo", "read:user"]
     tool_governance_overrides:
       create_repository:
         requires_hitl: false    # Override auto-inferred HITL requirement

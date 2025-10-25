@@ -150,17 +150,32 @@ def test_auth_resolution():
     else:
         print("  - No auth headers resolved (expected if auth storage not configured)")
 
-    # Test with manual headers (legacy support)
-    server_config_legacy = McpServerConfig(
-        name="legacy-server",
+    # Custom non-sensitive headers are still forwarded
+    server_config_with_headers = McpServerConfig(
+        name="header-server",
         transport="http",
-        url="https://legacy.example.com/mcp",
-        headers={"Authorization": "Bearer test-token", "User-Agent": "test-agent"}
+        url="https://headers.example.com/mcp",
+        auth_server="https://headers.example.com/oauth2",
+        scopes=["test.scope"],
+        headers={"X-Client": "demo"}
     )
+    forwarded_headers = resolve_server_auth_headers(server_config_with_headers)
+    print(f"✓ Non-sensitive headers forwarded: {forwarded_headers}")
 
-    headers_legacy = resolve_server_auth_headers(server_config_legacy)
-    print(f"✓ Legacy headers test:")
-    print(f"  - Headers: {list(headers_legacy.keys())}")
+    # Static Authorization headers must be rejected now
+    try:
+        McpServerConfig(
+            name="legacy-server",
+            transport="http",
+            url="https://legacy.example.com/mcp",
+            headers={"Authorization": "Bearer test-token"},
+            auth_server="https://legacy.example.com/oauth2",
+            scopes=["legacy.scope"],
+        )
+    except ValueError as exc:
+        print(f"✓ Static Authorization header rejected as expected: {exc}")
+    else:
+        raise AssertionError("Static Authorization header should not be accepted")
 
     return headers
 

@@ -89,10 +89,11 @@ class AgentConfig(BaseModel):
     - name: http-server
       transport: http
       url: "https://api.example.com/mcp"      # Required: HTTP/SSE endpoint URL
+      auth_server: "https://api.example.com/oauth2"
+      scopes: ["api.read", "api.write"]
       timeout: 30.0                 # Optional: connection timeout (seconds)
       sse_read_timeout: 300.0       # Optional: SSE read timeout (seconds)
-      headers:                      # Optional: HTTP headers for auth/config
-        Authorization: "Bearer ${API_KEY}"
+      headers:                      # Optional: Non-sensitive HTTP headers
         User-Agent: "TealAgents-MCP/1.1"
         X-Client-Version: "1.0"
 

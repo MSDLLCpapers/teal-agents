@@ -34,6 +34,12 @@ from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
 logger = logging.getLogger(__name__)
 
 
+def build_auth_storage_key(auth_server: str, scopes: List[str]) -> str:
+    """Create deterministic key for storing OAuth tokens in AuthStorage."""
+    normalized_scopes = '|'.join(sorted(scopes)) if scopes else ''
+    return f"{auth_server}|{normalized_scopes}" if normalized_scopes else auth_server
+
+
 def get_package_version() -> str:
     """Get package version for MCP client identification."""
     try:
@@ -359,7 +365,15 @@ def resolve_server_auth_headers(server_config: McpServerConfig, user_id: str = "
 
     # Start with any manually configured headers (legacy support)
     if server_config.headers:
-        headers.update(server_config.headers)
+        for header_key, header_value in server_config.headers.items():
+            if header_key.lower() == "authorization":
+                logger.warning(
+                    "Ignoring static Authorization header configured for MCP server %s. "
+                    "Use OAuth-based auth_server/scopes instead.",
+                    server_config.name
+                )
+                continue
+            headers[header_key] = header_value
 
     # If server has auth configuration, resolve tokens using existing auth system
     if server_config.auth_server and server_config.scopes:
@@ -371,7 +385,7 @@ def resolve_server_auth_headers(server_config: McpServerConfig, user_id: str = "
             auth_storage = auth_storage_factory.get_auth_storage_manager()
 
             # Generate composite key for OAuth2 token lookup
-            composite_key = f"{server_config.auth_server}|{sorted(server_config.scopes)}"
+            composite_key = build_auth_storage_key(server_config.auth_server, server_config.scopes)
 
             # Retrieve stored auth data
             auth_data = auth_storage.retrieve(user_id, composite_key)
@@ -485,7 +499,8 @@ async def create_mcp_session(server_config: McpServerConfig, connection_stack: A
         session = await connection_stack.enter_async_context(
             ClientSession(read, write)
         )
-        
+
+        await initialize_mcp_session(session, server_config.name)
         return session
         
     elif transport_type == "http":
@@ -507,7 +522,8 @@ async def create_mcp_session(server_config: McpServerConfig, connection_stack: A
             session = await connection_stack.enter_async_context(
                 ClientSession(read, write)
             )
-            
+
+            await initialize_mcp_session(session, server_config.name)
             return session
             
         except ImportError:
@@ -580,7 +596,6 @@ class McpTool:
         output_schema: Dict[str, Any] | None,
         server_config: "McpServerConfig",
         server_name: str,
-        user_id: str
     ):
         """
         Initialize stateless MCP tool.
@@ -592,7 +607,6 @@ class McpTool:
             output_schema: JSON schema for tool outputs (optional)
             server_config: MCP server configuration (for reconnection)
             server_name: Name of the MCP server
-            user_id: User ID for authentication
         """
         self.tool_name = tool_name
         self.description = description
@@ -600,9 +614,8 @@ class McpTool:
         self.output_schema = output_schema
         self.server_config = server_config
         self.server_name = server_name
-        self.user_id = user_id
 
-    async def invoke(self, **kwargs) -> str:
+    async def invoke(self, user_id: str, **kwargs) -> str:
         """
         Invoke the MCP tool with stateless connection.
 
@@ -620,9 +633,8 @@ class McpTool:
                 session = await create_mcp_session(
                     self.server_config,
                     stack,
-                    self.user_id
+                    user_id
                 )
-                await session.initialize()
 
                 logger.debug(f"Executing MCP tool: {self.server_name}.{self.tool_name}")
 
@@ -691,12 +703,17 @@ class McpPlugin(BasePlugin):
         self,
         tools: List[McpTool],
         server_name: str,
+        user_id: str,
         authorization: str | None = None,
         extra_data_collector=None
     ):
+        if not user_id:
+            raise ValueError("MCP plugins require a user_id for per-request auth context")
+
         super().__init__(authorization, extra_data_collector)
         self.tools = tools
         self.server_name = server_name
+        self.user_id = user_id
 
         # Dynamically add kernel functions for each tool
         for tool in tools:
@@ -723,7 +740,7 @@ class McpPlugin(BasePlugin):
                 description=f"[{self.server_name}] {captured_tool.description}",
             )
             async def tool_function(**kwargs):
-                return await captured_tool.invoke(**kwargs)
+                return await captured_tool.invoke(self.user_id, **kwargs)
 
             # Add type annotations for SK introspection
             tool_function.__annotations__ = param_annotations

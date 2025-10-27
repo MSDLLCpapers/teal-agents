@@ -34,6 +34,28 @@ from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
 logger = logging.getLogger(__name__)
 
 
+def build_auth_storage_key(auth_server: str, scopes: List[str]) -> str:
+    """
+    Create deterministic key for storing OAuth tokens in AuthStorage.
+    
+    This ensures tokens are reused for the same auth_server + scope combination.
+    Scopes are sorted to ensure consistent keys regardless of order.
+    
+    Args:
+        auth_server: OAuth2 authorization server URL
+        scopes: List of OAuth2 scopes
+        
+    Returns:
+        Composite key string for auth storage lookup
+        
+    Example:
+        >>> build_auth_storage_key("https://github.com/oauth", ["repo", "read:user"])
+        'https://github.com/oauth|read:user|repo'
+    """
+    normalized_scopes = '|'.join(sorted(scopes)) if scopes else ''
+    return f"{auth_server}|{normalized_scopes}" if normalized_scopes else auth_server
+
+
 def get_package_version() -> str:
     """Get package version for MCP client identification."""
     try:
@@ -377,22 +399,28 @@ def resolve_server_auth_headers(server_config: McpServerConfig, user_id: str = "
             auth_storage = auth_storage_factory.get_auth_storage_manager()
 
             # Generate composite key for OAuth2 token lookup
-            composite_key = f"{server_config.auth_server}|{sorted(server_config.scopes)}"
+            composite_key = build_auth_storage_key(server_config.auth_server, server_config.scopes)
 
             # Retrieve stored auth data
             auth_data = auth_storage.retrieve(user_id, composite_key)
 
             if auth_data and isinstance(auth_data, OAuth2AuthData):
                 # Check if token is still valid
-                from datetime import datetime
-                if auth_data.expires_at > datetime.utcnow():
-                    # Add authorization header
+                from datetime import datetime, timezone
+                if auth_data.expires_at > datetime.now(timezone.utc):
+                    # OAuth token found and valid - OVERRIDE Authorization header
                     headers["Authorization"] = f"Bearer {auth_data.access_token}"
-                    logger.info(f"Resolved auth headers for MCP server: {server_config.name}")
+                    logger.info(f"Using OAuth token for MCP server: {server_config.name}")
                 else:
-                    logger.warning(f"Token expired for MCP server: {server_config.name}")
+                    logger.warning(
+                        f"OAuth token expired for MCP server: {server_config.name}. "
+                        f"Will fall back to static auth if configured."
+                    )
             else:
-                logger.warning(f"No valid auth token found for MCP server: {server_config.name}")
+                logger.debug(
+                    f"No OAuth token found for MCP server: {server_config.name}. "
+                    f"Using static auth if configured."
+                )
 
         except Exception as e:
             logger.error(f"Failed to resolve auth for MCP server {server_config.name}: {e}")
@@ -608,13 +636,19 @@ class McpTool:
         self.server_name = server_name
         self.user_id = user_id
 
-    async def invoke(self, **kwargs) -> str:
+    async def invoke(self, user_id: str = None, **kwargs) -> str:
         """
         Invoke the MCP tool with stateless connection.
 
         Creates a temporary connection, executes the tool, and closes the connection.
         This follows the "connect_and_execute" pattern.
+        
+        Args:
+            user_id: User ID for auth (optional, uses self.user_id if not provided)
+            **kwargs: Tool-specific parameters
         """
+        # Use provided user_id or fall back to stored user_id
+        effective_user_id = user_id if user_id is not None else self.user_id
         try:
             # Validate inputs against schema
             if self.input_schema:
@@ -626,7 +660,7 @@ class McpTool:
                 session = await create_mcp_session(
                     self.server_config,
                     stack,
-                    self.user_id
+                    effective_user_id
                 )
                 await session.initialize()
 
@@ -637,6 +671,40 @@ class McpTool:
 
                 # Parse result
                 parsed_result = self._parse_result(result)
+                
+                # DEBUG: Force output to stderr to bypass logging
+                import sys
+                print(f"[MCP_DEBUG] Tool {self.tool_name} returned: {parsed_result[:200]}", file=sys.stderr, flush=True)
+
+                # ARCADE AUTHORIZATION CHALLENGE IN SUCCESSFUL RESPONSE
+                # Sometimes Arcade returns auth URLs in successful responses (not errors)
+                # Check if the result contains an authorization challenge
+                is_auth_challenge = self._is_arcade_auth_challenge(parsed_result)
+                print(f"[MCP_DEBUG] Is auth challenge: {is_auth_challenge}", file=sys.stderr, flush=True)
+                if is_auth_challenge:
+                    print(f"[MCP_DEBUG] DETECTED AUTH CHALLENGE for user {effective_user_id}", file=sys.stderr, flush=True)
+                    auth_url = self._extract_arcade_auth_url(parsed_result)
+                    print(f"[MCP_DEBUG] Extracted URL: {auth_url}", file=sys.stderr, flush=True)
+                    if auth_url:
+                        try:
+                            from sk_agents.auth_routes import extract_flow_id_from_auth_url, store_flow_user_mapping
+                            
+                            flow_id = extract_flow_id_from_auth_url(auth_url)
+                            print(f"[MCP_DEBUG] Extracted flow_id: {flow_id}", file=sys.stderr, flush=True)
+                            if flow_id:
+                                # Store mapping so verifier can look it up when user completes OAuth
+                                store_flow_user_mapping(flow_id, effective_user_id)
+                                print(f"[MCP_DEBUG] ✓ STORED: flow_id={flow_id} → user={effective_user_id}", file=sys.stderr, flush=True)
+                                logger.info(
+                                    f"✓ Stored Arcade flow mapping: flow_id={flow_id} → user={effective_user_id}"
+                                )
+                            else:
+                                logger.error(f"Failed to extract flow_id from auth_url: {auth_url[:100]}")
+                        except Exception as mapping_error:
+                            # Don't fail the request if mapping storage fails
+                            logger.error(f"Exception storing Arcade flow mapping: {mapping_error}", exc_info=True)
+                    else:
+                        logger.warning(f"Auth challenge detected but could not extract URL from: {parsed_result[:200]}")
 
                 logger.debug(f"MCP tool {self.tool_name} completed successfully")
 
@@ -645,6 +713,35 @@ class McpTool:
 
         except Exception as e:
             logger.error(f"Error invoking MCP tool {self.tool_name}: {e}")
+
+            # ARCADE AUTHORIZATION CHALLENGE INTERCEPTION (ERROR PATH)
+            # When Arcade requires authorization, it may return an error with an auth_url
+            # We need to store the flow_id -> user_id mapping before returning to user
+            error_str = str(e)
+            
+            if self._is_arcade_auth_challenge(error_str):
+                logger.info(f"Detected Arcade auth challenge in error for user {effective_user_id}")
+                auth_url = self._extract_arcade_auth_url(error_str)
+                if auth_url:
+                    logger.info(f"Extracted auth URL from error, attempting to store flow mapping")
+                    try:
+                        from sk_agents.auth_routes import extract_flow_id_from_auth_url, store_flow_user_mapping
+                        
+                        flow_id = extract_flow_id_from_auth_url(auth_url)
+                        if flow_id:
+                            # Store mapping so verifier can look it up when user completes OAuth
+                            store_flow_user_mapping(flow_id, effective_user_id)
+                            logger.info(
+                                f"✓ Stored Arcade flow mapping: flow_id={flow_id} → user={effective_user_id} (from error)"
+                            )
+                        else:
+                            logger.error(f"Failed to extract flow_id from auth_url: {auth_url[:100]}")
+                    except Exception as mapping_error:
+                        # Don't fail the whole request if mapping storage fails
+                        # The auth flow will still work, just the verifier lookup will fail
+                        logger.error(f"Exception storing Arcade flow mapping: {mapping_error}", exc_info=True)
+                else:
+                    logger.warning(f"Auth challenge detected in error but could not extract URL from: {error_str[:200]}")
 
             # Provide helpful error messages
             error_msg = str(e).lower()
@@ -665,6 +762,62 @@ class McpTool:
             return result.text
         else:
             return str(result)
+
+    def _is_arcade_auth_challenge(self, error_str: str) -> bool:
+        """
+        Detect if error is an Arcade authorization challenge.
+        
+        Arcade returns errors containing authorization URLs when user needs to authorize.
+        Common patterns:
+        - "authorization_required"
+        - URLs to slack.com/oauth, github.com/oauth, etc.
+        - "state=" parameter (contains flow_id)
+        """
+        error_lower = error_str.lower()
+        return (
+            'authorization_required' in error_lower or
+            'auth_url' in error_lower or
+            ('oauth' in error_lower and 'state=' in error_str) or
+            ('authorize' in error_lower and 'state=' in error_str)
+        )
+    
+    def _extract_arcade_auth_url(self, error_str: str) -> str | None:
+        """
+        Extract authorization URL from Arcade error message.
+        
+        Arcade typically includes the auth URL in error messages.
+        We need to extract it to get the flow_id from the state parameter.
+        
+        Common formats:
+        - "Authorization required. URL: https://..."
+        - "Please authorize at: https://..."
+        - URLs containing oauth/authorize endpoints
+        - Markdown links: [text](https://...)
+        """
+        import re
+        
+        # Look for URLs with state parameter (most specific first)
+        # Pattern matches URLs that contain 'state=' and captures everything until whitespace or closing paren/bracket
+        url_pattern = r'https?://[^\s<>"\)]+state=[^\s<>"\)&]*[^\s<>"\)]+'
+        matches = re.findall(url_pattern, error_str)
+        
+        if matches:
+            # Clean up any trailing characters
+            url = matches[0].rstrip(',);]')
+            logger.debug(f"Extracted auth URL: {url[:100]}...")
+            return url
+        
+        # Fallback: Try to find any URL with oauth/authorize
+        url_pattern_fallback = r'https?://[^\s<>"\)]+(?:oauth|authorize)[^\s<>"\)]*'
+        matches = re.findall(url_pattern_fallback, error_str)
+        
+        if matches:
+            url = matches[0].rstrip(',);]')
+            logger.debug(f"Extracted auth URL (fallback): {url[:100]}...")
+            return url
+        
+        logger.debug(f"Could not extract auth URL from response: {error_str[:200]}")
+        return None
 
     def _validate_inputs(self, kwargs: Dict[str, Any]) -> None:
         """Basic input validation against the tool's JSON schema."""
@@ -697,10 +850,12 @@ class McpPlugin(BasePlugin):
         self,
         tools: List[McpTool],
         server_name: str,
+        user_id: str,
         authorization: str | None = None,
         extra_data_collector=None
     ):
         super().__init__(authorization, extra_data_collector)
+        self.user_id = user_id
         self.tools = tools
         self.server_name = server_name
 
@@ -715,7 +870,6 @@ class McpPlugin(BasePlugin):
         Converts MCP JSON schema to Python type hints so SK can expose
         full parameter information to the LLM.
         """
-
         # Create a closure that captures the specific tool instance
         def create_tool_function(captured_tool: McpTool):
             # Sanitize tool name to match Semantic Kernel pattern ^[0-9A-Za-z_-]+$
@@ -749,12 +903,131 @@ class McpPlugin(BasePlugin):
             # Build type annotations from JSON schema
             param_annotations = self._build_annotations(captured_tool.input_schema)
 
-            @kernel_function(
+            # Build a dynamic function with explicit parameters from the schema
+            # This is necessary because Semantic Kernel needs to introspect the function signature
+            
+            # Get parameter information from schema
+            param_info = []
+            if captured_tool.input_schema and isinstance(captured_tool.input_schema, dict):
+                properties = captured_tool.input_schema.get('properties', {})
+                required = captured_tool.input_schema.get('required', [])
+                
+                # If there's a type but no properties, it might be a simple type
+                if not properties and captured_tool.input_schema.get('type'):
+                    logger.warning(f"Tool {function_name} has schema type but no properties: {captured_tool.input_schema}")
+                
+                for param_name, param_schema in properties.items():
+                    if isinstance(param_schema, dict):
+                        param_type = self._json_type_to_python(param_schema.get('type', 'string'))
+                        is_required = param_name in required
+                        default_value = None if is_required else param_schema.get('default')
+                        param_info.append({
+                            'name': param_name,
+                            'type': param_type,
+                            'required': is_required,
+                            'default': default_value
+                        })
+            
+            # Create function dynamically with proper signature
+            import inspect
+            from typing import Any
+            
+            # Build the function code dynamically
+            # Sort parameters: required first, then optional
+            required_params = []
+            optional_params = []
+            param_names = []
+            
+            for param in param_info:
+                param_names.append(param['name'])
+                if param['required']:
+                    required_params.append(param['name'])
+                else:
+                    optional_params.append(f"{param['name']}=None")
+            
+            # Combine parameters with required first
+            func_params = required_params + optional_params
+            
+            # Create the function signature
+            params_str = ', '.join(func_params) if func_params else ''
+            
+            # Build the function code
+            func_code = f"""
+async def tool_function({params_str}):
+    # Collect all parameters into a dict
+    params = {{}}
+"""
+            
+            # Debug logging
+            logger.info(f"Creating function for {function_name} with parameters: {params_str}")
+            if captured_tool.input_schema and isinstance(captured_tool.input_schema, dict):
+                schema_props = captured_tool.input_schema.get('properties', {})
+                schema_required = captured_tool.input_schema.get('required', [])
+                logger.info(f"Schema properties: {list(schema_props.keys())}")
+                logger.info(f"Required params: {schema_required}")
+            
+            # Add code to collect parameters
+            if param_names:
+                for param in param_info:
+                    param_name = param['name']
+                    if param['required']:
+                        # Always include required parameters
+                        func_code += f"""
+    params['{param_name}'] = {param_name}
+"""
+                    else:
+                        # Only include optional parameters if they're not None
+                        func_code += f"""
+    if {param_name} is not None:
+        params['{param_name}'] = {param_name}
+"""
+                
+            # Special handling for 'kwargs' parameter if it's required but not provided
+            if 'kwargs' in param_names:
+                # Check if kwargs is required
+                kwargs_required = any(p['name'] == 'kwargs' and p['required'] for p in param_info)
+                func_code += f"""
+    # Handle 'kwargs' parameter specially
+    if 'kwargs' not in params and {repr(kwargs_required)}:
+        params['kwargs'] = {{}}
+"""
+            else:
+                # No parameters at all
+                func_code += """
+    # No parameters for this tool
+"""
+            
+            # Add the invocation code
+            func_code += f"""
+    # Pass user_id from plugin to tool
+    return await _captured_tool.invoke(_user_id, **params)
+"""
+            
+            # Create a namespace with necessary imports and variables
+            namespace = {
+                '_captured_tool': captured_tool,
+                '_user_id': self.user_id,
+            }
+            
+            # Log the generated function code for debugging
+            logger.info(f"Generated function code for {function_name}:\n{func_code}")
+            
+            # Execute the function definition
+            try:
+                exec(func_code, namespace)
+            except SyntaxError as e:
+                logger.error(f"Syntax error in generated function for {function_name}: {e}")
+                logger.error(f"Generated code:\n{func_code}")
+                raise
+            
+            # Get the created function
+            tool_function = namespace['tool_function']
+            
+            # Apply the kernel_function decorator
+            tool_function = kernel_function(
                 name=function_name,
                 description=f"[{self.server_name}] {captured_tool.description}",
-            )
-            async def tool_function(**kwargs):
-                return await captured_tool.invoke(**kwargs)
+            )(tool_function)
 
             # Add type annotations for SK introspection
             tool_function.__annotations__ = param_annotations
@@ -782,6 +1055,8 @@ class McpPlugin(BasePlugin):
         Returns:
             Dictionary mapping parameter names to Python types
         """
+        from typing import Optional
+        
         annotations = {}
 
         if not input_schema or not isinstance(input_schema, dict):
@@ -797,9 +1072,12 @@ class McpPlugin(BasePlugin):
 
             # Get Python type from JSON schema type
             param_type = self._json_type_to_python(param_schema.get('type', 'string'))
-
+            
             # Mark as optional if not required
             # Note: SK will handle optional parameters appropriately
+            if param_name not in required:
+                param_type = Optional[param_type]
+            
             annotations[param_name] = param_type
 
         # All MCP tools return strings currently

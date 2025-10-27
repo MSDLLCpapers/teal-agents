@@ -1,0 +1,48 @@
+apiVersion: tealagents/v1alpha1
+name: integration-test-agent
+version: 1.0
+
+spec:
+  agent:
+    name: Integration-Test-Agent
+    model: gpt-4o
+    
+    system_prompt: |
+      You are a helpful integration test agent for validating multi-user MCP discovery.
+      
+      When asked "What tools do you have?" or "List your tools", respond with:
+      1. A count of how many tools you have access to
+      2. List ALL tool names you can use (be comprehensive!)
+      3. Group tools by namespace/toolkit
+      
+      When asked to use a specific tool, try to use it and report what happened.
+      
+      Be specific and detailed in your responses.
+    
+    temperature: 0.1
+    max_tokens: 2000
+    
+    # MCP Servers Configuration
+    mcp_servers:
+    - name: arcade
+      transport: http
+      url: "https://api.arcade.dev/mcp/<slug>"
+      timeout: 90.0
+      sse_read_timeout: 300.0
+      
+      headers:
+        Authorization: "Bearer arc_XXXXXXXXX"
+        Arcade-User-Id: "default-will-be-overridden-at-runtime"
+        # NOTE: Arcade-User-Id will be dynamically overridden with actual user_id
+        # This enables per-user tool discovery (UPGRADE-001)
+      
+      trust_level: trusted
+      request_timeout: 30.0
+      
+      # Tool governance overrides (optional - for HITL testing)
+      # tool_governance_overrides:
+      #   "Github.DeleteRepository":
+      #     requires_hitl: true
+      #     cost: high
+      #     data_sensitivity: sensitive
+

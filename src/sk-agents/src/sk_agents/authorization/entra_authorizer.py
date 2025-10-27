@@ -100,12 +100,20 @@ class EntraAuthorizer(RequestAuthorizer):
             signing_key = jwk_client.get_signing_key_from_jwt(token)
             
             # Decode and validate token
+            # Note: Accept both v1.0 and v2.0 token issuers for compatibility
+            # Also accept audience with or without api:// prefix
             decoded_token = jwt.decode(
                 token,
                 signing_key.key,
                 algorithms=["RS256"],
-                audience=self.client_id,  # Validate token is for our app
-                issuer=f"{self.authority}/v2.0",  # Validate issuer
+                audience=[
+                    self.client_id,  # Without prefix
+                    f"api://{self.client_id}",  # With api:// prefix
+                ],
+                issuer=[
+                    f"{self.authority}/v2.0",  # v2.0 endpoint
+                    f"https://sts.windows.net/{self.tenant_id}/",  # v1.0 endpoint
+                ],
                 options={
                     "verify_signature": True,
                     "verify_exp": True,

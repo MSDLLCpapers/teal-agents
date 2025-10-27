@@ -16,7 +16,7 @@ from semantic_kernel.contents.utils.author_role import AuthorRole
 from semantic_kernel.kernel import Kernel
 from ska_utils import AppConfig
 
-from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
+from sk_agents.authorization.authorizer_factory import AuthorizerFactory
 from sk_agents.exceptions import AgentInvokeException, AuthenticationException, PersistenceLoadError
 from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
 from sk_agents.hitl import hitl_manager
@@ -56,7 +56,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise ValueError("Invalid config")
         self.agent_builder = agent_builder
         self.state = state_manager
-        self.authorizer = DummyAuthorizer()
+        
+        # Use AuthorizerFactory to get configured authorizer (DummyAuthorizer, EntraAuthorizer, etc.)
+        authorizer_factory = AuthorizerFactory(app_config)
+        self.authorizer = authorizer_factory.get_authorizer()
         
         # Per-user MCP discovery tracking
         # Each user gets independent discovery of their authorized tools
@@ -445,7 +448,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         # Execute the tool calls using asyncio.gather(),
         # just as the agent would have.
         extra_data_collector = ExtraDataCollector()
-        agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        agent = await self.agent_builder.build_agent(
+            self.config.get_agent(), 
+            extra_data_collector,
+            user_id=user_id
+        )
         kernel = agent.agent.kernel
 
         # Create ToolContent objects from the results
@@ -546,7 +553,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise PersistenceLoadError(f"Agent task with ID {task_id} not found in state.")
 
         extra_data_collector = ExtraDataCollector()
-        agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        agent = await self.agent_builder.build_agent(
+            self.config.get_agent(), 
+            extra_data_collector,
+            user_id=agent_task.user_id
+        )
 
         # Prepare metadata
         completion_tokens: int = 0
@@ -653,7 +664,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise PersistenceLoadError(f"Agent task with ID {task_id} not found in state.")
 
         extra_data_collector = ExtraDataCollector()
-        agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        agent = await self.agent_builder.build_agent(
+            self.config.get_agent(), 
+            extra_data_collector,
+            user_id=agent_task.user_id
+        )
 
         # Prepare metadata
         final_response = []

@@ -24,6 +24,7 @@ class AgentBuilder:
         agent_config: AgentConfig,
         extra_data_collector: ExtraDataCollector | None = None,
         output_type: str | None = None,
+        user_id: str | None = None,
     ) -> SKAgent:
         kernel = await self.kernel_builder.build_kernel(
             agent_config.model,
@@ -33,6 +34,10 @@ class AgentBuilder:
             self.authorization,
             extra_data_collector,
         )
+        
+        # Load MCP plugins for this user (if any)
+        if user_id:
+            kernel = await self.kernel_builder.load_mcp_plugins(kernel, user_id)
 
         so_supported: bool = self.kernel_builder.model_supports_structured_output(
             agent_config.model

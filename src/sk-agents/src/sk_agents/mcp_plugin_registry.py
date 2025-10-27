@@ -161,8 +161,16 @@ class McpPluginRegistry:
             tool_id = f"mcp_{server_config.name}-{server_config.name}_{tool_info.name}"
 
             # Map MCP annotations to governance
-            annotations = getattr(tool_info, 'annotations', {}) or {}
-            base_governance = map_mcp_annotations_to_governance(annotations)
+            # tool_info.annotations is a Pydantic ToolAnnotations object (or None)
+            # Convert to dict for governance mapping
+            annotations_obj = getattr(tool_info, 'annotations', None)
+            if annotations_obj:
+                # Convert Pydantic model to dict
+                annotations = annotations_obj.model_dump() if hasattr(annotations_obj, 'model_dump') else annotations_obj.dict()
+            else:
+                annotations = {}
+            
+            base_governance = map_mcp_annotations_to_governance(annotations, tool_info.description)
 
             # Apply manual overrides from config
             governance = cls._apply_governance_overrides(
@@ -183,11 +191,17 @@ class McpPluginRegistry:
                 auth=auth
             )
 
-            # Register in catalog
-            plugin_id = f"mcp_{server_config.name}"
-            catalog.register_dynamic_tool(plugin_tool, plugin_id=plugin_id)
-
-            logger.debug(f"Registered tool in catalog: {tool_id} (requires_hitl={governance.requires_hitl})")
+            # Register in catalog (if supported)
+            if hasattr(catalog, 'register_dynamic_tool'):
+                plugin_id = f"mcp_{server_config.name}"
+                catalog.register_dynamic_tool(plugin_tool, plugin_id=plugin_id)
+                logger.debug(f"Registered tool in catalog: {tool_id} (requires_hitl={governance.requires_hitl})")
+            else:
+                logger.debug(
+                    f"Catalog {catalog.__class__.__name__} doesn't support dynamic registration. "
+                    f"Tool {tool_id} discovered but not registered in catalog. "
+                    f"This is normal for FileBasedPluginCatalog."
+                )
 
         except Exception as e:
             logger.error(f"Failed to register tool {tool_info.name} in catalog: {e}")
@@ -203,10 +217,11 @@ class McpPluginRegistry:
         """
         def create_class(tools_list, srv_name):
             class DynamicMcpPlugin(McpPlugin):
-                def __init__(self, authorization=None, extra_data_collector=None):
+                def __init__(self, user_id: str, authorization=None, extra_data_collector=None):
                     super().__init__(
                         tools=tools_list,
                         server_name=srv_name,
+                        user_id=user_id,
                         authorization=authorization,
                         extra_data_collector=extra_data_collector
                     )

@@ -1,0 +1,49 @@
+apiVersion: tealagents/v1alpha1
+name: hybrid-arcade-agent
+version: 1.0
+
+spec:
+  agent:
+    name: Hybrid-Arcade-Test-Agent
+    model: gpt-4o
+    
+    system_prompt: |
+      You are a helpful test agent for validating hybrid Arcade authentication.
+      
+      When asked "What tools do you have?" respond with a comprehensive list
+      of all available tools, organized by toolkit/namespace.
+      
+      Be specific and detailed in your responses.
+    
+    temperature: 0.1
+    max_tokens: 2000
+    
+    # MCP Servers Configuration - HYBRID MODE
+    # Supports BOTH current API key AND future OAuth
+    mcp_servers:
+    - name: arcade
+      transport: http
+      url: "https://api.arcade.dev/mcp/<slug>"
+      timeout: 90.0
+      sse_read_timeout: 300.0
+      
+      # Current mode: Static headers (API key)
+      headers:
+        Authorization: "Bearer arc_XXXXXXXXXXX"
+        # Arcade-User-Id will be dynamically injected at runtime
+      
+      # Future mode: OAuth (when Arcade DCR is complete)
+      # When both are configured, OAuth takes precedence if token available
+      auth_server: "https://auth.arcade.dev"  # Not yet available
+      scopes: ["mcp.tools", "mcp.resources"]  # Future scopes
+      
+      trust_level: trusted
+      request_timeout: 30.0
+      
+      # Tool governance overrides (optional - for HITL testing)
+      # tool_governance_overrides:
+      #   "Github.DeleteRepository":
+      #     requires_hitl: true
+      #     cost: high
+      #     data_sensitivity: sensitive
+

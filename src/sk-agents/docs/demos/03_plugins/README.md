@@ -34,7 +34,7 @@ and `extra_data` arguments.
 
 #### Example
 In this example, we've defined a `WeatherPlugin` which contains two annotated
-methods `gat_lat_lng_for_location` and `get_temperature`. The first method takes
+methods `get_lat_lng_for_location` and `get_temperature`. The first method takes
 as input a location search string and returns the latitude, longitude, and
 timezone of the location. The second method takes as input the latitude,
 longitude, and timezone of a location and returns the low and high temperatures.

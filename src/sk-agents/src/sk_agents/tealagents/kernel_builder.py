@@ -45,7 +45,7 @@ class KernelBuilder:
     ) -> Kernel:
         try:
             kernel = self._create_base_kernel(model_name, service_id)
-            kernel = await self._parse_plugins(plugins, kernel, authorization, extra_data_collector)
+            kernel = self._parse_plugins(plugins, kernel, authorization, extra_data_collector)
             return self._load_remote_plugins(remote_plugins, kernel)
         except Exception as e:
             self.logger.exception(f"Could build kernel with service ID {service_id}. - {e}")
@@ -86,7 +86,58 @@ class KernelBuilder:
             self.logger.exception(f"Could not load remote plugings. -{e}")
             raise
 
-    async def _parse_plugins(
+    async def load_mcp_plugins(
+        self, 
+        kernel: Kernel,
+        user_id: str,
+    ) -> Kernel:
+        """
+        Load MCP plugins for a specific user into the kernel.
+        
+        This retrieves the per-user MCP plugin classes from McpPluginRegistry
+        and instantiates them with the user_id for proper authorization.
+        
+        Args:
+            kernel: The Semantic Kernel instance
+            user_id: User ID for retrieving user-specific MCP plugins
+            
+        Returns:
+            Kernel with MCP plugins loaded
+        """
+        if not user_id:
+            self.logger.warning("user_id required for MCP plugins, skipping MCP plugin load")
+            return kernel
+        
+        try:
+            from sk_agents.mcp_plugin_registry import McpPluginRegistry
+            
+            # Get all MCP plugin classes for this user
+            plugin_classes = McpPluginRegistry.get_all_plugin_classes_for_user(user_id)
+            
+            if not plugin_classes:
+                self.logger.debug(f"No MCP plugins found for user {user_id}")
+                return kernel
+            
+            # Load each MCP plugin into the kernel
+            for server_name, plugin_class in plugin_classes.items():
+                # Instantiate plugin with user_id
+                plugin_instance = plugin_class(
+                    user_id=user_id,
+                    authorization=self.authorization,
+                    extra_data_collector=None
+                )
+                
+                # Add to kernel
+                kernel.add_plugin(plugin_instance, f"mcp_{server_name}")
+                self.logger.info(f"Loaded MCP plugin for server '{server_name}' (user: {user_id})")
+            
+            return kernel
+            
+        except Exception as e:
+            self.logger.exception(f"Could not load MCP plugins for user {user_id}: {e}")
+            raise
+
+    def _parse_plugins(
         self,
         plugin_names: list[str],
         kernel: Kernel,
@@ -100,11 +151,9 @@ class KernelBuilder:
         plugins = plugin_loader.get_plugins(plugin_names)
 
         for plugin_name, plugin_class in plugins.items():
-            # Get plugin-specific authorization (with token cache if available)
-            plugin_authorization = await self._get_plugin_authorization(plugin_name, authorization)
-
-            # Create and add the plugin to the kernel
-            kernel.add_plugin(plugin_class(plugin_authorization, extra_data_collector), plugin_name)
+            # For non-MCP plugins, use authorization directly
+            # (MCP plugins handle auth via user_id)
+            kernel.add_plugin(plugin_class(authorization, extra_data_collector), plugin_name)
 
         return kernel
 

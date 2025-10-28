@@ -60,5 +60,5 @@ class PluginCatalogFactory(metaclass=Singleton):
             raise ImportError(f"Failed to import module '{module_name}': {e}") from e
         except AttributeError as e:
             raise AttributeError(
-                f"Class '{class_name}' not found inmodule '{module_name}': {e}"
+                f"Class '{class_name}' not found in module '{module_name}': {e}"
             ) from e

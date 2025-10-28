@@ -12,11 +12,11 @@ from sk_agents.routes import Routes
 from sk_agents.ska_types import BaseConfig, ConfigMetadata, ConfigSkill
 
 
-class TestInput(BaseModel):
+class _TestInput(BaseModel):
     test_field: str = "test"
 
 
-class TestOutput(BaseModel):
+class _TestOutput(BaseModel):
     result: str
 
 
@@ -148,8 +148,8 @@ def create_rest_routes_and_client(
         root_handler_name=handler_name,
         config=config,
         app_config=app_config,
-        input_class=TestInput,
-        output_class=TestOutput,
+        input_class=_TestInput,
+        output_class=_TestOutput,
     )
     return router, create_fastapi_test_client(router)
 
@@ -167,7 +167,7 @@ def create_websocket_routes_and_client(
         root_handler_name=handler_name,
         config=config,
         app_config=app_config,
-        input_class=TestInput,
+        input_class=_TestInput,
     )
     return router, create_fastapi_test_client(router)
 

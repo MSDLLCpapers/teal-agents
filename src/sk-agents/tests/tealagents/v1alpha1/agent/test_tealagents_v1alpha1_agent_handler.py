@@ -10,7 +10,12 @@ from semantic_kernel.contents.streaming_chat_message_content import StreamingCha
 from semantic_kernel.contents.utils.author_role import AuthorRole
 
 from sk_agents.configs import TA_PERSISTENCE_CLASS, TA_PERSISTENCE_MODULE
-from sk_agents.exceptions import AgentInvokeException, AuthenticationException, PersistenceLoadError
+from sk_agents.exceptions import (
+    AgentInvokeException,
+    AuthenticationException,
+    PersistenceCreateError,
+    PersistenceLoadError,
+)
 from sk_agents.extra_data_collector import ExtraDataCollector
 from sk_agents.persistence.task_persistence_manager import TaskPersistenceManager
 from sk_agents.ska_types import BaseConfig, ContentType, MultiModalItem, TokenUsage
@@ -680,7 +685,58 @@ async def test_manage_incoming_task_exception_handling(teal_agents_handler, mock
         teal_agents_handler.state, "load", side_effect=RuntimeError("Database error")
     )
 
-    with pytest.raises(Exception, match="Unexpected error ocurred while managing incoming task"):
+    with pytest.raises(
+        AgentInvokeException, match="Unexpected error occurred while managing incoming task"
+    ):
+        await teal_agents_handler._manage_incoming_task(
+            task_id=task_id,
+            session_id=session_id,
+            user_id=user_id,
+            request_id=request_id,
+            inputs=user_message,
+        )
+
+
+@pytest.mark.asyncio
+async def test_manage_incoming_task_persistence_errors(teal_agents_handler, mocker, user_message):
+    """
+    Test that _manage_incoming_task handles PersistenceLoadError and
+    PersistenceCreateError properly.
+    """
+    task_id = "test-task-id"
+    session_id = "test-session-id"
+    user_id = "test-user"
+    request_id = "test-request-id"
+
+    # Test PersistenceLoadError
+    mocker.patch.object(
+        teal_agents_handler.state,
+        "load",
+        side_effect=PersistenceLoadError("Failed to load task"),
+    )
+
+    with pytest.raises(
+        AgentInvokeException, match=r"Failed to load or create task.*Failed to load task"
+    ):
+        await teal_agents_handler._manage_incoming_task(
+            task_id=task_id,
+            session_id=session_id,
+            user_id=user_id,
+            request_id=request_id,
+            inputs=user_message,
+        )
+
+    # Test PersistenceCreateError
+    mocker.patch.object(teal_agents_handler.state, "load", return_value=None)
+    mocker.patch.object(
+        teal_agents_handler.state,
+        "create",
+        side_effect=PersistenceCreateError("Failed to create task"),
+    )
+
+    with pytest.raises(
+        AgentInvokeException, match=r"Failed to load or create task.*Failed to create task"
+    ):
         await teal_agents_handler._manage_incoming_task(
             task_id=task_id,
             session_id=session_id,
@@ -739,7 +795,7 @@ async def test_manage_incoming_task_existing_task(
                     teal_agents_handler.state, "load_by_request_id", return_value=agent_task
                 ),
             ),
-            "Chat history not found for request ID",
+            "Cannot resume task.*chat history not preserved",
         ),
         (
             "not_paused",
@@ -750,7 +806,36 @@ async def test_manage_incoming_task_existing_task(
                     teal_agents_handler.state, "load_by_request_id", return_value=agent_task
                 ),
             ),
-            "Agent in resume request is not in Paused state",
+            "Cannot resume task.*task is in 'Running' state",
+        ),
+        (
+            "empty_items",
+            lambda teal_agents_handler, mocker, agent_task=None: (
+                setattr(agent_task, "status", "Paused"),
+                setattr(agent_task, "items", []),
+                mocker.patch.object(
+                    teal_agents_handler.state, "load_by_request_id", return_value=agent_task
+                ),
+            ),
+            "Cannot resume task.*task has no items",
+        ),
+        (
+            "insufficient_items",
+            lambda teal_agents_handler, mocker, agent_task=None: (
+                setattr(agent_task, "status", "Paused"),
+                setattr(agent_task.items[0], "chat_history", ChatHistory()),
+                setattr(agent_task, "items", [agent_task.items[0]]),
+                mocker.patch.object(
+                    teal_agents_handler.state, "load_by_request_id", return_value=agent_task
+                ),
+                # Mock update to simulate corruption that removes items
+                mocker.patch.object(
+                    teal_agents_handler.state,
+                    "update",
+                    side_effect=lambda task: setattr(task, "items", []),
+                ),
+            ),
+            "Invalid task state for request ID.*expected at least 2 task items",
         ),
     ],
 )
@@ -776,12 +861,8 @@ async def test_resume_task_error_cases(
         task_setup(teal_agents_handler, mocker, agent_task)
 
     # Test the error condition
-    if test_case in ["not_found", "no_chat_history"]:
-        with pytest.raises(AgentInvokeException, match=expected_error):
-            await teal_agents_handler.resume_task(auth_token, request_id, action_status, False)
-    else:
-        with pytest.raises(Exception, match=expected_error):
-            await teal_agents_handler.resume_task(auth_token, request_id, action_status, False)
+    with pytest.raises(AgentInvokeException, match=expected_error):
+        await teal_agents_handler.resume_task(auth_token, request_id, action_status, False)
 
 
 @pytest.mark.asyncio
@@ -915,7 +996,7 @@ async def test_resume_task_no_pending_tool_calls(teal_agents_handler, mocker, ag
     mocker.patch.object(teal_agents_handler.state, "load_by_request_id", return_value=agent_task)
     mocker.patch.object(teal_agents_handler.state, "update", new_callable=mocker.AsyncMock)
 
-    with pytest.raises(AgentInvokeException, match="Pending tool calls no found for request ID"):
+    with pytest.raises(AgentInvokeException, match="Pending tool calls not found"):
         await teal_agents_handler.resume_task(auth_token, request_id, action_status, False)
 
 

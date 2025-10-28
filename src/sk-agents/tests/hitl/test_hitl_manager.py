@@ -142,7 +142,7 @@ def test_hitl_intervention_required_exception_empty_list():
     exc = HitlInterventionRequired([])
 
     # Should use the fallback message
-    assert str(exc) == "HITL intervention required"
+    assert str(exc) == "HITL intervention required but no function calls provided (internal error)"
     assert exc.function_calls == []
     # These attributes should not exist when function_calls is empty
     assert not hasattr(exc, "plugin_name") or exc.plugin_name is None

@@ -1,6 +1,10 @@
+import logging
+
 from semantic_kernel.contents.function_call_content import FunctionCallContent
 
 from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
+
+logger = logging.getLogger(__name__)
 
 # Placeholder for high-risk tools that require human intervention
 
@@ -20,8 +24,8 @@ def check_for_intervention(tool_call: FunctionCallContent) -> bool:
     tool = catalog.get_tool(tool_id)
 
     if tool:
-        print(
-            f"HITL Check: Intercepted call to {tool_id}."
+        logger.debug(
+            f"HITL Check: Intercepted call to {tool_id}. "
             f"Requires HITL: {tool.governance.requires_hitl}"
         )
         return tool.governance.requires_hitl
@@ -44,5 +48,5 @@ class HitlInterventionRequired(Exception):
             message = f"HITL intervention required for {self.plugin_name}.{self.function_name}"
 
         else:
-            message = "HITL intervention required"
+            message = "HITL intervention required but no function calls provided (internal error)"
         super().__init__(message)

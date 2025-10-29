@@ -34,6 +34,21 @@ from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
 logger = logging.getLogger(__name__)
 
 
+class AuthRequiredError(Exception):
+    """
+    Exception raised when MCP server authentication is required but missing.
+
+    This exception is raised during discovery when a server requires authentication
+    (has auth_server + scopes configured) but the user has no valid token in AuthStorage.
+    """
+    def __init__(self, server_name: str, auth_server: str, scopes: List[str], message: str = None):
+        self.server_name = server_name
+        self.auth_server = auth_server
+        self.scopes = scopes
+        self.message = message or f"Authentication required for MCP server '{server_name}'"
+        super().__init__(self.message)
+
+
 def build_auth_storage_key(auth_server: str, scopes: List[str]) -> str:
     """Create deterministic key for storing OAuth tokens in AuthStorage."""
     normalized_scopes = '|'.join(sorted(scopes)) if scopes else ''

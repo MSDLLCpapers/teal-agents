@@ -66,12 +66,15 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             # Will be initialized in first async call
             pass
 
-    async def _ensure_mcp_discovery(self, user_id: str) -> None:
+    async def _ensure_mcp_discovery(self, user_id: str, session_id: str, task_id: str, request_id: str) -> AuthChallengeResponse | None:
         """
         Ensure MCP tool discovery has been performed.
 
         This is called once per application/service lifetime to materialize
         MCP plugin classes. Discovery happens only once globally.
+
+        Returns:
+            AuthChallengeResponse if authentication is required, None if discovery complete
         """
         # Initialize lock on first call
         if TealAgentsV1Alpha1Handler._mcp_discovery_lock is None:
@@ -79,21 +82,44 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         async with TealAgentsV1Alpha1Handler._mcp_discovery_lock:
             if TealAgentsV1Alpha1Handler._mcp_discovery_initialized:
-                return  # Already initialized
+                return None  # Already initialized
 
             mcp_servers = self.config.get_agent().mcp_servers
             if not mcp_servers or len(mcp_servers) == 0:
                 TealAgentsV1Alpha1Handler._mcp_discovery_initialized = True
-                return  # No MCP servers configured
+                return None  # No MCP servers configured
 
             try:
                 from sk_agents.mcp_plugin_registry import McpPluginRegistry
+                from sk_agents.mcp_client import AuthRequiredError
 
                 logger.info(f"Starting MCP discovery for {len(mcp_servers)} servers")
                 await McpPluginRegistry.discover_and_materialize(mcp_servers, user_id)
                 logger.info("MCP discovery completed successfully")
 
                 TealAgentsV1Alpha1Handler._mcp_discovery_initialized = True
+                return None
+
+            except AuthRequiredError as e:
+                # Auth required during discovery - return challenge to user
+                logger.info(
+                    f"MCP discovery requires authentication for '{e.server_name}' "
+                    f"(auth_server: {e.auth_server}, scopes: {e.scopes})"
+                )
+                # Don't mark as initialized - will retry after auth
+                return AuthChallengeResponse(
+                    task_id=task_id,
+                    session_id=session_id,
+                    request_id=request_id,
+                    message=f"Authentication required for MCP server '{e.server_name}' before tool discovery.",
+                    auth_challenges=[{
+                        "server_name": e.server_name,
+                        "auth_server": e.auth_server,
+                        "scopes": e.scopes,
+                        "auth_url": f"{e.auth_server}/authorize?client_id=teal_agents&scope={'%20'.join(e.scopes)}&response_type=code"
+                    }],
+                    resume_url=f"/tealagents/v1alpha1/invoke"
+                )
 
             except Exception as e:
                 logger.error(f"MCP discovery failed: {e}")
@@ -512,13 +538,19 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         user_id = await self.authenticate_user(token=auth_token)
 
-        # Ensure MCP discovery has been performed (happens once globally)
-        await self._ensure_mcp_discovery(user_id)
-
+        # Generate state IDs first (needed for auth challenges)
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
         inputs.session_id = session_id
         inputs.task_id = task_id
+
+        # Ensure MCP discovery has been performed (happens once globally)
+        # May return AuthChallengeResponse if auth required during discovery
+        discovery_auth_challenge = await self._ensure_mcp_discovery(user_id, session_id, task_id, request_id)
+        if discovery_auth_challenge:
+            logger.info("Returning auth challenge from MCP discovery")
+            return discovery_auth_challenge
+
         agent_task = await self._manage_incoming_task(
             task_id, session_id, user_id, request_id, inputs
         )
@@ -553,11 +585,37 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         logger.info("Beginning processing invoke")
         user_id = await self.authenticate_user(token=auth_token)
 
-        # Ensure MCP discovery has been performed (happens once globally)
-        await self._ensure_mcp_discovery(user_id)
-
+        # Generate state IDs first (needed for auth challenges)
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
+
+        # Notify user about MCP server authentication check
+        mcp_servers = self.config.get_agent().mcp_servers
+        if mcp_servers and len(mcp_servers) > 0:
+            yield TealAgentsPartialResponse(
+                task_id=task_id,
+                session_id=session_id,
+                request_id=request_id,
+                output_partial="🔍 Checking MCP server authentication...\n\n"
+            )
+
+        # Ensure MCP discovery has been performed (happens once globally)
+        # May return AuthChallengeResponse if auth required during discovery
+        discovery_auth_challenge = await self._ensure_mcp_discovery(user_id, session_id, task_id, request_id)
+        if discovery_auth_challenge:
+            logger.info("Returning auth challenge from MCP discovery")
+            yield discovery_auth_challenge
+            return
+
+        # Notify user that MCP authentication is verified
+        if mcp_servers and len(mcp_servers) > 0:
+            yield TealAgentsPartialResponse(
+                task_id=task_id,
+                session_id=session_id,
+                request_id=request_id,
+                output_partial="✅ MCP authentication verified\n\n"
+            )
+
         agent_task = await self._manage_incoming_task(
             task_id, session_id, user_id, request_id, inputs
         )

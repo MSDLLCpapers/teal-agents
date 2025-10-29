@@ -84,16 +84,35 @@ class McpPluginRegistry:
         Args:
             mcp_servers: List of MCP server configurations
             user_id: User ID for authentication
+
+        Raises:
+            AuthRequiredError: If any server requires authentication that is missing
         """
+        from sk_agents.mcp_client import AuthRequiredError
+
         logger.info(f"Starting MCP discovery for {len(mcp_servers)} servers")
+
+        auth_errors = []  # Collect auth errors to surface to user
 
         for server_config in mcp_servers:
             try:
                 await cls._discover_server(server_config, user_id)
+            except AuthRequiredError as e:
+                # Auth error - collect and surface to user
+                logger.warning(f"Auth required for MCP server {server_config.name}")
+                auth_errors.append(e)
             except Exception as e:
+                # Other errors - log and continue with remaining servers
                 logger.error(f"Failed to discover MCP server {server_config.name}: {e}")
-                # Continue with other servers
                 continue
+
+        # If any servers require auth, raise the first one to trigger auth challenge
+        if auth_errors:
+            logger.info(
+                f"MCP discovery requires authentication for {len(auth_errors)} server(s): "
+                f"{[e.server_name for e in auth_errors]}"
+            )
+            raise auth_errors[0]  # Raise first auth error to trigger challenge
 
         logger.info(f"MCP discovery complete. Materialized {len(cls._plugin_classes)} plugin classes")
 
@@ -101,6 +120,47 @@ class McpPluginRegistry:
     async def _discover_server(cls, server_config: McpServerConfig, user_id: str) -> None:
         """Discover tools from a single MCP server."""
         logger.info(f"Discovering tools from MCP server: {server_config.name}")
+
+        # Pre-flight auth validation: Check if user has auth before attempting discovery
+        if server_config.auth_server and server_config.scopes:
+            from sk_agents.auth_storage.auth_storage_factory import AuthStorageFactory
+            from sk_agents.mcp_client import build_auth_storage_key, AuthRequiredError
+            from ska_utils import AppConfig
+            from datetime import datetime, timezone
+
+            # Check if user has valid auth token
+            auth_storage_factory = AuthStorageFactory(AppConfig())
+            auth_storage = auth_storage_factory.get_auth_storage_manager()
+
+            composite_key = build_auth_storage_key(
+                server_config.auth_server,
+                server_config.scopes
+            )
+            auth_data = auth_storage.retrieve(user_id, composite_key)
+
+            if not auth_data:
+                logger.warning(
+                    f"Auth required for {server_config.name}: No token found for user {user_id}"
+                )
+                raise AuthRequiredError(
+                    server_name=server_config.name,
+                    auth_server=server_config.auth_server,
+                    scopes=server_config.scopes
+                )
+
+            # Validate token expiry
+            if auth_data.expires_at <= datetime.now(timezone.utc):
+                logger.warning(
+                    f"Auth required for {server_config.name}: Token expired at {auth_data.expires_at}"
+                )
+                raise AuthRequiredError(
+                    server_name=server_config.name,
+                    auth_server=server_config.auth_server,
+                    scopes=server_config.scopes,
+                    message=f"Token expired for MCP server '{server_config.name}'"
+                )
+
+            logger.info(f"Auth verified for {server_config.name}, proceeding with discovery")
 
         # Temporary connection for discovery
         async with AsyncExitStack() as stack:

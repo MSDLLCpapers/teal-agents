@@ -12,6 +12,7 @@ test.pptx
 .DS_Store
 .vscode
 customization/
+ray_tests/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

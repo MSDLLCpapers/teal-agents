@@ -26,19 +26,21 @@ logger = logging.getLogger(__name__)
 
 class McpPluginRegistry:
     """
-    Registry for MCP plugin classes.
+    Registry for MCP plugin classes with per-user isolation.
 
-    At session start, this registry:
+    At session start (per user), this registry:
     1. Connects to MCP servers temporarily
     2. Discovers available tools
     3. Registers tools in catalog for governance/HITL
     4. Creates McpPlugin CLASSES containing stateless tools
-    5. Stores classes for later instantiation (at agent build)
+    5. Stores classes per user for later instantiation (at agent build)
 
-    This makes MCP tools work like non-MCP tools that exist as code.
+    This ensures proper multi-tenant isolation - each user only sees tools
+    they have authenticated to access.
     """
 
-    _plugin_classes: Dict[str, type] = {}  # Key: server_name, Value: McpPlugin class
+    # Per-user plugin storage: {user_id: {server_name: plugin_class}}
+    _plugin_classes_per_user: Dict[str, Dict[str, type]] = {}
     _lock = threading.Lock()
 
     @staticmethod
@@ -76,21 +78,26 @@ class McpPluginRegistry:
         user_id: str
     ) -> None:
         """
-        Discover MCP tools and materialize plugin classes.
+        Discover MCP tools and materialize plugin classes for a specific user.
 
-        This is called ONCE at session/application start.
+        This is called once per user when they first make a request.
         Creates temporary connections to discover tools, then closes them.
 
         Args:
             mcp_servers: List of MCP server configurations
-            user_id: User ID for authentication
+            user_id: User ID for authentication and per-user storage
 
         Raises:
             AuthRequiredError: If any server requires authentication that is missing
         """
         from sk_agents.mcp_client import AuthRequiredError
 
-        logger.info(f"Starting MCP discovery for {len(mcp_servers)} servers")
+        logger.info(f"Starting MCP discovery for user {user_id} ({len(mcp_servers)} servers)")
+
+        # Initialize user's plugin dictionary if needed
+        with cls._lock:
+            if user_id not in cls._plugin_classes_per_user:
+                cls._plugin_classes_per_user[user_id] = {}
 
         auth_errors = []  # Collect auth errors to surface to user
 
@@ -99,22 +106,24 @@ class McpPluginRegistry:
                 await cls._discover_server(server_config, user_id)
             except AuthRequiredError as e:
                 # Auth error - collect and surface to user
-                logger.warning(f"Auth required for MCP server {server_config.name}")
+                logger.warning(f"Auth required for MCP server {server_config.name} (user: {user_id})")
                 auth_errors.append(e)
             except Exception as e:
                 # Other errors - log and continue with remaining servers
-                logger.error(f"Failed to discover MCP server {server_config.name}: {e}")
+                logger.error(f"Failed to discover MCP server {server_config.name} for user {user_id}: {e}")
                 continue
 
         # If any servers require auth, raise the first one to trigger auth challenge
         if auth_errors:
             logger.info(
-                f"MCP discovery requires authentication for {len(auth_errors)} server(s): "
+                f"MCP discovery requires authentication for {len(auth_errors)} server(s) (user: {user_id}): "
                 f"{[e.server_name for e in auth_errors]}"
             )
             raise auth_errors[0]  # Raise first auth error to trigger challenge
 
-        logger.info(f"MCP discovery complete. Materialized {len(cls._plugin_classes)} plugin classes")
+        with cls._lock:
+            plugin_count = len(cls._plugin_classes_per_user.get(user_id, {}))
+        logger.info(f"MCP discovery complete for user {user_id}. Materialized {plugin_count} plugin classes")
 
     @classmethod
     async def _discover_server(cls, server_config: McpServerConfig, user_id: str) -> None:
@@ -191,11 +200,11 @@ class McpPluginRegistry:
             # Create McpPlugin CLASS (not instance!)
             plugin_class = cls._create_plugin_class(mcp_tools, server_config.name)
 
-            # Store the class
+            # Store the class for THIS user
             with cls._lock:
-                cls._plugin_classes[server_config.name] = plugin_class
+                cls._plugin_classes_per_user[user_id][server_config.name] = plugin_class
 
-            logger.info(f"Materialized McpPlugin class for {server_config.name}")
+            logger.info(f"Materialized McpPlugin class for {server_config.name} (user: {user_id})")
             # Connection auto-closes when exiting context
 
     @classmethod
@@ -276,29 +285,39 @@ class McpPluginRegistry:
         return create_class(tools, server_name)
 
     @classmethod
-    def get_plugin_class(cls, server_name: str) -> type | None:
+    def get_all_plugin_classes_for_user(cls, user_id: str) -> Dict[str, type]:
         """
-        Get MCP plugin class for a server.
+        Get all MCP plugin classes for a specific user.
 
-        This is like loading a plugin class from a file in non-MCP tools.
+        This ensures users only see tools they have authenticated to access.
 
         Args:
-            server_name: Name of the MCP server
+            user_id: User ID to get plugins for
 
         Returns:
-            Plugin class if available, None otherwise
+            Dictionary mapping server_name to plugin class for this user
         """
         with cls._lock:
-            return cls._plugin_classes.get(server_name)
+            return cls._plugin_classes_per_user.get(user_id, {}).copy()
 
     @classmethod
-    def get_all_plugin_classes(cls) -> Dict[str, type]:
-        """Get all available MCP plugin classes."""
+    def clear_user_plugins(cls, user_id: str) -> None:
+        """
+        Clear plugin classes for a specific user.
+
+        Useful for cache invalidation when user auth changes.
+
+        Args:
+            user_id: User ID to clear plugins for
+        """
         with cls._lock:
-            return cls._plugin_classes.copy()
+            if user_id in cls._plugin_classes_per_user:
+                del cls._plugin_classes_per_user[user_id]
+                logger.info(f"Cleared MCP plugins for user {user_id}")
 
     @classmethod
     def clear(cls) -> None:
-        """Clear all registered plugin classes (for testing)."""
+        """Clear all registered plugin classes for all users (for testing)."""
         with cls._lock:
-            cls._plugin_classes.clear()
+            cls._plugin_classes_per_user.clear()
+            logger.debug("Cleared all MCP plugins")

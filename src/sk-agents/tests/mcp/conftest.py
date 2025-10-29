@@ -197,7 +197,7 @@ def mock_mcp_session(mock_mcp_tool):
 
     # Mock call_tool
     tool_result = MagicMock()
-    tool_result.content = [TextContent(text="Tool execution result")]
+    tool_result.content = [TextContent(type="text", text="Tool execution result")]
     session.call_tool = AsyncMock(return_value=tool_result)
 
     return session

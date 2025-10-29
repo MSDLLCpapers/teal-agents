@@ -96,40 +96,44 @@ class KernelBuilder:
             self.logger.exception(f"Could not load remote plugings. -{e}")
             raise
 
-    async def load_mcp_plugins(self, mcp_servers: list[McpServerConfig] | None, kernel: Kernel, user_id: str | None = None, session_id: str | None = None) -> Kernel:
+    async def load_mcp_plugins(self, kernel: Kernel, user_id: str) -> Kernel:
         """
-        Load MCP plugins by instantiating them from the plugin registry.
+        Load MCP plugins by instantiating them from the per-user plugin registry.
 
         This mirrors the non-MCP plugin pattern:
-        1. Get plugin CLASS from registry (like loading from file)
-        2. Instantiate plugin
+        1. Get plugin CLASSES from registry for this user (like loading from file)
+        2. Instantiate each plugin
         3. Register with kernel
 
-        Note: MCP tools must be discovered first via McpPluginRegistry.discover_and_materialize()
-        at session start.
-        """
-        if mcp_servers is None or len(mcp_servers) < 1:
-            return kernel
+        Only plugins that the user has authenticated to access will be loaded,
+        ensuring proper multi-tenant isolation.
 
+        Args:
+            kernel: The kernel to add plugins to
+            user_id: User ID to get plugins for (required)
+
+        Returns:
+            The kernel with user's MCP plugins loaded
+
+        Note: MCP tools must be discovered first via McpPluginRegistry.discover_and_materialize()
+        before calling this method.
+        """
         if not user_id:
             raise ValueError("user_id is required when loading MCP plugins")
 
         try:
             from sk_agents.mcp_plugin_registry import McpPluginRegistry
 
-            for server_config in mcp_servers:
-                # Get MCP plugin class from registry (like loading from file for non-MCP)
-                plugin_class = McpPluginRegistry.get_plugin_class(server_config.name)
+            # Get all MCP plugin classes for THIS user (per-user isolation)
+            plugin_classes = McpPluginRegistry.get_all_plugin_classes_for_user(user_id)
 
-                if plugin_class is None:
-                    self.logger.warning(
-                        f"MCP plugin class for {server_config.name} not found in registry. "
-                        f"Ensure McpPluginRegistry.discover_and_materialize() was called at session start."
-                    )
-                    continue
+            if not plugin_classes:
+                self.logger.debug(f"No MCP plugins found for user {user_id}")
+                return kernel
 
+            # Load each MCP plugin into the kernel
+            for server_name, plugin_class in plugin_classes.items():
                 # Instantiate plugin (same pattern as non-MCP!)
-                # Note: authorization passed from handler, extra_data_collector from context
                 plugin_instance = plugin_class(
                     user_id=user_id,
                     authorization=self.authorization,
@@ -137,13 +141,14 @@ class KernelBuilder:
                 )
 
                 # Register with kernel (same pattern as non-MCP!)
-                kernel.add_plugin(plugin_instance, f"mcp_{server_config.name}")
-                self.logger.info(f"Registered MCP plugin instance for server: {server_config.name}")
+                kernel.add_plugin(plugin_instance, f"mcp_{server_name}")
+                self.logger.info(f"Loaded MCP plugin for {server_name} (user: {user_id})")
 
+            self.logger.info(f"Loaded {len(plugin_classes)} MCP plugins for user {user_id}")
             return kernel
 
         except Exception as e:
-            self.logger.exception(f"Could not load MCP plugins. - {e}")
+            self.logger.exception(f"Could not load MCP plugins for user {user_id}. - {e}")
             raise
 
     def _parse_plugins(

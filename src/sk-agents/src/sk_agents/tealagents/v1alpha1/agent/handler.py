@@ -41,9 +41,7 @@ from sk_agents.tealagents.v1alpha1.utils import get_token_usage_for_response, it
 logger = logging.getLogger(__name__)
 
 class TealAgentsV1Alpha1Handler(BaseHandler):
-    # Track whether MCP discovery has been performed (class-level)
-    _mcp_discovery_initialized = False
-    _mcp_discovery_lock = None
+    # Track MCP discovery per user (instance-level for multi-tenant isolation)
     def __init__(
         self,
         config: BaseConfig,
@@ -61,49 +59,56 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         self.state = state_manager
         self.authorizer = DummyAuthorizer()
 
-        # Initialize lock if needed (asyncio.Lock() must be created in async context)
-        if TealAgentsV1Alpha1Handler._mcp_discovery_lock is None:
-            # Will be initialized in first async call
-            pass
+        # Per-user MCP discovery tracking for multi-tenant isolation
+        self._mcp_discovery_per_user: dict[str, bool] = {}
+        self._mcp_discovery_lock: asyncio.Lock | None = None
 
     async def _ensure_mcp_discovery(self, user_id: str, session_id: str, task_id: str, request_id: str) -> AuthChallengeResponse | None:
         """
-        Ensure MCP tool discovery has been performed.
+        Ensure MCP tool discovery has been performed for this user.
 
-        This is called once per application/service lifetime to materialize
-        MCP plugin classes. Discovery happens only once globally.
+        Discovery happens once per user when they first make a request.
+        Each user gets their own set of discovered tools based on their authentication.
+
+        Args:
+            user_id: User ID for per-user discovery
+            session_id: Session ID for auth challenge response
+            task_id: Task ID for auth challenge response
+            request_id: Request ID for auth challenge response
 
         Returns:
             AuthChallengeResponse if authentication is required, None if discovery complete
         """
         # Initialize lock on first call
-        if TealAgentsV1Alpha1Handler._mcp_discovery_lock is None:
-            TealAgentsV1Alpha1Handler._mcp_discovery_lock = asyncio.Lock()
+        if self._mcp_discovery_lock is None:
+            self._mcp_discovery_lock = asyncio.Lock()
 
-        async with TealAgentsV1Alpha1Handler._mcp_discovery_lock:
-            if TealAgentsV1Alpha1Handler._mcp_discovery_initialized:
-                return None  # Already initialized
+        async with self._mcp_discovery_lock:
+            # Check if discovery already completed for THIS user
+            if user_id in self._mcp_discovery_per_user:
+                logger.debug(f"MCP discovery already completed for user: {user_id}")
+                return None  # Already initialized for this user
 
             mcp_servers = self.config.get_agent().mcp_servers
             if not mcp_servers or len(mcp_servers) == 0:
-                TealAgentsV1Alpha1Handler._mcp_discovery_initialized = True
+                self._mcp_discovery_per_user[user_id] = True
                 return None  # No MCP servers configured
 
             try:
                 from sk_agents.mcp_plugin_registry import McpPluginRegistry
                 from sk_agents.mcp_client import AuthRequiredError
 
-                logger.info(f"Starting MCP discovery for {len(mcp_servers)} servers")
+                logger.info(f"Starting MCP discovery for user {user_id} ({len(mcp_servers)} servers)")
                 await McpPluginRegistry.discover_and_materialize(mcp_servers, user_id)
-                logger.info("MCP discovery completed successfully")
+                logger.info(f"MCP discovery completed successfully for user {user_id}")
 
-                TealAgentsV1Alpha1Handler._mcp_discovery_initialized = True
+                self._mcp_discovery_per_user[user_id] = True
                 return None
 
             except AuthRequiredError as e:
                 # Auth required during discovery - return challenge to user
                 logger.info(
-                    f"MCP discovery requires authentication for '{e.server_name}' "
+                    f"MCP discovery requires authentication for '{e.server_name}' (user: {user_id}) "
                     f"(auth_server: {e.auth_server}, scopes: {e.scopes})"
                 )
                 # Don't mark as initialized - will retry after auth
@@ -122,7 +127,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 )
 
             except Exception as e:
-                logger.error(f"MCP discovery failed: {e}")
+                logger.error(f"MCP discovery failed for user {user_id}: {e}")
                 # Don't mark as initialized so it can retry on next request
                 raise
 
@@ -499,13 +504,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         extra_data_collector = ExtraDataCollector()
         agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector, user_id=user_id)
 
-        # Load MCP plugins after agent construction to avoid async gap
+        # Load MCP plugins after agent construction (per-user isolation)
         if self.config.get_agent().mcp_servers:
             await self.agent_builder.kernel_builder.load_mcp_plugins(
-                self.config.get_agent().mcp_servers,
                 agent.agent.kernel,
-                user_id,
-                session_id
+                user_id
             )
 
         kernel = agent.agent.kernel
@@ -664,13 +667,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             user_id=user_id
         )
 
-        # Load MCP plugins after agent construction to avoid async gap
+        # Load MCP plugins after agent construction (per-user isolation)
         if self.config.get_agent().mcp_servers:
             await self.agent_builder.kernel_builder.load_mcp_plugins(
-                self.config.get_agent().mcp_servers,
                 agent.agent.kernel,
-                user_id,
-                session_id
+                user_id
             )
 
         # Prepare metadata
@@ -785,13 +786,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             user_id=user_id
         )
 
-        # Load MCP plugins after agent construction to avoid async gap
+        # Load MCP plugins after agent construction (per-user isolation)
         if self.config.get_agent().mcp_servers:
             await self.agent_builder.kernel_builder.load_mcp_plugins(
-                self.config.get_agent().mcp_servers,
                 agent.agent.kernel,
-                user_id,
-                session_id
+                user_id
             )
 
         # Prepare metadata

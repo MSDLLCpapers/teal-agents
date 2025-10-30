@@ -55,6 +55,113 @@ def build_auth_storage_key(auth_server: str, scopes: List[str]) -> str:
     return f"{auth_server}|{normalized_scopes}" if normalized_scopes else auth_server
 
 
+def normalize_canonical_uri(uri: str) -> str:
+    """
+    Normalize URI to canonical format for MCP resource parameter.
+
+    Per MCP specification, canonical URI must be:
+    - Absolute URI with scheme
+    - Lowercase scheme and host
+    - Optional port (only if non-standard)
+    - Optional path
+
+    Examples:
+        "HTTPS://API.Example.COM/mcp" -> "https://api.example.com/mcp"
+        "https://example.com:443/mcp" -> "https://example.com/mcp"
+        "https://example.com:8443/mcp" -> "https://example.com:8443/mcp"
+
+    Args:
+        uri: URI to normalize
+
+    Returns:
+        str: Normalized canonical URI
+
+    Raises:
+        ValueError: If URI is invalid or not absolute
+    """
+    from urllib.parse import urlparse, urlunparse
+
+    if not uri:
+        raise ValueError("URI cannot be empty")
+
+    # Parse URI
+    try:
+        parsed = urlparse(uri)
+    except Exception as e:
+        raise ValueError(f"Invalid URI format: {e}") from e
+
+    # Require absolute URI with scheme
+    if not parsed.scheme:
+        raise ValueError(f"URI must be absolute with scheme (got: {uri})")
+
+    # Require host
+    if not parsed.netloc:
+        raise ValueError(f"URI must have a host component (got: {uri})")
+
+    # Normalize scheme and host to lowercase
+    scheme = parsed.scheme.lower()
+    netloc = parsed.netloc.lower()
+
+    # Remove default ports (80 for http, 443 for https)
+    if ':' in netloc:
+        host, port = netloc.rsplit(':', 1)
+        try:
+            port_num = int(port)
+            # Remove default ports
+            if (scheme == 'http' and port_num == 80) or (scheme == 'https' and port_num == 443):
+                netloc = host
+        except ValueError:
+            # Not a valid port number, keep as is
+            pass
+
+    # Reconstruct canonical URI
+    canonical = urlunparse((
+        scheme,
+        netloc,
+        parsed.path or '',  # Include path if present
+        '',  # No params
+        '',  # No query
+        ''   # No fragment
+    ))
+
+    logger.debug(f"Normalized canonical URI: {uri} -> {canonical}")
+    return canonical
+
+
+def validate_https_url(url: str, allow_localhost: bool = True) -> bool:
+    """
+    Validate that URL uses HTTPS (or localhost for development).
+
+    Per MCP spec and OAuth 2.1, all endpoints must use HTTPS except localhost.
+
+    Args:
+        url: URL to validate
+        allow_localhost: Allow http://localhost or http://127.0.0.1
+
+    Returns:
+        bool: True if valid, False otherwise
+    """
+    from urllib.parse import urlparse
+
+    try:
+        parsed = urlparse(url)
+        scheme = parsed.scheme.lower()
+        hostname = parsed.hostname
+
+        # HTTPS is always valid
+        if scheme == 'https':
+            return True
+
+        # HTTP is only valid for localhost/127.0.0.1 if allowed
+        if scheme == 'http' and allow_localhost:
+            if hostname in ('localhost', '127.0.0.1', '[::1]'):
+                return True
+
+        return False
+    except Exception:
+        return False
+
+
 def get_package_version() -> str:
     """Get package version for MCP client identification."""
     try:

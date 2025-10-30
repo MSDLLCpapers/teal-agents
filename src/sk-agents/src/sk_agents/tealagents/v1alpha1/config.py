@@ -35,6 +35,58 @@ class McpServerConfig(BaseModel):
 
     # Request-level timeout for individual MCP operations (seconds)
     request_timeout: Optional[float] = 30.0
+
+    # OAuth 2.1 Configuration (MCP Compliance)
+    oauth_client_id: Optional[str] = None  # Pre-registered OAuth client ID
+    oauth_client_secret: Optional[str] = None  # Client secret (confidential clients only)
+    canonical_uri: Optional[str] = None  # Explicit canonical URI override
+    enable_dynamic_registration: bool = True  # Try RFC7591 dynamic registration
+
+    @property
+    def effective_canonical_uri(self) -> str:
+        """
+        Get canonical MCP server URI for resource parameter binding.
+
+        Per MCP spec, canonical URI must be:
+        - Absolute HTTPS URI
+        - Lowercase scheme and host
+        - Optional port and path
+
+        Returns:
+            str: Canonical URI (either explicit or computed from url)
+
+        Raises:
+            ValueError: If cannot determine canonical URI
+        """
+        from sk_agents.mcp_client import normalize_canonical_uri
+
+        # Use explicit canonical_uri if provided
+        if self.canonical_uri:
+            return normalize_canonical_uri(self.canonical_uri)
+
+        # Compute from url for HTTP transport
+        if self.transport == "http" and self.url:
+            return normalize_canonical_uri(self.url)
+
+        # Stdio transport doesn't need canonical URI (no OAuth)
+        if self.transport == "stdio":
+            raise ValueError(
+                f"Canonical URI not applicable for stdio transport (server: {self.name})"
+            )
+
+        raise ValueError(
+            f"Cannot determine canonical URI for server '{self.name}'. "
+            f"Provide 'canonical_uri' or ensure 'url' is set for HTTP transport."
+        )
+
+    @property
+    def oauth_redirect_uri(self) -> str:
+        """Get platform OAuth redirect URI from config."""
+        from ska_utils import AppConfig
+        from sk_agents.configs import TA_OAUTH_REDIRECT_URI
+
+        app_config = AppConfig()
+        return app_config.get(TA_OAUTH_REDIRECT_URI.env_name)
     
     @model_validator(mode='after')
     def validate_transport_fields(self):

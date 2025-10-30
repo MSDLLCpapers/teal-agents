@@ -48,6 +48,14 @@ TA_LOG_LEVEL = Config(
     env_name="TA_LOG_LEVEL", is_required=False, default_value="info"
 )
 
+TA_METRICS_ENABLED = Config(
+    env_name="TA_METRICS_ENABLED", is_required=True, default_value="false"
+)
+
+TA_LOGGING_ENABLED = Config(
+    env_name="TA_LOGGING_ENABLED", is_required=True, default_value="false"
+)
+
 TELEMETRY_CONFIGS: list[Config] = [
     TA_TELEMETRY_ENABLED,
     TA_OTEL_ENDPOINT,
@@ -68,6 +76,12 @@ class Telemetry:
         )
         self._telemetry_enabled = strtobool(
             str(app_config.get(TA_TELEMETRY_ENABLED.env_name))
+        )
+        self._metrics_enabled = strtobool(
+            str(app_config.get(TA_METRICS_ENABLED.env_name))
+        )
+        self._logging_enabled = strtobool(
+            str(app_config.get(TA_LOGGING_ENABLED.env_name))
         )
         self.endpoint = app_config.get(TA_OTEL_ENDPOINT.env_name)
         self.logging_endpoint = app_config.get(
@@ -105,8 +119,12 @@ class Telemetry:
             return
 
         self._enable_tracing()
-        self._enable_logging()
-        self._enable_metrics()
+
+        if self._metrics_enabled:
+            self._enable_metrics()
+
+        if self._logging_enabled:
+            self._enable_logging()
 
     def _enable_tracing(self) -> None:
         exporter: SpanExporter

@@ -34,9 +34,7 @@ from ska_utils.strtobool import strtobool
 TA_TELEMETRY_ENABLED = Config(
     env_name="TA_TELEMETRY_ENABLED", is_required=True, default_value="true"
 )
-TA_OTEL_ENDPOINT = Config(
-    env_name="TA_OTEL_ENDPOINT", is_required=False, default_value=None
-)
+TA_OTEL_ENDPOINT = Config(env_name="TA_OTEL_ENDPOINT", is_required=False, default_value=None)
 TA_OTEL_LOGGING_ENDPOINT = Config(
     env_name="TA_OTEL_LOGGING_ENDPOINT", is_required=False, default_value=None
 )
@@ -44,24 +42,18 @@ TA_OTEL_METRICS_ENDPOINT = Config(
     env_name="TA_OTEL_METRICS_ENDPOINT", is_required=False, default_value=None
 )
 
-TA_LOG_LEVEL = Config(
-    env_name="TA_LOG_LEVEL", is_required=False, default_value="info"
-)
+TA_LOG_LEVEL = Config(env_name="TA_LOG_LEVEL", is_required=False, default_value="info")
 
-TA_METRICS_ENABLED = Config(
-    env_name="TA_METRICS_ENABLED", is_required=True, default_value="false"
-)
+TA_METRICS_ENABLED = Config(env_name="TA_METRICS_ENABLED", is_required=True, default_value="false")
 
-TA_LOGGING_ENABLED = Config(
-    env_name="TA_LOGGING_ENABLED", is_required=True, default_value="false"
-)
+TA_LOGGING_ENABLED = Config(env_name="TA_LOGGING_ENABLED", is_required=True, default_value="false")
 
 TELEMETRY_CONFIGS: list[Config] = [
     TA_TELEMETRY_ENABLED,
     TA_OTEL_ENDPOINT,
     TA_LOG_LEVEL,
     TA_OTEL_LOGGING_ENDPOINT,
-    TA_OTEL_METRICS_ENDPOINT
+    TA_OTEL_METRICS_ENDPOINT,
 ]
 
 AppConfig.add_configs(TELEMETRY_CONFIGS)
@@ -71,25 +63,13 @@ class Telemetry:
     def __init__(self, service_name: str, app_config: AppConfig):
         self.service_name = service_name
         self._handler: LoggingHandler | None = None
-        self.resource = Resource.create(
-            {ResourceAttributes.SERVICE_NAME: self.service_name}
-        )
-        self._telemetry_enabled = strtobool(
-            str(app_config.get(TA_TELEMETRY_ENABLED.env_name))
-        )
-        self._metrics_enabled = strtobool(
-            str(app_config.get(TA_METRICS_ENABLED.env_name))
-        )
-        self._logging_enabled = strtobool(
-            str(app_config.get(TA_LOGGING_ENABLED.env_name))
-        )
+        self.resource = Resource.create({ResourceAttributes.SERVICE_NAME: self.service_name})
+        self._telemetry_enabled = strtobool(str(app_config.get(TA_TELEMETRY_ENABLED.env_name)))
+        self._metrics_enabled = strtobool(str(app_config.get(TA_METRICS_ENABLED.env_name)))
+        self._logging_enabled = strtobool(str(app_config.get(TA_LOGGING_ENABLED.env_name)))
         self.endpoint = app_config.get(TA_OTEL_ENDPOINT.env_name)
-        self.logging_endpoint = app_config.get(
-            TA_OTEL_LOGGING_ENDPOINT.env_name
-        )
-        self.metrics_endpoint = app_config.get(
-            TA_OTEL_METRICS_ENDPOINT.env_name
-        )
+        self.logging_endpoint = app_config.get(TA_OTEL_LOGGING_ENDPOINT.env_name)
+        self.metrics_endpoint = app_config.get(TA_OTEL_METRICS_ENDPOINT.env_name)
         self._check_enable_telemetry()
         self.tracer: trace.Tracer | None = self._get_tracer()
 
@@ -164,9 +144,7 @@ class Telemetry:
             exporter = ConsoleLogExporter()
 
         logger_provider = LoggerProvider(resource=self.resource)
-        logger_provider.add_log_record_processor(
-            BatchLogRecordProcessor(exporter)
-        )
+        logger_provider.add_log_record_processor(BatchLogRecordProcessor(exporter))
         set_logger_provider(logger_provider)
 
         logger = logging.getLogger()
@@ -181,9 +159,7 @@ class Telemetry:
             exporter = ConsoleMetricExporter()
 
         meter_provider = MeterProvider(
-            metric_readers=[PeriodicExportingMetricReader(
-                exporter, export_interval_millis=5000)
-            ],
+            metric_readers=[PeriodicExportingMetricReader(exporter, export_interval_millis=5000)],
             resource=self.resource,
             views=[
                 # Dropping all instrument names except

@@ -44,7 +44,7 @@ def test_telemetry_initialization_debug(app_config):
 def test_telemetry_initialization_warning(app_config):
     app_config.get.side_effect = {
         "TA_TELEMETRY_ENABLED": "false",
-         "TA_METRICS_ENABLED": "false",
+        "TA_METRICS_ENABLED": "false",
         "TA_LOGGING_ENABLED": "false",
         "TA_OTEL_ENDPOINT": None,
         "TA_LOG_LEVEL": "warning",
@@ -60,7 +60,6 @@ def test_telemetry_initialization_error(app_config):
         "TA_LOGGING_ENABLED": "false",
         "TA_OTEL_ENDPOINT": None,
         "TA_LOG_LEVEL": "error",
-        
     }.get
     telemetry = Telemetry("test_service", app_config)
     assert telemetry._log_level == logging.ERROR
@@ -81,7 +80,7 @@ def test_telemetry_initialization_critical(app_config):
 def test_telemetry_disabled(app_config):
     app_config.get.side_effect = {
         "TA_TELEMETRY_ENABLED": "false",
-         "TA_METRICS_ENABLED": "false",
+        "TA_METRICS_ENABLED": "false",
         "TA_LOGGING_ENABLED": "false",
         "TA_OTEL_ENDPOINT": None,
         "TA_LOG_LEVEL": "info",

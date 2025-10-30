@@ -12,6 +12,8 @@ def app_config():
     config = MagicMock(spec=AppConfig)
     config.get.side_effect = {
         "TA_TELEMETRY_ENABLED": "true",
+        "TA_METRICS_ENABLED": "true",
+        "TA_LOGGING_ENABLED": "true",
         "TA_OTEL_ENDPOINT": "http://localhost:4317",
         "TA_OTEL_METRICS_ENDPOINT": "http://localhost:4317",
         "TA_LOG_LEVEL": "info",
@@ -30,6 +32,8 @@ def test_telemetry_initialization_info(app_config):
 def test_telemetry_initialization_debug(app_config):
     app_config.get.side_effect = {
         "TA_TELEMETRY_ENABLED": "false",
+        "TA_METRICS_ENABLED": "false",
+        "TA_LOGGING_ENABLED": "false",
         "TA_OTEL_ENDPOINT": None,
         "TA_LOG_LEVEL": "debug",
     }.get
@@ -40,6 +44,8 @@ def test_telemetry_initialization_debug(app_config):
 def test_telemetry_initialization_warning(app_config):
     app_config.get.side_effect = {
         "TA_TELEMETRY_ENABLED": "false",
+        "TA_METRICS_ENABLED": "false",
+        "TA_LOGGING_ENABLED": "false",
         "TA_OTEL_ENDPOINT": None,
         "TA_LOG_LEVEL": "warning",
     }.get
@@ -50,6 +56,8 @@ def test_telemetry_initialization_warning(app_config):
 def test_telemetry_initialization_error(app_config):
     app_config.get.side_effect = {
         "TA_TELEMETRY_ENABLED": "false",
+        "TA_METRICS_ENABLED": "false",
+        "TA_LOGGING_ENABLED": "false",
         "TA_OTEL_ENDPOINT": None,
         "TA_LOG_LEVEL": "error",
     }.get
@@ -60,6 +68,8 @@ def test_telemetry_initialization_error(app_config):
 def test_telemetry_initialization_critical(app_config):
     app_config.get.side_effect = {
         "TA_TELEMETRY_ENABLED": "false",
+        "TA_METRICS_ENABLED": "false",
+        "TA_LOGGING_ENABLED": "false",
         "TA_OTEL_ENDPOINT": None,
         "TA_LOG_LEVEL": "critical",
     }.get
@@ -70,6 +80,8 @@ def test_telemetry_initialization_critical(app_config):
 def test_telemetry_disabled(app_config):
     app_config.get.side_effect = {
         "TA_TELEMETRY_ENABLED": "false",
+        "TA_METRICS_ENABLED": "false",
+        "TA_LOGGING_ENABLED": "false",
         "TA_OTEL_ENDPOINT": None,
         "TA_LOG_LEVEL": "info",
     }.get
@@ -88,6 +100,8 @@ def test_get_tracer_enabled(app_config):
 def test_get_tracer_disabled(app_config):
     app_config.get.side_effect = {
         "TA_TELEMETRY_ENABLED": "false",
+        "TA_METRICS_ENABLED": "false",
+        "TA_LOGGING_ENABLED": "false",
         "TA_OTEL_ENDPOINT": None,
         "TA_LOG_LEVEL": "info",
     }.get
@@ -114,6 +128,8 @@ def test_enable_tracing(app_config):
 def test_enable_tracing_without_endpoint(app_config):
     app_config.get.side_effect = {
         "TA_TELEMETRY_ENABLED": "true",
+        "TA_METRICS_ENABLED": "true",
+        "TA_LOGGING_ENABLED": "true",
         "TA_OTEL_ENDPOINT": None,
         "TA_LOG_LEVEL": "info",
     }.get
@@ -140,6 +156,8 @@ def test_get_logger(app_config):
 def test_get_logger_telemetry_disabled(app_config):
     app_config.get.side_effect = {
         "TA_TELEMETRY_ENABLED": "false",
+        "TA_METRICS_ENABLED": "false",
+        "TA_LOGGING_ENABLED": "false",
         "TA_OTEL_ENDPOINT": None,
         "TA_LOG_LEVEL": "info",
     }.get

@@ -8,6 +8,7 @@ class AgentConfig(BaseModel):
     model: str
     temperature: float | None = Field(None, ge=0.0, le=1.0)
     max_tokens: int | None = None
+    reasoning_effort: str | None = None
     system_prompt: str
     plugins: list[str] | None = None
     remote_plugins: list[str] | None = None

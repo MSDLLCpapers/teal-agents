@@ -42,6 +42,13 @@ class McpServerConfig(BaseModel):
     canonical_uri: Optional[str] = None  # Explicit canonical URI override
     enable_dynamic_registration: bool = True  # Try RFC7591 dynamic registration
 
+    # MCP Protocol Version (for conditional OAuth parameter inclusion)
+    protocol_version: Optional[str] = None  # MCP protocol version (e.g., "2025-06-18")
+
+    # Server Metadata Discovery Configuration (RFC 8414/9728)
+    enable_metadata_discovery: bool = True  # Enable RFC 8414/9728 discovery
+    metadata_cache_ttl: int = 3600  # Metadata cache TTL in seconds (default: 1 hour)
+
     @property
     def effective_canonical_uri(self) -> str:
         """
@@ -124,6 +131,31 @@ class McpServerConfig(BaseModel):
         # Validate auth configuration
         if self.auth_server and not self.auth_server.startswith(('http://', 'https://')):
             raise ValueError("auth_server must be a valid HTTP/HTTPS URL")
+
+        # HTTPS enforcement (per OAuth 2.1 and MCP spec)
+        if self.auth_server:
+            from ska_utils import AppConfig
+            from sk_agents.configs import TA_MCP_OAUTH_STRICT_HTTPS_VALIDATION
+            from sk_agents.mcp_client import validate_https_url
+
+            app_config = AppConfig()
+            strict_https = app_config.get(TA_MCP_OAUTH_STRICT_HTTPS_VALIDATION.env_name).lower() == "true"
+
+            if strict_https:
+                # Validate auth_server uses HTTPS (or localhost)
+                if not validate_https_url(self.auth_server, allow_localhost=True):
+                    raise ValueError(
+                        f"auth_server must use HTTPS (or http://localhost for development): {self.auth_server}. "
+                        f"Disable with TA_MCP_OAUTH_STRICT_HTTPS_VALIDATION=false"
+                    )
+
+                # Validate redirect_uri uses HTTPS (or localhost)
+                redirect_uri = self.oauth_redirect_uri
+                if redirect_uri and not validate_https_url(redirect_uri, allow_localhost=True):
+                    raise ValueError(
+                        f"OAuth redirect_uri must use HTTPS (or http://localhost for development): {redirect_uri}. "
+                        f"Disable with TA_MCP_OAUTH_STRICT_HTTPS_VALIDATION=false"
+                    )
 
         return self
 

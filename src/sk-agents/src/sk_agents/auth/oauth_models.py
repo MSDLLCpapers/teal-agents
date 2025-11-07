@@ -16,12 +16,17 @@ class AuthorizationRequest(BaseModel):
 
     Used to construct authorization URL with all required parameters.
     Follows MCP spec requirement for PKCE and resource parameter.
+
+    Note: resource parameter is optional and should only be included if:
+    - MCP protocol version >= 2025-06-18, OR
+    - Protected Resource Metadata has been discovered
     """
 
     auth_server: HttpUrl = Field(..., description="Authorization server base URL")
+    authorization_endpoint: HttpUrl | None = Field(None, description="Discovered authorization endpoint (RFC 8414)")
     client_id: str = Field(..., description="OAuth client ID")
     redirect_uri: HttpUrl = Field(..., description="OAuth callback URL")
-    resource: str = Field(..., description="Canonical MCP server URI (resource binding)")
+    resource: str | None = Field(None, description="Canonical MCP server URI (resource binding) - conditional per protocol version")
     scopes: list[str] = Field(..., description="Requested OAuth scopes")
     state: str = Field(..., description="CSRF protection state parameter")
     code_challenge: str = Field(..., description="PKCE code challenge (S256)")
@@ -39,6 +44,10 @@ class TokenRequest(BaseModel):
 
     Used to exchange authorization code for access token.
     Includes PKCE verifier and resource parameter.
+
+    Note: resource parameter is optional and should only be included if:
+    - MCP protocol version >= 2025-06-18, OR
+    - Protected Resource Metadata has been discovered
     """
 
     token_endpoint: HttpUrl = Field(..., description="Token endpoint URL")
@@ -49,9 +58,10 @@ class TokenRequest(BaseModel):
     refresh_token: str | None = Field(None, description="Refresh token (for refresh_token grant)")
     redirect_uri: HttpUrl | None = Field(None, description="OAuth callback URL (must match)")
     code_verifier: str | None = Field(None, description="PKCE code verifier")
-    resource: str = Field(..., description="Canonical MCP server URI (resource binding)")
+    resource: str | None = Field(None, description="Canonical MCP server URI (resource binding) - conditional per protocol version")
     client_id: str = Field(..., description="OAuth client ID")
     client_secret: str | None = Field(None, description="OAuth client secret (confidential clients only)")
+    requested_scopes: list[str] | None = Field(None, description="Requested scopes for validation (prevents escalation attacks)")
 
 
 class TokenResponse(BaseModel):
@@ -74,16 +84,22 @@ class RefreshTokenRequest(BaseModel):
     OAuth 2.1 Refresh Token Request
 
     Request to refresh an expired access token.
+
+    Note: resource parameter is optional and should only be included if:
+    - MCP protocol version >= 2025-06-18, OR
+    - Protected Resource Metadata has been discovered
+    - Must match the original authorization request resource if included
     """
 
     token_endpoint: HttpUrl = Field(..., description="Token endpoint URL")
     refresh_token: str = Field(..., description="Refresh token")
-    resource: str = Field(..., description="Canonical MCP server URI (must match original)")
+    resource: str | None = Field(None, description="Canonical MCP server URI (must match original) - conditional per protocol version")
     client_id: str = Field(..., description="OAuth client ID")
     client_secret: str | None = Field(None, description="OAuth client secret (confidential clients only)")
     grant_type: Literal["refresh_token"] = Field(
         default="refresh_token", description="OAuth grant type"
     )
+    requested_scopes: list[str] | None = Field(None, description="Original requested scopes for validation (prevents escalation)")
 
 
 class OAuthError(BaseModel):
@@ -98,4 +114,37 @@ class OAuthError(BaseModel):
     error_uri: str | None = Field(None, description="URL with error information")
     oauth_server_metadata_url: str | None = Field(
         None, description="Authorization server metadata URL (from WWW-Authenticate)"
+    )
+
+
+class MCP401Response(BaseModel):
+    """
+    MCP-compliant 401 Unauthorized response.
+
+    Per MCP spec, servers should return WWW-Authenticate header with:
+    - error: Error code
+    - error_description: Human-readable description
+    - scope: Required scopes (for insufficient_scope)
+    - resource_metadata: URL for RFC 9728 discovery (optional)
+    """
+
+    www_authenticate: str = Field(..., description="WWW-Authenticate header value")
+    error_code: int = Field(401, description="HTTP status code")
+    error_message: str = Field(
+        "Authentication required",
+        description="Human-readable error message"
+    )
+
+
+class MCP403Response(BaseModel):
+    """MCP-compliant 403 Forbidden response."""
+
+    error_code: int = Field(403, description="HTTP status code")
+    error_message: str = Field(
+        "Insufficient permissions",
+        description="Human-readable error message"
+    )
+    required_scopes: list[str] | None = Field(
+        None,
+        description="Scopes required for this operation"
     )

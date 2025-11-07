@@ -118,6 +118,10 @@ class OAuthStateManager:
         """
         Store OAuth flow state temporarily.
 
+        Stores in two locations:
+        1. User-specific key for validation: oauth_flow_temp:{user_id}
+        2. State-only key for callback retrieval: oauth_flow_temp:by_state
+
         Args:
             state: CSRF state parameter
             verifier: PKCE code verifier
@@ -143,9 +147,14 @@ class OAuthStateManager:
         # We'll implement expiry check on retrieval
         # For production, consider Redis or other storage with native TTL
         try:
-            # Use a synthetic user_id for temporary storage
+            # Store with user-specific key (for retrieve_flow_state with user_id)
             temp_user = f"{self.TEMP_USER_PREFIX}:{user_id}"
             self.auth_storage.store(temp_user, temp_key, flow_state.to_dict())
+
+            # Also store with state-only key (for OAuth callback without user_id)
+            state_only_user = f"{self.TEMP_USER_PREFIX}:by_state"
+            self.auth_storage.store(state_only_user, temp_key, flow_state.to_dict())
+
             logger.debug(f"Stored OAuth flow state for state={state}, user={user_id}")
         except Exception as e:
             logger.error(f"Failed to store OAuth flow state: {e}")
@@ -210,6 +219,70 @@ class OAuthStateManager:
             logger.error(f"Failed to retrieve OAuth flow state: {e}")
             raise
 
+    def retrieve_flow_state_by_state_only(self, state: str) -> OAuthFlowState:
+        """
+        Retrieve OAuth flow state using only the state parameter.
+
+        This is used in OAuth callbacks where we don't have user_id upfront.
+        The flow state contains user_id which we extract after retrieval.
+
+        Note: This method attempts retrieval by trying common patterns.
+        For production, consider using a state→user_id mapping or encoding
+        user_id in the state parameter itself.
+
+        Args:
+            state: CSRF state parameter from callback
+
+        Returns:
+            OAuthFlowState: Retrieved flow state with embedded user_id
+
+        Raises:
+            ValueError: If state not found or expired
+        """
+        temp_key = f"oauth_state:{state}"
+
+        try:
+            # First, try to retrieve with a wildcard pattern
+            # Since AuthStorage is user-scoped, we need to iterate
+            # This is inefficient but works for now
+            # TODO: Implement better storage pattern (e.g., state→user_id mapping)
+
+            # For now, we'll use a simplified approach:
+            # Store flow state with a well-known temporary user that doesn't include user_id
+            # We'll modify store_flow_state to support this
+
+            # Attempt to retrieve with state-only key
+            state_only_user = f"{self.TEMP_USER_PREFIX}:by_state"
+            data = self.auth_storage.retrieve(state_only_user, temp_key)
+
+            if not data:
+                logger.warning(f"OAuth flow state not found for state={state}")
+                raise ValueError("Invalid or expired OAuth state")
+
+            # Handle both dict and object storage
+            if not isinstance(data, dict):
+                if hasattr(data, 'to_dict'):
+                    data = data.to_dict()
+                elif hasattr(data, '__dict__'):
+                    data = data.__dict__
+                else:
+                    logger.error(f"Unexpected flow state data type: {type(data)}")
+                    raise ValueError("Invalid OAuth flow state data")
+
+            flow_state = OAuthFlowState.from_dict(data)
+
+            # Validate expiry
+            if flow_state.is_expired(self.ttl_seconds):
+                logger.warning(f"OAuth flow state expired for state={state}")
+                raise ValueError("OAuth state expired")
+
+            logger.debug(f"Retrieved OAuth flow state for state={state}, user={flow_state.user_id}")
+            return flow_state
+
+        except Exception as e:
+            logger.error(f"Failed to retrieve OAuth flow state by state only: {e}")
+            raise
+
     def delete_flow_state(self, state: str, user_id: str) -> None:
         """
         Delete OAuth flow state after use or expiry.
@@ -220,12 +293,20 @@ class OAuthStateManager:
         """
         temp_key = f"oauth_state:{state}"
         temp_user = f"{self.TEMP_USER_PREFIX}:{user_id}"
+        state_only_user = f"{self.TEMP_USER_PREFIX}:by_state"
 
         try:
-            # Note: Current AuthStorage may not have a delete method
-            # For now, we just log. In production, implement proper cleanup.
-            logger.debug(f"Deleting OAuth flow state for state={state}, user={user_id}")
-            # self.auth_storage.delete(temp_user, temp_key)  # If available
+            # Delete from user-specific storage
+            self.auth_storage.delete(temp_user, temp_key)
+            logger.debug(f"Deleted OAuth flow state for state={state}, user={user_id}")
+
+            # Also delete from state-only storage
+            try:
+                self.auth_storage.delete(state_only_user, temp_key)
+                logger.debug(f"Deleted state-only OAuth flow state for state={state}")
+            except Exception as e:
+                logger.debug(f"Failed to delete state-only flow state (non-critical): {e}")
+
         except Exception as e:
             logger.warning(f"Failed to delete OAuth flow state: {e}")
             # Non-critical error, continue

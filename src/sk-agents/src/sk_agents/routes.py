@@ -410,3 +410,106 @@ class Routes:
             return StreamingResponse(event_generator(), media_type="text/event-stream")
 
         return router
+
+    @staticmethod
+    def get_oauth_callback_routes(
+        config: BaseConfig,
+        app_config: AppConfig,
+    ) -> APIRouter:
+        """
+        Get OAuth 2.1 callback routes for MCP server authentication.
+
+        This route handles the OAuth redirect callback after user authorization.
+        """
+        router = APIRouter()
+
+        @router.get("/oauth/callback")
+        async def oauth_callback(
+            code: str,
+            state: str,
+        ):
+            """
+            Handle OAuth 2.1 callback from authorization server.
+
+            Validates state, exchanges code for tokens, and stores in AuthStorage.
+
+            Args:
+                code: Authorization code from auth server
+                state: CSRF state parameter
+
+            Returns:
+                Success response with server name and token metadata
+            """
+            from sk_agents.auth.oauth_client import OAuthClient
+            from sk_agents.auth.oauth_state_manager import OAuthStateManager
+
+            try:
+                # Initialize OAuth components
+                oauth_client = OAuthClient()
+                state_manager = OAuthStateManager()
+
+                # Retrieve flow state using state parameter only
+                # This extracts user_id without requiring it upfront
+                try:
+                    flow_state = state_manager.retrieve_flow_state_by_state_only(state)
+                except ValueError as e:
+                    logger.warning(f"Invalid OAuth state in callback: {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid or expired state parameter"
+                    )
+
+                user_id = flow_state.user_id
+                server_name = flow_state.server_name
+
+                # Look up server config from agent configuration
+                mcp_servers = getattr(config.spec.agent, 'mcp_servers', None) if hasattr(config, 'spec') else None
+                if not mcp_servers:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="No MCP servers configured"
+                    )
+
+                server_config = None
+                for server in mcp_servers:
+                    if server.name == server_name:
+                        server_config = server
+                        break
+
+                if not server_config:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"MCP server '{server_name}' not found in configuration"
+                    )
+
+                # Handle callback (validate state, exchange code, store tokens)
+                oauth_data = await oauth_client.handle_callback(
+                    code=code,
+                    state=state,
+                    user_id=user_id,
+                    server_config=server_config
+                )
+
+                logger.info(
+                    f"OAuth callback successful for user={user_id}, server={server_name}"
+                )
+
+                # Return success response
+                return {
+                    "status": "success",
+                    "message": f"Successfully authenticated to {server_name}",
+                    "server_name": server_name,
+                    "scopes": oauth_data.scopes,
+                    "expires_at": oauth_data.expires_at.isoformat()
+                }
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.exception(f"Error in OAuth callback: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"OAuth callback failed: {str(e)}"
+                ) from e
+
+        return router

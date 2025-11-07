@@ -106,25 +106,67 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 return None
 
             except AuthRequiredError as e:
-                # Auth required during discovery - return challenge to user
+                # Auth required during discovery - initiate OAuth 2.1 flow
                 logger.info(
                     f"MCP discovery requires authentication for '{e.server_name}' (user: {user_id}) "
                     f"(auth_server: {e.auth_server}, scopes: {e.scopes})"
                 )
-                # Don't mark as initialized - will retry after auth
-                return AuthChallengeResponse(
-                    task_id=task_id,
-                    session_id=session_id,
-                    request_id=request_id,
-                    message=f"Authentication required for MCP server '{e.server_name}' before tool discovery.",
-                    auth_challenges=[{
-                        "server_name": e.server_name,
-                        "auth_server": e.auth_server,
-                        "scopes": e.scopes,
-                        "auth_url": f"{e.auth_server}/authorize?client_id=teal_agents&scope={'%20'.join(e.scopes)}&response_type=code"
-                    }],
-                    resume_url=f"/tealagents/v1alpha1/invoke"
-                )
+
+                try:
+                    # Find the server config for this MCP server
+                    server_config = None
+                    for server in mcp_servers:
+                        if server.name == e.server_name:
+                            server_config = server
+                            break
+
+                    if not server_config:
+                        logger.error(f"Server config not found for '{e.server_name}'")
+                        raise ValueError(f"Server config not found for '{e.server_name}'")
+
+                    # Initiate OAuth 2.1 authorization flow with PKCE
+                    from sk_agents.auth.oauth_client import OAuthClient
+                    oauth_client = OAuthClient()
+
+                    # Generate authorization URL with PKCE, state, and resource parameter
+                    auth_url = await oauth_client.initiate_authorization_flow(
+                        server_config=server_config,
+                        user_id=user_id
+                    )
+
+                    logger.info(f"Generated OAuth authorization URL for {e.server_name}")
+
+                    # Don't mark as initialized - will retry after auth
+                    return AuthChallengeResponse(
+                        task_id=task_id,
+                        session_id=session_id,
+                        request_id=request_id,
+                        message=f"Authentication required for MCP server '{e.server_name}' before tool discovery.",
+                        auth_challenges=[{
+                            "server_name": e.server_name,
+                            "auth_server": e.auth_server,
+                            "scopes": e.scopes,
+                            "auth_url": auth_url  # Proper OAuth 2.1 URL with PKCE + resource
+                        }],
+                        resume_url=f"/tealagents/v1alpha1/invoke"
+                    )
+
+                except Exception as oauth_error:
+                    logger.error(f"Failed to initiate OAuth flow for '{e.server_name}': {oauth_error}")
+                    # Fallback to legacy URL format if OAuth client fails
+                    return AuthChallengeResponse(
+                        task_id=task_id,
+                        session_id=session_id,
+                        request_id=request_id,
+                        message=f"Authentication required for MCP server '{e.server_name}' before tool discovery.",
+                        auth_challenges=[{
+                            "server_name": e.server_name,
+                            "auth_server": e.auth_server,
+                            "scopes": e.scopes,
+                            "auth_url": f"{e.auth_server}/authorize?error=oauth_client_failed"
+                        }],
+                        resume_url=f"/tealagents/v1alpha1/invoke"
+                    )
 
             except Exception as e:
                 logger.error(f"MCP discovery failed for user {user_id}: {e}")

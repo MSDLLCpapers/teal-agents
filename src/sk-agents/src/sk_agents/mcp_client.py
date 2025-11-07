@@ -19,6 +19,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime
 
+import httpx
 from mcp import ClientSession, StdioServerParameters
 from semantic_kernel.functions import kernel_function
 from semantic_kernel.kernel import Kernel
@@ -27,6 +28,7 @@ from sk_agents.ska_types import BasePlugin
 from sk_agents.tealagents.v1alpha1.config import McpServerConfig
 from sk_agents.auth_storage.auth_storage_factory import AuthStorageFactory
 from sk_agents.auth_storage.models import OAuth2AuthData
+from sk_agents.auth.oauth_error_handler import OAuthErrorHandler, parse_www_authenticate_header
 from sk_agents.plugin_catalog.models import Governance, GovernanceOverride, Oauth2PluginAuth, PluginTool
 from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
 
@@ -152,9 +154,9 @@ def validate_https_url(url: str, allow_localhost: bool = True) -> bool:
         if scheme == 'https':
             return True
 
-        # HTTP is only valid for localhost/127.0.0.1 if allowed
+        # HTTP is only valid for localhost/127.0.0.1/::1 if allowed
         if scheme == 'http' and allow_localhost:
-            if hostname in ('localhost', '127.0.0.1', '[::1]'):
+            if hostname in ('localhost', '127.0.0.1', '::1'):
                 return True
 
         return False
@@ -472,9 +474,14 @@ def apply_governance_overrides(base_governance: Governance, tool_name: str, over
     )
 
 
-def resolve_server_auth_headers(server_config: McpServerConfig, user_id: str = "default") -> Dict[str, str]:
+async def resolve_server_auth_headers(server_config: McpServerConfig, user_id: str = "default") -> Dict[str, str]:
     """
     Resolve authentication headers for MCP server connection.
+
+    Now supports automatic token refresh with OAuth 2.1 compliance:
+    - Validates token audience matches resource
+    - Automatically refreshes expired tokens
+    - Implements token rotation per OAuth 2.1
 
     Args:
         server_config: MCP server configuration
@@ -482,6 +489,9 @@ def resolve_server_auth_headers(server_config: McpServerConfig, user_id: str = "
 
     Returns:
         Dict[str, str]: Headers to use for server connection
+
+    Raises:
+        AuthRequiredError: If no valid token and refresh fails
     """
     headers = {}
 
@@ -502,9 +512,18 @@ def resolve_server_auth_headers(server_config: McpServerConfig, user_id: str = "
         try:
             # Use AuthStorageFactory directly - no wrapper needed
             from ska_utils import AppConfig
+            from sk_agents.auth.oauth_client import OAuthClient
+            from sk_agents.auth.oauth_models import RefreshTokenRequest
+            from sk_agents.configs import TA_MCP_OAUTH_ENABLE_TOKEN_REFRESH, TA_MCP_OAUTH_ENABLE_AUDIENCE_VALIDATION
+            from datetime import datetime, timedelta, timezone
+
             app_config = AppConfig()
             auth_storage_factory = AuthStorageFactory(app_config)
             auth_storage = auth_storage_factory.get_auth_storage_manager()
+
+            # Check feature flags
+            enable_refresh = app_config.get(TA_MCP_OAUTH_ENABLE_TOKEN_REFRESH.env_name).lower() == "true"
+            enable_audience = app_config.get(TA_MCP_OAUTH_ENABLE_AUDIENCE_VALIDATION.env_name).lower() == "true"
 
             # Generate composite key for OAuth2 token lookup
             composite_key = build_auth_storage_key(server_config.auth_server, server_config.scopes)
@@ -512,22 +531,245 @@ def resolve_server_auth_headers(server_config: McpServerConfig, user_id: str = "
             # Retrieve stored auth data
             auth_data = auth_storage.retrieve(user_id, composite_key)
 
-            if auth_data and isinstance(auth_data, OAuth2AuthData):
-                # Check if token is still valid
-                from datetime import datetime, timezone
-                if auth_data.expires_at > datetime.now(timezone.utc):
-                    # Add authorization header
-                    headers["Authorization"] = f"Bearer {auth_data.access_token}"
-                    logger.info(f"Resolved auth headers for MCP server: {server_config.name}")
-                else:
-                    logger.warning(f"Token expired for MCP server: {server_config.name}")
-            else:
+            if not auth_data or not isinstance(auth_data, OAuth2AuthData):
                 logger.warning(f"No valid auth token found for MCP server: {server_config.name}")
+                raise AuthRequiredError(
+                    server_name=server_config.name,
+                    auth_server=server_config.auth_server,
+                    scopes=server_config.scopes
+                )
 
+            # Get canonical resource URI for validation
+            try:
+                resource_uri = server_config.effective_canonical_uri
+            except ValueError as e:
+                logger.warning(f"Cannot determine canonical URI for {server_config.name}: {e}")
+                resource_uri = None
+
+            # Validate token for this resource (expiry + audience + resource binding)
+            if enable_audience and resource_uri:
+                is_valid = auth_data.is_valid_for_resource(resource_uri)
+            else:
+                # Legacy behavior: only check expiry
+                is_valid = auth_data.expires_at > datetime.now(timezone.utc)
+
+            # Token expired or invalid - try refresh
+            if not is_valid:
+                if enable_refresh and auth_data.refresh_token and resource_uri:
+                    logger.info(f"Token expired/invalid for {server_config.name}, attempting refresh")
+
+                    try:
+                        # Initialize OAuth client
+                        oauth_client = OAuthClient()
+
+                        # Discover Protected Resource Metadata (RFC 9728) if HTTP MCP server
+                        has_prm = False
+                        if server_config.url:  # Only for HTTP MCP servers
+                            try:
+                                prm = await oauth_client.metadata_cache.fetch_protected_resource_metadata(server_config.url)
+                                has_prm = prm is not None
+                                if prm:
+                                    logger.debug(f"Discovered PRM for {server_config.name} during token refresh")
+                            except Exception as e:
+                                logger.debug(f"PRM discovery failed (optional): {e}")
+                                has_prm = False
+
+                        # Determine if resource parameter should be included (per MCP spec 2025-06-18)
+                        include_resource = oauth_client.should_include_resource_param(
+                            protocol_version=server_config.protocol_version,
+                            has_prm=has_prm
+                        )
+
+                        # Discover token endpoint from authorization server metadata (RFC 8414)
+                        token_endpoint = None
+                        try:
+                            metadata = await oauth_client.metadata_cache.fetch_auth_server_metadata(server_config.auth_server)
+                            token_endpoint = str(metadata.token_endpoint)
+                            logger.debug(f"Discovered token endpoint for refresh: {token_endpoint}")
+                        except Exception as e:
+                            logger.debug(f"Failed to discover token endpoint: {e}. Using fallback.")
+                            token_endpoint = f"{server_config.auth_server.rstrip('/')}/token"
+
+                        # Build refresh request
+                        refresh_request = RefreshTokenRequest(
+                            token_endpoint=token_endpoint,
+                            refresh_token=auth_data.refresh_token,
+                            resource=resource_uri if include_resource else None,  # Conditional per protocol version
+                            client_id=server_config.oauth_client_id or app_config.get("TA_OAUTH_CLIENT_NAME"),
+                            client_secret=server_config.oauth_client_secret,
+                            requested_scopes=auth_data.scopes,  # For scope validation
+                        )
+
+                        # Refresh token
+                        token_response = await oauth_client.refresh_access_token(refresh_request)
+
+                        # Update auth data with new tokens
+                        auth_data.access_token = token_response.access_token
+                        auth_data.expires_at = datetime.now(timezone.utc) + timedelta(seconds=token_response.expires_in)
+                        auth_data.issued_at = datetime.now(timezone.utc)
+
+                        # Handle refresh token rotation (OAuth 2.1)
+                        if token_response.refresh_token:
+                            auth_data.refresh_token = token_response.refresh_token
+                            logger.debug(f"Refresh token rotated for {server_config.name}")
+
+                        # Update audience if provided
+                        if token_response.aud:
+                            auth_data.audience = token_response.aud
+
+                        # Store updated auth data
+                        auth_storage.store(user_id, composite_key, auth_data)
+
+                        logger.info(f"Successfully refreshed token for {server_config.name}")
+
+                    except httpx.HTTPStatusError as http_error:
+                        # Handle 401 WWW-Authenticate challenges
+                        if http_error.response.status_code == 401:
+                            challenge = OAuthErrorHandler.handle_401_response(
+                                dict(http_error.response.headers)
+                            )
+
+                            if challenge and OAuthErrorHandler.should_reauthorize(challenge):
+                                logger.info(
+                                    f"Received 401 with WWW-Authenticate challenge during token refresh for {server_config.name}. "
+                                    f"Error: {challenge.error}, Description: {challenge.error_description}"
+                                )
+                                # Extract required scopes from challenge or use configured scopes
+                                required_scopes = challenge.scopes if challenge.scopes else server_config.scopes
+
+                                raise AuthRequiredError(
+                                    server_name=server_config.name,
+                                    auth_server=server_config.auth_server,
+                                    scopes=required_scopes,
+                                    message=f"Token rejected by server: {challenge.error_description or challenge.error}"
+                                )
+
+                        # Re-raise other HTTP errors
+                        logger.error(f"HTTP error during token refresh for {server_config.name}: {http_error}")
+                        raise AuthRequiredError(
+                            server_name=server_config.name,
+                            auth_server=server_config.auth_server,
+                            scopes=server_config.scopes,
+                            message=f"Token refresh HTTP error: {http_error}"
+                        )
+
+                    except Exception as refresh_error:
+                        logger.error(f"Token refresh failed for {server_config.name}: {refresh_error}")
+                        # Refresh failed - require re-authentication
+                        raise AuthRequiredError(
+                            server_name=server_config.name,
+                            auth_server=server_config.auth_server,
+                            scopes=server_config.scopes,
+                            message=f"Token refresh failed for '{server_config.name}'. Re-authentication required."
+                        )
+                else:
+                    # Refresh not enabled or no refresh token
+                    logger.warning(f"Token expired for {server_config.name} and refresh not available")
+                    raise AuthRequiredError(
+                        server_name=server_config.name,
+                        auth_server=server_config.auth_server,
+                        scopes=server_config.scopes,
+                        message=f"Token expired for '{server_config.name}'"
+                    )
+
+            # Token is valid (or was successfully refreshed)
+            headers["Authorization"] = f"{auth_data.token_type} {auth_data.access_token}"
+            logger.info(f"Resolved auth headers for MCP server: {server_config.name}")
+
+        except AuthRequiredError:
+            # Re-raise auth errors
+            raise
         except Exception as e:
             logger.error(f"Failed to resolve auth for MCP server {server_config.name}: {e}")
+            raise AuthRequiredError(
+                server_name=server_config.name,
+                auth_server=server_config.auth_server if server_config.auth_server else "unknown",
+                scopes=server_config.scopes if server_config.scopes else [],
+                message=f"Auth resolution failed: {e}"
+            )
 
     return headers
+
+
+async def revoke_mcp_server_tokens(
+    server_config: McpServerConfig,
+    user_id: str = "default"
+) -> None:
+    """
+    Revoke all tokens for an MCP server.
+
+    Useful when:
+    - User logs out
+    - Security incident detected
+    - Server access no longer needed
+
+    Args:
+        server_config: MCP server configuration
+        user_id: User ID for token lookup
+
+    Raises:
+        Exception: If revocation fails
+    """
+    from ska_utils import AppConfig
+    from sk_agents.auth.oauth_client import OAuthClient
+
+    if not server_config.auth_server or not server_config.scopes:
+        logger.debug(f"Server {server_config.name} has no OAuth config, skipping revocation")
+        return
+
+    app_config = AppConfig()
+    auth_storage_factory = AuthStorageFactory(app_config)
+    auth_storage = auth_storage_factory.get_auth_storage_manager()
+    oauth_client = OAuthClient()
+
+    # Retrieve stored tokens
+    composite_key = build_auth_storage_key(server_config.auth_server, server_config.scopes)
+    auth_data = auth_storage.retrieve(user_id, composite_key)
+
+    if not auth_data or not isinstance(auth_data, OAuth2AuthData):
+        logger.debug(f"No tokens found for {server_config.name}, skipping revocation")
+        return
+
+    try:
+        # Discover revocation endpoint
+        metadata = await oauth_client.metadata_cache.fetch_auth_server_metadata(
+            server_config.auth_server
+        )
+
+        if not metadata.revocation_endpoint:
+            logger.warning(
+                f"No revocation_endpoint discovered for {server_config.auth_server}. "
+                f"Cannot revoke tokens."
+            )
+            return
+
+        # Revoke access token
+        await oauth_client.revoke_token(
+            token=auth_data.access_token,
+            revocation_endpoint=str(metadata.revocation_endpoint),
+            client_id=server_config.oauth_client_id or app_config.get("TA_OAUTH_CLIENT_NAME"),
+            client_secret=server_config.oauth_client_secret,
+            token_type_hint="access_token"
+        )
+
+        # Revoke refresh token if present
+        if auth_data.refresh_token:
+            await oauth_client.revoke_token(
+                token=auth_data.refresh_token,
+                revocation_endpoint=str(metadata.revocation_endpoint),
+                client_id=server_config.oauth_client_id or app_config.get("TA_OAUTH_CLIENT_NAME"),
+                client_secret=server_config.oauth_client_secret,
+                token_type_hint="refresh_token"
+            )
+
+        # Remove from storage
+        auth_storage.delete(user_id, composite_key)
+
+        logger.info(f"Successfully revoked and removed tokens for {server_config.name}")
+
+    except Exception as e:
+        logger.error(f"Failed to revoke tokens for {server_config.name}: {e}")
+        raise
 
 
 async def create_mcp_session_with_retry(
@@ -627,7 +869,7 @@ async def create_mcp_session(server_config: McpServerConfig, connection_stack: A
         
     elif transport_type == "http":
         # Resolve auth headers for HTTP transport
-        resolved_headers = resolve_server_auth_headers(server_config, user_id)
+        resolved_headers = await resolve_server_auth_headers(server_config, user_id)
 
         # Try streamable HTTP first (preferred), fall back to SSE
         try:

@@ -17,7 +17,12 @@ from semantic_kernel.kernel import Kernel
 from ska_utils import AppConfig
 
 from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
-from sk_agents.exceptions import AgentInvokeException, AuthenticationException, PersistenceLoadError
+from sk_agents.exceptions import (
+    AgentInvokeException,
+    AuthenticationException,
+    PersistenceCreateError,
+    PersistenceLoadError,
+)
 from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
 from sk_agents.hitl import hitl_manager
 from sk_agents.persistence.task_persistence_manager import TaskPersistenceManager
@@ -324,8 +329,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 )
                 await self.state.create(agent_task)
                 return agent_task
+        except (PersistenceLoadError, PersistenceCreateError) as e:
+            raise AgentInvokeException(
+                f"Failed to load or create task {task_id}: {e.message}"
+            ) from e
         except Exception as e:
-            raise Exception(f"Unexpected error ocurred while managing incoming task: {e}") from e
+            raise AgentInvokeException(
+                f"Unexpected error occurred while managing incoming task {task_id}: {str(e)}"
+            ) from e
 
     async def _manage_agent_response_task(
         self, agent_task: AgentTask, agent_response: TealAgentsResponse
@@ -498,17 +509,34 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         agent_task = await self.state.load_by_request_id(request_id)
         if agent_task is None:
             raise AgentInvokeException(f"No agent task found for request ID: {request_id}")
+
+        # Validate task has items
+        if not agent_task.items:
+            raise AgentInvokeException(
+                f"Cannot resume task {request_id}: task has no items. "
+                f"Task may be corrupted or improperly initialized."
+            )
+
         session_id = agent_task.session_id
         task_id = agent_task.task_id
-        chat_history = agent_task.items[-1].chat_history
-        if chat_history is None:
-            raise AgentInvokeException(f"Chat history not found for request ID: {request_id}")
+
+        # Retrieve chat history from last item with validation
+        last_item = agent_task.items[-1]
+        if last_item.chat_history is None:
+            raise AgentInvokeException(
+                f"Cannot resume task {request_id}: chat history not preserved in paused state. "
+                f"This indicates a persistence layer issue during HITL pause."
+            )
+        chat_history = last_item.chat_history
 
         TealAgentsV1Alpha1Handler._validate_user_id(user_id, task_id, agent_task)
-        try:
-            assert agent_task.status == "Paused"
-        except Exception as e:
-            raise Exception(f"Agent in resume request is not in Paused state: {e}") from e
+
+        # Validate task is in correct state for resumption
+        if agent_task.status != "Paused":
+            raise AgentInvokeException(
+                f"Cannot resume task {task_id}: task is in '{agent_task.status}' state, "
+                f"expected 'Paused'. Task may have already been processed or cancelled."
+            )
 
         if action_status.action != "approve":
             agent_task.status = "Canceled"
@@ -533,12 +561,22 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         agent_task.last_updated = datetime.now()
         await self.state.update(agent_task)
 
-        # Retrieve the pending_tool_calls from the last
-        # AgentTaskItem before approval/rejection item
-        tool_calls_in_task_items = agent_task.items[-2].pending_tool_calls
-        if tool_calls_in_task_items is None:
-            raise AgentInvokeException(f"Pending tool calls no found for request ID: {request_id}")
-        _pending_tools = list(tool_calls_in_task_items)  # [fc for fc in tool_calls_in_task_items]
+        # Retrieve the pending_tool_calls from the last AgentTaskItem before approval/rejection item
+        # Validate sufficient items exist
+        if len(agent_task.items) < 2:
+            raise AgentInvokeException(
+                f"Invalid task state for request ID {request_id}: "
+                f"expected at least 2 task items for HITL resume, found {len(agent_task.items)}"
+            )
+
+        pending_tools_item = agent_task.items[-2]
+        if not pending_tools_item.pending_tool_calls:
+            raise AgentInvokeException(
+                f"Pending tool calls not found for request ID: {request_id}. "
+                f"Task item at index -2 has no pending tool calls."
+            )
+
+        _pending_tools = list(pending_tools_item.pending_tool_calls)
         pending_tools = [FunctionCallContent(**function_call) for function_call in _pending_tools]
 
         # Execute the tool calls using asyncio.gather(),
@@ -787,8 +825,13 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
             # No tool calls, return the direct response
             if final_response is None:
-                logger.exception("No response received from LLM")
-                raise AgentInvokeException("No response received from LLM")
+                error_msg = (
+                    f"No response received from LLM for Session ID {session_id}, "
+                    f"Task ID {task_id}, Request ID {request_id}. "
+                    f"Function calls processed: {len(function_calls)}"
+                )
+                logger.error(error_msg)
+                raise AgentInvokeException(error_msg)
         except hitl_manager.HitlInterventionRequired as hitl_exc:
             return await self._manage_hitl_exception(
                 agent_task, session_id, task_id, request_id, hitl_exc.function_calls, chat_history

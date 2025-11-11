@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import UUID4, BaseModel, Field, validator
+from pydantic import UUID4, BaseModel, Field, field_validator
 from redis.asyncio import Redis
 
 from sk_agents.ska_types import InvokeResponse
@@ -33,7 +33,8 @@ class UserMessage(BaseModel):
     task_id: UUID4 | None = None
     items: list[MultiModalItem]
 
-    @validator("session_id", "task_id", pre=True)
+    @field_validator("session_id", "task_id", mode="before")
+    @classmethod
     def validate_uuid(cls, v):
         if v is not None and not isinstance(v, uuid.UUID):
             try:

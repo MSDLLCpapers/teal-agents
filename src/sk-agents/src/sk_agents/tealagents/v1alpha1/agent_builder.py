@@ -49,6 +49,14 @@ class AgentBuilder:
         if agent_config.max_tokens:
             extension_data["max_tokens"] = int(agent_config.max_tokens)
 
+        if "gpt-5" in agent_config.model:
+            if agent_config.reasoning_effort and (
+                agent_config.reasoning_effort in ["low", "medium", "high"]
+            ):
+                extension_data["reasoning_effort"] = str(agent_config.reasoning_effort)
+            else:
+                extension_data["reasoning_effort"] = "low"
+
         if extension_data:
             settings.extension_data = extension_data
             settings.unpack_extension_data()

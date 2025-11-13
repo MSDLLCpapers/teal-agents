@@ -164,6 +164,19 @@ TA_MCP_OAUTH_STRICT_HTTPS_VALIDATION = Config(
     default_value="true",
 )
 
+# MCP Discovery Manager Configuration
+# Configures storage backend for MCP tool discovery state
+TA_MCP_DISCOVERY_MODULE = Config(
+    env_name="TA_MCP_DISCOVERY_MODULE",
+    is_required=False,
+    default_value="sk_agents.mcp_discovery.in_memory_discovery_manager",
+)
+TA_MCP_DISCOVERY_CLASS = Config(
+    env_name="TA_MCP_DISCOVERY_CLASS",
+    is_required=False,
+    default_value="InMemoryDiscoveryManager",
+)
+
 configs: list[Config] = [
     TA_API_KEY,
     TA_SERVICE_CONFIG,
@@ -204,4 +217,6 @@ configs: list[Config] = [
     TA_MCP_OAUTH_ENABLE_SERVER_DISCOVERY,
     TA_MCP_OAUTH_ENABLE_DYNAMIC_REGISTRATION,
     TA_MCP_OAUTH_STRICT_HTTPS_VALIDATION,
+    TA_MCP_DISCOVERY_MODULE,
+    TA_MCP_DISCOVERY_CLASS,
 ]

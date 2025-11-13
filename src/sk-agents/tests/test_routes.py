@@ -587,6 +587,7 @@ def test_get_task_handler(mock_agent_builder, mock_handler_class):
     app_config = MagicMock()
     authorization = "test_auth"
     state_manager = MagicMock()
+    mcp_discovery_manager = MagicMock()
 
     mock_agent_builder_instance = MagicMock()
     mock_handler = MagicMock()
@@ -594,11 +595,11 @@ def test_get_task_handler(mock_agent_builder, mock_handler_class):
     mock_agent_builder.return_value = mock_agent_builder_instance
     mock_handler_class.return_value = mock_handler
 
-    result = Routes.get_task_handler(config, app_config, authorization, state_manager)
+    result = Routes.get_task_handler(config, app_config, authorization, state_manager, mcp_discovery_manager)
 
     mock_agent_builder.assert_called_once_with(app_config, authorization)
     mock_handler_class.assert_called_once_with(
-        config, app_config, mock_agent_builder_instance, state_manager
+        config, app_config, mock_agent_builder_instance, state_manager, mcp_discovery_manager
     )
     assert result == mock_handler
 
@@ -885,6 +886,7 @@ def test_get_stateful_routes_success(mock_get_task_handler):
     app_config = MagicMock()
     state_manager = MagicMock()
     auth_storage_manager = MagicMock()
+    mcp_discovery_manager = MagicMock()
 
     from sk_agents.tealagents.models import UserMessage
 
@@ -898,6 +900,7 @@ def test_get_stateful_routes_success(mock_get_task_handler):
         state_manager=state_manager,
         authorizer=mock_authorizer,
         auth_storage_manager=auth_storage_manager,
+        mcp_discovery_manager=mcp_discovery_manager,
         input_class=UserMessage,
     )
 
@@ -951,6 +954,7 @@ def test_get_stateful_routes_hitl_response(mock_get_task_handler):
     app_config = MagicMock()
     state_manager = MagicMock()
     auth_storage_manager = MagicMock()
+    mcp_discovery_manager = MagicMock()
 
     from sk_agents.tealagents.models import UserMessage
 
@@ -964,6 +968,7 @@ def test_get_stateful_routes_hitl_response(mock_get_task_handler):
         state_manager=state_manager,
         authorizer=mock_authorizer,
         auth_storage_manager=auth_storage_manager,
+        mcp_discovery_manager=mcp_discovery_manager,
         input_class=UserMessage,
     )
 
@@ -997,6 +1002,7 @@ def test_get_stateful_routes_unauthorized():
     app_config = MagicMock()
     state_manager = MagicMock()
     auth_storage_manager = MagicMock()
+    mcp_discovery_manager = MagicMock()
 
     from sk_agents.tealagents.models import UserMessage
 
@@ -1010,6 +1016,7 @@ def test_get_stateful_routes_unauthorized():
         state_manager=state_manager,
         authorizer=mock_authorizer,
         auth_storage_manager=auth_storage_manager,
+        mcp_discovery_manager=mcp_discovery_manager,
         input_class=UserMessage,
     )
 
@@ -1044,9 +1051,10 @@ def test_get_resume_routes_success(mock_get_task_handler):
     config = MagicMock()
     app_config = MagicMock()
     state_manager = MagicMock()
+    mcp_discovery_manager = MagicMock()
 
     # Get the router
-    router = Routes.get_resume_routes(config, app_config, state_manager)
+    router = Routes.get_resume_routes(config, app_config, state_manager, mcp_discovery_manager)
 
     # Mount router in FastAPI app and test
     app = FastAPI()
@@ -1105,9 +1113,10 @@ def test_get_resume_routes_sse_success(mock_sse_event, mock_get_task_handler):
     config = MagicMock()
     app_config = MagicMock()
     state_manager = MagicMock()
+    mcp_discovery_manager = MagicMock()
 
     # Get the router
-    router = Routes.get_resume_routes(config, app_config, state_manager)
+    router = Routes.get_resume_routes(config, app_config, state_manager, mcp_discovery_manager)
 
     # Mount router in FastAPI app and test
     app = FastAPI()
@@ -1135,9 +1144,10 @@ def test_get_resume_routes_exception(mock_get_task_handler):
     config = MagicMock()
     app_config = MagicMock()
     state_manager = MagicMock()
+    mcp_discovery_manager = MagicMock()
 
     # Get the router
-    router = Routes.get_resume_routes(config, app_config, state_manager)
+    router = Routes.get_resume_routes(config, app_config, state_manager, mcp_discovery_manager)
 
     # Mount router in FastAPI app and test
     app = FastAPI()
@@ -1190,9 +1200,10 @@ def test_get_resume_routes_sse_exception(mock_sse_event, mock_get_task_handler):
     config = MagicMock()
     app_config = MagicMock()
     state_manager = MagicMock()
+    mcp_discovery_manager = MagicMock()
 
     # Get the router
-    router = Routes.get_resume_routes(config, app_config, state_manager)
+    router = Routes.get_resume_routes(config, app_config, state_manager, mcp_discovery_manager)
 
     # Mount router in FastAPI app and test
     app = FastAPI()

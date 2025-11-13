@@ -598,11 +598,13 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         extra_data_collector = ExtraDataCollector()
         agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector, user_id=user_id)
 
-        # Load MCP plugins after agent construction (per-user isolation)
+        # Load MCP plugins after agent construction (per-session isolation)
         if self.config.get_agent().mcp_servers:
             await self.agent_builder.kernel_builder.load_mcp_plugins(
                 agent.agent.kernel,
-                user_id
+                user_id,
+                session_id,
+                self.discovery_manager
             )
 
         kernel = agent.agent.kernel
@@ -765,11 +767,13 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             user_id=user_id
         )
 
-        # Load MCP plugins after agent construction (per-user isolation)
+        # Load MCP plugins after agent construction (per-session isolation)
         if self.config.get_agent().mcp_servers:
             await self.agent_builder.kernel_builder.load_mcp_plugins(
                 agent.agent.kernel,
-                user_id
+                user_id,
+                session_id,
+                self.discovery_manager
             )
 
         # Prepare metadata
@@ -889,11 +893,13 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             user_id=user_id
         )
 
-        # Load MCP plugins after agent construction (per-user isolation)
+        # Load MCP plugins after agent construction (per-session isolation)
         if self.config.get_agent().mcp_servers:
             await self.agent_builder.kernel_builder.load_mcp_plugins(
                 agent.agent.kernel,
-                user_id
+                user_id,
+                session_id,
+                self.discovery_manager
             )
 
         # Prepare metadata

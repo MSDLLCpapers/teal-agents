@@ -69,6 +69,13 @@ class AppV3:
         return auth_storage_factory.get_auth_storage_manager()
 
     @staticmethod
+    def _get_mcp_discovery_manager(app_config: AppConfig):
+        from sk_agents.mcp_discovery import DiscoveryManagerFactory
+
+        discovery_factory = DiscoveryManagerFactory(app_config)
+        return discovery_factory.get_discovery_manager()
+
+    @staticmethod
     def _get_auth_manager(app_config: AppConfig):
         # For initial implementation, use mock authentication
         # Will be extended in future for Entra ID
@@ -108,6 +115,7 @@ class AppV3:
         state_manager = AppV3._get_state_manager(app_config)
         auth_manager = AppV3._get_auth_manager(app_config)
         auth_storage_manager = AppV3._get_auth_storage_manager(app_config)
+        mcp_discovery_manager = AppV3._get_mcp_discovery_manager(app_config)
 
         # Get description from metadata if available
         if config.metadata is not None and config.metadata.description is not None:
@@ -126,6 +134,7 @@ class AppV3:
                 state_manager=state_manager,
                 authorizer=auth_manager,
                 auth_storage_manager=auth_storage_manager,
+                mcp_discovery_manager=mcp_discovery_manager,
                 input_class=UserMessage,
             ),
             prefix=f"/{name}/{version}",
@@ -134,7 +143,7 @@ class AppV3:
         # Include the new resume routes
         app.include_router(
             Routes.get_resume_routes(
-                config=config, app_config=app_config, state_manager=state_manager
+                config=config, app_config=app_config, state_manager=state_manager, mcp_discovery_manager=mcp_discovery_manager
             ),
             prefix=f"/{name}/{version}",
         )

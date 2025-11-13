@@ -100,14 +100,14 @@ def mock_app_config():
 
 
 @pytest.fixture
-def teal_agents_handler(mock_config, mock_agent_builder, mock_app_config, mock_state_manager, mock_discovery_manager):
-    """Provides an initialized TealAgentsV1Alpha1Handler instance."""
+def teal_agents_handler(mock_config, mock_agent_builder, mock_app_config, mock_state_manager):
+    """Provides an initialized TealAgentsV1Alpha1Handler instance without MCP discovery."""
     return TealAgentsV1Alpha1Handler(
         config=mock_config,
         app_config=mock_app_config,
         agent_builder=mock_agent_builder,
         state_manager=mock_state_manager,
-        discovery_manager=mock_discovery_manager,
+        # discovery_manager is optional, not provided for non-MCP tests
     )
 
 

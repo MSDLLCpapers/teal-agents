@@ -52,7 +52,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         app_config: AppConfig,
         agent_builder: AgentBuilder,
         state_manager: TaskPersistenceManager,
-        discovery_manager,  # McpDiscoveryManager - injected via dependency injection
+        discovery_manager=None,  # McpDiscoveryManager - Optional, only needed for MCP
     ):
         self.version = config.version
         self.name = config.name
@@ -63,7 +63,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         self.agent_builder = agent_builder
         self.state = state_manager
         self.authorizer = DummyAuthorizer()
-        self.discovery_manager = discovery_manager  # Store discovery manager
+        self.discovery_manager = discovery_manager  # Store discovery manager (optional)
 
     async def _ensure_session_discovery(
         self, user_id: str, session_id: str, task_id: str, request_id: str
@@ -83,6 +83,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         Returns:
             AuthChallengeResponse if authentication is required, None if discovery complete
         """
+        # Early return if no discovery manager (no MCP servers configured)
+        if not self.discovery_manager:
+            return None
+
         # Check if discovery already completed for this session
         is_completed = await self.discovery_manager.is_completed(user_id, session_id)
         if is_completed:
@@ -599,7 +603,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector, user_id=user_id)
 
         # Load MCP plugins after agent construction (per-session isolation)
-        if self.config.get_agent().mcp_servers:
+        if self.config.get_agent().mcp_servers and self.discovery_manager:
             await self.agent_builder.kernel_builder.load_mcp_plugins(
                 agent.agent.kernel,
                 user_id,
@@ -768,7 +772,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
 
         # Load MCP plugins after agent construction (per-session isolation)
-        if self.config.get_agent().mcp_servers:
+        if self.config.get_agent().mcp_servers and self.discovery_manager:
             await self.agent_builder.kernel_builder.load_mcp_plugins(
                 agent.agent.kernel,
                 user_id,
@@ -894,7 +898,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
 
         # Load MCP plugins after agent construction (per-session isolation)
-        if self.config.get_agent().mcp_servers:
+        if self.config.get_agent().mcp_servers and self.discovery_manager:
             await self.agent_builder.kernel_builder.load_mcp_plugins(
                 agent.agent.kernel,
                 user_id,

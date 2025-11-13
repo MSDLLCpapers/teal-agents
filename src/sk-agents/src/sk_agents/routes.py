@@ -148,7 +148,7 @@ class Routes:
         app_config: AppConfig,
         authorization: str,
         state_manager: TaskPersistenceManager,
-        mcp_discovery_manager,  # McpDiscoveryManager
+        mcp_discovery_manager=None,  # McpDiscoveryManager - Optional
     ) -> TealAgentsV1Alpha1Handler:
         agent_builder = Routes._create_agent_builder(app_config, authorization)
         return TealAgentsV1Alpha1Handler(config, app_config, agent_builder, state_manager, mcp_discovery_manager)
@@ -337,8 +337,8 @@ class Routes:
         state_manager: TaskPersistenceManager,
         authorizer: RequestAuthorizer,
         auth_storage_manager: SecureAuthStorageManager,
-        mcp_discovery_manager,  # McpDiscoveryManager
-        input_class: type[UserMessage],
+        mcp_discovery_manager=None,  # McpDiscoveryManager - Optional
+        input_class: type[UserMessage] = UserMessage,
     ) -> APIRouter:
         """
         Get the stateful API routes for the given configuration.
@@ -380,7 +380,7 @@ class Routes:
 
     @staticmethod
     def get_resume_routes(
-        config: BaseConfig, app_config: AppConfig, state_manager: TaskPersistenceManager, mcp_discovery_manager
+        config: BaseConfig, app_config: AppConfig, state_manager: TaskPersistenceManager, mcp_discovery_manager=None
     ) -> APIRouter:
         router = APIRouter()
 

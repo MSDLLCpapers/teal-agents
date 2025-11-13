@@ -96,7 +96,7 @@ class KernelBuilder:
             self.logger.exception(f"Could not load remote plugings. -{e}")
             raise
 
-    async def load_mcp_plugins(self, kernel: Kernel, user_id: str, session_id: str, mcp_discovery_manager) -> Kernel:
+    async def load_mcp_plugins(self, kernel: Kernel, user_id: str, session_id: str = None, mcp_discovery_manager=None) -> Kernel:
         """
         Load MCP plugins by instantiating them from the session-level plugin registry.
 
@@ -111,8 +111,8 @@ class KernelBuilder:
         Args:
             kernel: The kernel to add plugins to
             user_id: User ID to get plugins for (required)
-            session_id: Session ID for plugin isolation (required)
-            mcp_discovery_manager: Discovery manager for loading plugin state (required)
+            session_id: Session ID for plugin isolation (optional, required if using MCP)
+            mcp_discovery_manager: Discovery manager for loading plugin state (optional, required if using MCP)
 
         Returns:
             The kernel with session's MCP plugins loaded
@@ -120,12 +120,12 @@ class KernelBuilder:
         Note: MCP tools must be discovered first via McpPluginRegistry.discover_and_materialize()
         before calling this method.
         """
+        # Early return if optional parameters not provided (no MCP configured)
+        if not session_id or not mcp_discovery_manager:
+            return kernel
+
         if not user_id:
             raise ValueError("user_id is required when loading MCP plugins")
-        if not session_id:
-            raise ValueError("session_id is required when loading MCP plugins")
-        if not mcp_discovery_manager:
-            raise ValueError("mcp_discovery_manager is required when loading MCP plugins")
 
         try:
             from sk_agents.mcp_plugin_registry import McpPluginRegistry

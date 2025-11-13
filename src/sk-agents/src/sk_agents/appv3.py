@@ -115,7 +115,13 @@ class AppV3:
         state_manager = AppV3._get_state_manager(app_config)
         auth_manager = AppV3._get_auth_manager(app_config)
         auth_storage_manager = AppV3._get_auth_storage_manager(app_config)
-        mcp_discovery_manager = AppV3._get_mcp_discovery_manager(app_config)
+
+        # Only create MCP discovery manager if MCP servers are configured
+        mcp_servers = getattr(config.spec.agent, 'mcp_servers', None) if hasattr(config, 'spec') and hasattr(config.spec, 'agent') else None
+        if mcp_servers and len(mcp_servers) > 0:
+            mcp_discovery_manager = AppV3._get_mcp_discovery_manager(app_config)
+        else:
+            mcp_discovery_manager = None  # No MCP servers → No discovery manager needed
 
         # Get description from metadata if available
         if config.metadata is not None and config.metadata.description is not None:

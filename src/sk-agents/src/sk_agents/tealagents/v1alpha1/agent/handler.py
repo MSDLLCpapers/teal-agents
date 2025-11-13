@@ -46,13 +46,13 @@ from sk_agents.tealagents.v1alpha1.utils import get_token_usage_for_response, it
 logger = logging.getLogger(__name__)
 
 class TealAgentsV1Alpha1Handler(BaseHandler):
-    # Track MCP discovery per user (instance-level for multi-tenant isolation)
     def __init__(
         self,
         config: BaseConfig,
         app_config: AppConfig,
         agent_builder: AgentBuilder,
         state_manager: TaskPersistenceManager,
+        discovery_manager,  # McpDiscoveryManager - injected via dependency injection
     ):
         self.version = config.version
         self.name = config.name
@@ -63,120 +63,134 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         self.agent_builder = agent_builder
         self.state = state_manager
         self.authorizer = DummyAuthorizer()
+        self.discovery_manager = discovery_manager  # Store discovery manager
 
-        # Per-user MCP discovery tracking for multi-tenant isolation
-        self._mcp_discovery_per_user: dict[str, bool] = {}
-        self._mcp_discovery_lock: asyncio.Lock | None = None
-
-    async def _ensure_mcp_discovery(self, user_id: str, session_id: str, task_id: str, request_id: str) -> AuthChallengeResponse | None:
+    async def _ensure_session_discovery(
+        self, user_id: str, session_id: str, task_id: str, request_id: str
+    ) -> AuthChallengeResponse | None:
         """
-        Ensure MCP tool discovery has been performed for this user.
+        Ensure MCP tool discovery has been performed for this session.
 
-        Discovery happens once per user when they first make a request.
-        Each user gets their own set of discovered tools based on their authentication.
+        Discovery happens once per (user_id, session_id) when first detected.
+        All tasks in the session share the discovered tools.
 
         Args:
-            user_id: User ID for per-user discovery
-            session_id: Session ID for auth challenge response
+            user_id: User ID for authentication
+            session_id: Session ID for session-level scoping
             task_id: Task ID for auth challenge response
             request_id: Request ID for auth challenge response
 
         Returns:
             AuthChallengeResponse if authentication is required, None if discovery complete
         """
-        # Initialize lock on first call
-        if self._mcp_discovery_lock is None:
-            self._mcp_discovery_lock = asyncio.Lock()
+        # Check if discovery already completed for this session
+        is_completed = await self.discovery_manager.is_completed(user_id, session_id)
+        if is_completed:
+            logger.debug(
+                f"MCP discovery already completed for session: {session_id}"
+            )
+            return None
 
-        async with self._mcp_discovery_lock:
-            # Check if discovery already completed for THIS user
-            if user_id in self._mcp_discovery_per_user:
-                logger.debug(f"MCP discovery already completed for user: {user_id}")
-                return None  # Already initialized for this user
+        # Load or create discovery state
+        discovery_state = await self.discovery_manager.load_discovery(user_id, session_id)
+        if not discovery_state:
+            from sk_agents.mcp_discovery.mcp_discovery_manager import McpDiscoveryState
 
-            mcp_servers = self.config.get_agent().mcp_servers
-            if not mcp_servers or len(mcp_servers) == 0:
-                self._mcp_discovery_per_user[user_id] = True
-                return None  # No MCP servers configured
+            discovery_state = McpDiscoveryState(
+                user_id=user_id,
+                session_id=session_id,
+                discovered_servers={},
+                discovery_completed=False,
+            )
+            await self.discovery_manager.create_discovery(discovery_state)
+            logger.info(f"Created discovery state for session: {session_id}")
+
+        # Check if MCP servers configured
+        mcp_servers = self.config.get_agent().mcp_servers
+        if not mcp_servers or len(mcp_servers) == 0:
+            await self.discovery_manager.mark_completed(user_id, session_id)
+            return None
+
+        try:
+            from sk_agents.mcp_client import AuthRequiredError
+            from sk_agents.mcp_plugin_registry import McpPluginRegistry
+
+            logger.info(
+                f"Starting MCP discovery for session {session_id} ({len(mcp_servers)} servers)"
+            )
+
+            await McpPluginRegistry.discover_and_materialize(
+                mcp_servers, user_id, session_id, self.discovery_manager
+            )
+
+            await self.discovery_manager.mark_completed(user_id, session_id)
+            logger.info(f"MCP discovery completed for session {session_id}")
+            return None
+
+        except AuthRequiredError as e:
+            # Auth required - return challenge
+            logger.info(
+                f"MCP discovery requires authentication for '{e.server_name}' "
+                f"(session: {session_id})"
+            )
 
             try:
-                from sk_agents.mcp_plugin_registry import McpPluginRegistry
-                from sk_agents.mcp_client import AuthRequiredError
+                # Find server config
+                server_config = next(
+                    (s for s in mcp_servers if s.name == e.server_name), None
+                )
+                if not server_config:
+                    raise ValueError(f"Server config not found for '{e.server_name}'")
 
-                logger.info(f"Starting MCP discovery for user {user_id} ({len(mcp_servers)} servers)")
-                await McpPluginRegistry.discover_and_materialize(mcp_servers, user_id)
-                logger.info(f"MCP discovery completed successfully for user {user_id}")
+                # Initiate OAuth 2.1 authorization flow with PKCE
+                from sk_agents.auth.oauth_client import OAuthClient
 
-                self._mcp_discovery_per_user[user_id] = True
-                return None
+                oauth_client = OAuthClient()
 
-            except AuthRequiredError as e:
-                # Auth required during discovery - initiate OAuth 2.1 flow
-                logger.info(
-                    f"MCP discovery requires authentication for '{e.server_name}' (user: {user_id}) "
-                    f"(auth_server: {e.auth_server}, scopes: {e.scopes})"
+                # Generate authorization URL with PKCE
+                auth_url = await oauth_client.initiate_authorization_flow(
+                    server_config=server_config, user_id=user_id
                 )
 
-                try:
-                    # Find the server config for this MCP server
-                    server_config = None
-                    for server in mcp_servers:
-                        if server.name == e.server_name:
-                            server_config = server
-                            break
+                logger.info(f"Generated OAuth authorization URL for {e.server_name}")
 
-                    if not server_config:
-                        logger.error(f"Server config not found for '{e.server_name}'")
-                        raise ValueError(f"Server config not found for '{e.server_name}'")
-
-                    # Initiate OAuth 2.1 authorization flow with PKCE
-                    from sk_agents.auth.oauth_client import OAuthClient
-                    oauth_client = OAuthClient()
-
-                    # Generate authorization URL with PKCE, state, and resource parameter
-                    auth_url = await oauth_client.initiate_authorization_flow(
-                        server_config=server_config,
-                        user_id=user_id
-                    )
-
-                    logger.info(f"Generated OAuth authorization URL for {e.server_name}")
-
-                    # Don't mark as initialized - will retry after auth
-                    return AuthChallengeResponse(
-                        task_id=task_id,
-                        session_id=session_id,
-                        request_id=request_id,
-                        message=f"Authentication required for MCP server '{e.server_name}' before tool discovery.",
-                        auth_challenges=[{
+                return AuthChallengeResponse(
+                    task_id=task_id,
+                    session_id=session_id,
+                    request_id=request_id,
+                    message=f"Authentication required for MCP server '{e.server_name}'.",
+                    auth_challenges=[
+                        {
                             "server_name": e.server_name,
                             "auth_server": e.auth_server,
                             "scopes": e.scopes,
-                            "auth_url": auth_url  # Proper OAuth 2.1 URL with PKCE + resource
-                        }],
-                        resume_url=f"/tealagents/v1alpha1/invoke"
-                    )
+                            "auth_url": auth_url,
+                        }
+                    ],
+                    resume_url=f"/tealagents/v1alpha1/invoke",
+                )
 
-                except Exception as oauth_error:
-                    logger.error(f"Failed to initiate OAuth flow for '{e.server_name}': {oauth_error}")
-                    # Fallback to legacy URL format if OAuth client fails
-                    return AuthChallengeResponse(
-                        task_id=task_id,
-                        session_id=session_id,
-                        request_id=request_id,
-                        message=f"Authentication required for MCP server '{e.server_name}' before tool discovery.",
-                        auth_challenges=[{
+            except Exception as oauth_error:
+                logger.error(f"Failed to initiate OAuth flow: {oauth_error}")
+                return AuthChallengeResponse(
+                    task_id=task_id,
+                    session_id=session_id,
+                    request_id=request_id,
+                    message=f"Authentication required for MCP server '{e.server_name}'.",
+                    auth_challenges=[
+                        {
                             "server_name": e.server_name,
                             "auth_server": e.auth_server,
                             "scopes": e.scopes,
-                            "auth_url": f"{e.auth_server}/authorize?error=oauth_client_failed"
-                        }],
-                        resume_url=f"/tealagents/v1alpha1/invoke"
-                    )
+                            "auth_url": f"{e.auth_server}/authorize?error=oauth_client_failed",
+                        }
+                    ],
+                    resume_url=f"/tealagents/v1alpha1/invoke",
+                )
 
-            except Exception as e:
-                logger.error(f"MCP discovery failed for user {user_id}: {e}")
-                # Don't mark as initialized so it can retry on next request
-                raise
+        except Exception as e:
+            logger.error(f"MCP discovery failed for session {session_id}: {e}")
+            raise
 
     @staticmethod
     async def _invoke_function(
@@ -627,9 +641,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         inputs.session_id = session_id
         inputs.task_id = task_id
 
-        # Ensure MCP discovery has been performed (happens once globally)
+        # Ensure MCP discovery has been performed for this session
         # May return AuthChallengeResponse if auth required during discovery
-        discovery_auth_challenge = await self._ensure_mcp_discovery(user_id, session_id, task_id, request_id)
+        discovery_auth_challenge = await self._ensure_session_discovery(
+            user_id, session_id, task_id, request_id
+        )
         if discovery_auth_challenge:
             logger.info("Returning auth challenge from MCP discovery")
             return discovery_auth_challenge
@@ -682,9 +698,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 output_partial="🔍 Checking MCP server authentication...\n\n"
             )
 
-        # Ensure MCP discovery has been performed (happens once globally)
+        # Ensure MCP discovery has been performed for this session
         # May return AuthChallengeResponse if auth required during discovery
-        discovery_auth_challenge = await self._ensure_mcp_discovery(user_id, session_id, task_id, request_id)
+        discovery_auth_challenge = await self._ensure_session_discovery(
+            user_id, session_id, task_id, request_id
+        )
         if discovery_auth_challenge:
             logger.info("Returning auth challenge from MCP discovery")
             yield discovery_auth_challenge

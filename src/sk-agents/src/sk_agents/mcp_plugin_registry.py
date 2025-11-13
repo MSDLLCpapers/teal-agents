@@ -6,7 +6,6 @@ making MCP tools behave like non-MCP code that exists in the codebase.
 """
 
 import logging
-import threading
 from contextlib import AsyncExitStack
 from typing import Any, Dict, List
 
@@ -26,22 +25,18 @@ logger = logging.getLogger(__name__)
 
 class McpPluginRegistry:
     """
-    Registry for MCP plugin classes with per-user isolation.
+    Registry for MCP plugin classes with per-session isolation.
 
-    At session start (per user), this registry:
+    At session start, this registry:
     1. Connects to MCP servers temporarily
     2. Discovers available tools
     3. Registers tools in catalog for governance/HITL
-    4. Creates McpPlugin CLASSES containing stateless tools
-    5. Stores classes per user for later instantiation (at agent build)
+    4. Serializes plugin data to external storage (via McpDiscoveryManager)
+    5. Plugin classes reconstructed from storage at agent build time
 
-    This ensures proper multi-tenant isolation - each user only sees tools
-    they have authenticated to access.
+    This ensures proper multi-tenant isolation and horizontal scalability.
+    Plugin state is stored externally (Redis/InMemory) instead of class variables.
     """
-
-    # Per-user plugin storage: {user_id: {server_name: plugin_class}}
-    _plugin_classes_per_user: Dict[str, Dict[str, type]] = {}
-    _lock = threading.Lock()
 
     @staticmethod
     def _apply_governance_overrides(
@@ -75,59 +70,74 @@ class McpPluginRegistry:
     async def discover_and_materialize(
         cls,
         mcp_servers: List[McpServerConfig],
-        user_id: str
+        user_id: str,
+        session_id: str,
+        discovery_manager,  # McpDiscoveryManager
     ) -> None:
         """
-        Discover MCP tools and materialize plugin classes for a specific user.
+        Discover MCP tools and store in external state.
 
-        This is called once per user when they first make a request.
+        This is called once per session when first invoked.
         Creates temporary connections to discover tools, then closes them.
 
         Args:
             mcp_servers: List of MCP server configurations
-            user_id: User ID for authentication and per-user storage
+            user_id: User ID for authentication
+            session_id: Session ID for scoping
+            discovery_manager: Manager for storing discovery state
 
         Raises:
             AuthRequiredError: If any server requires authentication that is missing
         """
         from sk_agents.mcp_client import AuthRequiredError
 
-        logger.info(f"Starting MCP discovery for user {user_id} ({len(mcp_servers)} servers)")
+        logger.info(f"Starting MCP discovery for session {session_id} ({len(mcp_servers)} servers)")
 
-        # Initialize user's plugin dictionary if needed
-        with cls._lock:
-            if user_id not in cls._plugin_classes_per_user:
-                cls._plugin_classes_per_user[user_id] = {}
+        # Load existing state
+        state = await discovery_manager.load_discovery(user_id, session_id)
+        if not state:
+            raise ValueError(f"Discovery state not initialized for session: {session_id}")
 
         auth_errors = []  # Collect auth errors to surface to user
 
         for server_config in mcp_servers:
             try:
-                await cls._discover_server(server_config, user_id)
+                # Discover this server
+                plugin_data = await cls._discover_server(server_config, user_id)
+
+                # Store serialized plugin data
+                state.discovered_servers[server_config.name] = plugin_data
+
+                # Update external storage
+                await discovery_manager.update_discovery(state)
+
             except AuthRequiredError as e:
                 # Auth error - collect and surface to user
-                logger.warning(f"Auth required for MCP server {server_config.name} (user: {user_id})")
+                logger.warning(f"Auth required for MCP server {server_config.name} (session: {session_id})")
                 auth_errors.append(e)
             except Exception as e:
                 # Other errors - log and continue with remaining servers
-                logger.error(f"Failed to discover MCP server {server_config.name} for user {user_id}: {e}")
+                logger.error(f"Failed to discover MCP server {server_config.name} for session {session_id}: {e}")
                 continue
 
         # If any servers require auth, raise the first one to trigger auth challenge
         if auth_errors:
             logger.info(
-                f"MCP discovery requires authentication for {len(auth_errors)} server(s) (user: {user_id}): "
+                f"MCP discovery requires authentication for {len(auth_errors)} server(s) (session: {session_id}): "
                 f"{[e.server_name for e in auth_errors]}"
             )
             raise auth_errors[0]  # Raise first auth error to trigger challenge
 
-        with cls._lock:
-            plugin_count = len(cls._plugin_classes_per_user.get(user_id, {}))
-        logger.info(f"MCP discovery complete for user {user_id}. Materialized {plugin_count} plugin classes")
+        logger.info(f"MCP discovery complete for session {session_id}. Discovered {len(state.discovered_servers)} servers")
 
     @classmethod
-    async def _discover_server(cls, server_config: McpServerConfig, user_id: str) -> None:
-        """Discover tools from a single MCP server."""
+    async def _discover_server(cls, server_config: McpServerConfig, user_id: str) -> Dict:
+        """
+        Discover tools from a single MCP server.
+
+        Returns:
+            Dict: Serialized plugin data for storage
+        """
         logger.info(f"Discovering tools from MCP server: {server_config.name}")
 
         # Pre-flight auth validation: Check if user has auth before attempting discovery
@@ -197,15 +207,13 @@ class McpPluginRegistry:
                 # Register in catalog for governance/HITL
                 cls._register_tool_in_catalog(tool_info, server_config)
 
-            # Create McpPlugin CLASS (not instance!)
-            plugin_class = cls._create_plugin_class(mcp_tools, server_config.name)
+            # Serialize plugin data for storage
+            plugin_data = cls._serialize_plugin_data(mcp_tools, server_config.name)
 
-            # Store the class for THIS user
-            with cls._lock:
-                cls._plugin_classes_per_user[user_id][server_config.name] = plugin_class
-
-            logger.info(f"Materialized McpPlugin class for {server_config.name} (user: {user_id})")
+            logger.info(f"Discovered {len(mcp_tools)} tools from {server_config.name}")
             # Connection auto-closes when exiting context
+
+            return plugin_data
 
     @classmethod
     def _register_tool_in_catalog(cls, tool_info: Any, server_config: McpServerConfig) -> None:
@@ -258,6 +266,62 @@ class McpPluginRegistry:
             # Don't fail the whole discovery if catalog registration fails
 
     @classmethod
+    def _serialize_plugin_data(cls, tools: List[McpTool], server_name: str) -> Dict:
+        """
+        Serialize plugin tools to storable format.
+
+        Args:
+            tools: List of McpTool objects
+            server_name: Name of the MCP server
+
+        Returns:
+            Dict: Serialized plugin data
+        """
+        tools_data = []
+        for tool in tools:
+            tools_data.append(
+                {
+                    "tool_name": tool.tool_name,
+                    "description": tool.description,
+                    "input_schema": tool.input_schema,
+                    "output_schema": tool.output_schema,
+                    "server_name": tool.server_name,
+                    "server_config": tool.server_config.model_dump(),  # Pydantic serialization
+                }
+            )
+        return {"server_name": server_name, "tools": tools_data}
+
+    @classmethod
+    def _deserialize_plugin_data(cls, plugin_data: Dict) -> type:
+        """
+        Deserialize plugin data to plugin class.
+
+        Args:
+            plugin_data: Serialized plugin data from storage
+
+        Returns:
+            type: Dynamically created McpPlugin class
+        """
+        from sk_agents.tealagents.v1alpha1.config import McpServerConfig
+
+        # Reconstruct McpTool objects
+        tools = []
+        for tool_data in plugin_data["tools"]:
+            server_config = McpServerConfig(**tool_data["server_config"])
+            tool = McpTool(
+                tool_name=tool_data["tool_name"],
+                description=tool_data["description"],
+                input_schema=tool_data["input_schema"],
+                output_schema=tool_data["output_schema"],
+                server_config=server_config,
+                server_name=tool_data["server_name"],
+            )
+            tools.append(tool)
+
+        # Create plugin class dynamically
+        return cls._create_plugin_class(tools, plugin_data["server_name"])
+
+    @classmethod
     def _create_plugin_class(cls, tools: List[McpTool], server_name: str) -> type:
         """
         Create a McpPlugin class dynamically.
@@ -285,39 +349,32 @@ class McpPluginRegistry:
         return create_class(tools, server_name)
 
     @classmethod
-    def get_all_plugin_classes_for_user(cls, user_id: str) -> Dict[str, type]:
+    async def get_plugin_classes_for_session(
+        cls, user_id: str, session_id: str, discovery_manager  # McpDiscoveryManager
+    ) -> Dict[str, type]:
         """
-        Get all MCP plugin classes for a specific user.
-
-        This ensures users only see tools they have authenticated to access.
+        Load plugin classes from external storage for this session.
 
         Args:
-            user_id: User ID to get plugins for
+            user_id: User ID
+            session_id: Session ID
+            discovery_manager: Manager for loading discovery state
 
         Returns:
-            Dictionary mapping server_name to plugin class for this user
+            Dictionary mapping server_name to plugin class
         """
-        with cls._lock:
-            return cls._plugin_classes_per_user.get(user_id, {}).copy()
+        # Load state from external storage
+        state = await discovery_manager.load_discovery(user_id, session_id)
+        if not state or not state.discovery_completed:
+            return {}
 
-    @classmethod
-    def clear_user_plugins(cls, user_id: str) -> None:
-        """
-        Clear plugin classes for a specific user.
+        # Deserialize plugin classes
+        plugin_classes = {}
+        for server_name, plugin_data in state.discovered_servers.items():
+            plugin_class = cls._deserialize_plugin_data(plugin_data)
+            plugin_classes[server_name] = plugin_class
 
-        Useful for cache invalidation when user auth changes.
-
-        Args:
-            user_id: User ID to clear plugins for
-        """
-        with cls._lock:
-            if user_id in cls._plugin_classes_per_user:
-                del cls._plugin_classes_per_user[user_id]
-                logger.info(f"Cleared MCP plugins for user {user_id}")
-
-    @classmethod
-    def clear(cls) -> None:
-        """Clear all registered plugin classes for all users (for testing)."""
-        with cls._lock:
-            cls._plugin_classes_per_user.clear()
-            logger.debug("Cleared all MCP plugins")
+        logger.debug(
+            f"Loaded {len(plugin_classes)} MCP plugin classes for session {session_id}"
+        )
+        return plugin_classes

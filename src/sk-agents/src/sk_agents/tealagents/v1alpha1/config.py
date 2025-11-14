@@ -117,23 +117,43 @@ class McpServerConfig(BaseModel):
             if self.sse_read_timeout is None:
                 self.sse_read_timeout = 300.0  # Default SSE read timeout
 
-            if not self.auth_server or not self.scopes:
-                raise ValueError(
-                    "HTTP MCP servers require auth_server and scopes for OAuth-based authentication"
+            # Warn if no authentication configured for HTTP server
+            has_oauth = self.auth_server and self.scopes
+            has_auth_header = (
+                self.headers
+                and any(k.lower() == "authorization" for k in self.headers.keys())
+            )
+
+            if not has_oauth and not has_auth_header:
+                import warnings
+                warnings.warn(
+                    f"MCP server '{self.name}' is configured without authentication. "
+                    f"This should only be used for:\n"
+                    f"  - Public/read-only MCP servers\n"
+                    f"  - Development/testing environments\n"
+                    f"  - Internal networks with network-level security\n"
+                    f"For production use with sensitive data, configure OAuth "
+                    f"(auth_server + scopes) or provide Authorization header.",
+                    UserWarning,
+                    stacklevel=2
                 )
 
-            if self.headers and any(key.lower() == "authorization" for key in self.headers):
-                raise ValueError(
-                    "Static Authorization headers are no longer supported for MCP HTTP servers. "
-                    "Configure OAuth via auth_server/scopes."
-                )
+            # OAuth validation - only if using OAuth
+            # If one OAuth field is provided, both must be provided
+            if self.auth_server or self.scopes:
+                if not (self.auth_server and self.scopes):
+                    raise ValueError(
+                        "Both auth_server and scopes are required when using OAuth authentication. "
+                        "Provide both or neither for simple header-based authentication."
+                    )
 
-        # Validate auth configuration
-        if self.auth_server and not self.auth_server.startswith(('http://', 'https://')):
-            raise ValueError("auth_server must be a valid HTTP/HTTPS URL")
+        # OAuth-specific validation (only when OAuth is configured)
+        if self.auth_server and self.scopes:
+            # Validate auth_server URL format
+            if not self.auth_server.startswith(('http://', 'https://')):
+                raise ValueError("auth_server must be a valid HTTP/HTTPS URL")
 
-        # HTTPS enforcement (per OAuth 2.1 and MCP spec)
-        if self.auth_server:
+            # HTTPS enforcement (per OAuth 2.1 and MCP spec)
             from ska_utils import AppConfig
             from sk_agents.configs import TA_MCP_OAUTH_STRICT_HTTPS_VALIDATION
             from sk_agents.mcp_client import validate_https_url

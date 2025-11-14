@@ -140,7 +140,8 @@ class McpPluginRegistry:
         """
         logger.info(f"Discovering tools from MCP server: {server_config.name}")
 
-        # Pre-flight auth validation: Check if user has auth before attempting discovery
+        # Pre-flight auth validation: Only for OAuth-configured servers
+        # For simple header auth, no pre-flight check needed (credentials in headers)
         if server_config.auth_server and server_config.scopes:
             from sk_agents.auth_storage.auth_storage_factory import AuthStorageFactory
             from sk_agents.mcp_client import build_auth_storage_key, AuthRequiredError

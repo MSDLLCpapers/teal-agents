@@ -495,19 +495,21 @@ async def resolve_server_auth_headers(server_config: McpServerConfig, user_id: s
     """
     headers = {}
 
-    # Start with any manually configured headers (legacy support)
+    # Start with any manually configured headers
     if server_config.headers:
+        # If OAuth is configured, filter out Authorization headers (OAuth takes precedence)
+        # If OAuth is NOT configured, keep all headers including Authorization
         for header_key, header_value in server_config.headers.items():
-            if header_key.lower() == "authorization":
+            if header_key.lower() == "authorization" and (server_config.auth_server and server_config.scopes):
                 logger.warning(
-                    "Ignoring static Authorization header configured for MCP server %s. "
-                    "Use OAuth-based auth_server/scopes instead.",
+                    "Ignoring static Authorization header for MCP server %s (OAuth configured). "
+                    "OAuth token will be used instead.",
                     server_config.name
                 )
                 continue
             headers[header_key] = header_value
 
-    # If server has auth configuration, resolve tokens using existing auth system
+    # If server has OAuth configuration, resolve tokens using OAuth flow
     if server_config.auth_server and server_config.scopes:
         try:
             # Use AuthStorageFactory directly - no wrapper needed

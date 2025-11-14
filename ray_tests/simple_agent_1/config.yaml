@@ -28,9 +28,18 @@ spec:
     plugins:
       - FilePlugin
     mcp_servers:
-      - name: github
+      # GitHub MCP - commented out for now (getting 400 Bad Request)
+      # - name: github
+      #   transport: http
+      #   url: https://api.githubcopilot.com/mcp/
+      #   headers:
+      #     Authorization: "${GITHUB_PAT}"
+      #   trust_level: trusted
+      #   verify_ssl: false
+
+      # AWS Knowledge MCP - public endpoint, no auth required
+      - name: aws-knowledge
         transport: http
-        url: https://api.githubcopilot.com/mcp/
-        headers:
-          Authorization: "Bearer ${GITHUB_PAT}"
+        url: https://knowledge-mcp.global.api.aws
         trust_level: trusted
+        verify_ssl: false

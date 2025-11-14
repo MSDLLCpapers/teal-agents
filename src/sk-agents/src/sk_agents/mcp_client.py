@@ -703,6 +703,21 @@ async def resolve_server_auth_headers(server_config: McpServerConfig, user_id: s
                 message=f"Auth resolution failed: {e}"
             )
 
+    # Debug logging: show what headers we're about to send
+    safe_headers = {}
+    for k, v in headers.items():
+        if k.lower() == "authorization":
+            # Redact token but show format
+            if v.startswith("Bearer "):
+                safe_headers[k] = "Bearer [REDACTED]"
+            elif v.startswith("ghp_"):
+                safe_headers[k] = "ghp_[REDACTED]"
+            else:
+                safe_headers[k] = "[REDACTED]"
+        else:
+            safe_headers[k] = v
+    logger.info(f"Resolved headers for {server_config.name}: {safe_headers}")
+
     return headers
 
 
@@ -890,13 +905,54 @@ async def create_mcp_session(server_config: McpServerConfig, connection_stack: A
         try:
             from mcp.client.streamable_http import streamablehttp_client
 
+            # Create custom httpx client factory if SSL verification is disabled
+            httpx_client_factory = None
+            if not server_config.verify_ssl:
+                logger.warning(
+                    f"SSL verification disabled for MCP server '{server_config.name}'. "
+                    f"Creating custom httpx client factory with verify=False"
+                )
+
+                def create_insecure_http_client(
+                    headers: Dict[str, str] | None = None,
+                    timeout: httpx.Timeout | None = None,
+                    auth: httpx.Auth | None = None,
+                ) -> httpx.AsyncClient:
+                    """Create httpx client with SSL verification disabled."""
+                    logger.debug(f"Creating insecure httpx client for {server_config.name} with verify=False")
+                    kwargs: Dict[str, Any] = {
+                        "follow_redirects": True,
+                        "verify": False,  # Disable SSL verification
+                    }
+                    if timeout is None:
+                        kwargs["timeout"] = httpx.Timeout(30.0)
+                    else:
+                        kwargs["timeout"] = timeout
+                    if headers is not None:
+                        kwargs["headers"] = headers
+                    if auth is not None:
+                        kwargs["auth"] = auth
+
+                    logger.debug(f"httpx.AsyncClient kwargs: {kwargs}")
+                    return httpx.AsyncClient(**kwargs)
+
+                httpx_client_factory = create_insecure_http_client
+
+            # Build kwargs for streamablehttp_client
+            client_kwargs = {
+                "url": server_config.url,
+                "headers": resolved_headers,
+                "timeout": server_config.timeout or 30.0,
+            }
+            if httpx_client_factory is not None:
+                client_kwargs["httpx_client_factory"] = httpx_client_factory
+                logger.info(f"Passing custom httpx_client_factory to streamablehttp_client for {server_config.name}")
+            else:
+                logger.debug(f"No custom httpx_client_factory for {server_config.name}, using default SSL verification")
+
             # Use streamable HTTP transport
             read, write, _ = await connection_stack.enter_async_context(
-                streamablehttp_client(
-                    url=server_config.url,
-                    headers=resolved_headers,
-                    timeout=server_config.timeout or 30.0
-                )
+                streamablehttp_client(**client_kwargs)
             )
             session = await connection_stack.enter_async_context(
                 ClientSession(read, write)

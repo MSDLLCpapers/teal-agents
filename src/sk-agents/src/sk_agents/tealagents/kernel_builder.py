@@ -149,8 +149,10 @@ class KernelBuilder:
                 )
 
                 # Register with kernel (same pattern as non-MCP!)
-                kernel.add_plugin(plugin_instance, f"mcp_{server_name}")
-                self.logger.info(f"Loaded MCP plugin for {server_name} (user: {user_id}, session: {session_id})")
+                # Sanitize server name: SK requires plugin names to match ^[0-9A-Za-z_]+
+                sanitized_server_name = server_name.replace('-', '_').replace('.', '_')
+                kernel.add_plugin(plugin_instance, f"mcp_{sanitized_server_name}")
+                self.logger.info(f"Loaded MCP plugin for {server_name} as mcp_{sanitized_server_name} (user: {user_id}, session: {session_id})")
 
             self.logger.info(f"Loaded {len(plugin_classes)} MCP plugins for user {user_id}, session {session_id}")
             return kernel

@@ -117,7 +117,23 @@ class McpPluginRegistry:
                 auth_errors.append(e)
             except Exception as e:
                 # Other errors - log and continue with remaining servers
-                logger.error(f"Failed to discover MCP server {server_config.name} for session {session_id}: {e}")
+                # Extract underlying exception from TaskGroup if needed
+                import traceback
+                error_details = "".join(traceback.format_exception(type(e), e, e.__traceback__))
+
+                # If it's a TaskGroup exception, try to extract the underlying exception
+                underlying_error = str(e)
+                if hasattr(e, '__cause__') and e.__cause__:
+                    underlying_error = f"{e} (caused by: {e.__cause__})"
+                elif hasattr(e, 'exceptions'):
+                    # ExceptionGroup-style
+                    underlying_error = f"{e} (sub-exceptions: {e.exceptions})"
+
+                logger.error(
+                    f"Failed to discover MCP server {server_config.name} for session {session_id}:\n"
+                    f"Error: {underlying_error}\n"
+                    f"Full traceback:\n{error_details}"
+                )
                 continue
 
         # If any servers require auth, raise the first one to trigger auth challenge

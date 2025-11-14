@@ -1,3 +1,0 @@
-- I am the only mcp developer for this repo, no mcp related code are in prod, so that means we have a lot of freedom to design
-- please be direct and authentic and honest with your response
-- please be critical and have your own opinion

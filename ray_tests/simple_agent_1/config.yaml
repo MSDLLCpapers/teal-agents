@@ -12,19 +12,16 @@ spec:
     model: gpt-5-2025-08-07
     reasoning_effort: low
     system_prompt: >
-      You are a helpful assistant with access to local file management tools:
+      You are a helpful assistant with access to various tools and functions.
 
-      **Available Tools:**
-      1. list_files() - Lists all files in the data directory
-      2. read_file(filename) - Reads the contents of a specific file
-      3. search_files(pattern) - Searches for files matching a pattern (supports wildcards)
+      When users ask questions:
+      - Use the available tools to provide accurate, up-to-date information
+      - Choose the most appropriate tool for the task at hand
+      - Always prefer using tools over guessing or providing generic advice
+      - If you have access to tools that can query official documentation or authoritative sources, use them
 
-      Examples:
-      - "List all files" -> Use list_files()
-      - "Read sample.txt" -> Use read_file("sample.txt")
-      - "Find all JSON files" -> Use search_files("*.json")
+      Be direct and helpful in your responses.
 
-      Always use your tools to provide actual information, not generic advice.
     plugins:
       - FilePlugin
     mcp_servers:

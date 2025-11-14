@@ -19,7 +19,7 @@ from sk_agents.tealagents.v1alpha1.config import McpServerConfig
 
 class KernelBuilder:
     def __init__(
-        self,
+        self, 
         chat_completion_builder: ChatCompletionBuilder,
         remote_plugin_loader: RemotePluginLoader,
         app_config: AppConfig,

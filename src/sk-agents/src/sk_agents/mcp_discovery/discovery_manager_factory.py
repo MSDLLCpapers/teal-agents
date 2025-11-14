@@ -10,14 +10,12 @@ Follows the same pattern as PersistenceFactory and AuthStorageFactory.
 import logging
 from typing import Optional
 
-from ska_utils import AppConfig
-
-from sk_agents.singleton_metaclass import SingletonMeta
+from ska_utils import AppConfig, Singleton
 
 logger = logging.getLogger(__name__)
 
 
-class DiscoveryManagerFactory(metaclass=SingletonMeta):
+class DiscoveryManagerFactory(metaclass=Singleton):
     """
     Factory for MCP discovery manager with dependency injection.
 
@@ -59,13 +57,8 @@ class DiscoveryManagerFactory(metaclass=SingletonMeta):
             # Import here to avoid circular dependency
             from sk_agents.configs import TA_MCP_DISCOVERY_CLASS, TA_MCP_DISCOVERY_MODULE
 
-            module_name = self.app_config.get(
-                TA_MCP_DISCOVERY_MODULE.env_name,
-                default="sk_agents.mcp_discovery.in_memory_discovery_manager",
-            )
-            class_name = self.app_config.get(
-                TA_MCP_DISCOVERY_CLASS.env_name, default="InMemoryDiscoveryManager"
-            )
+            module_name = self.app_config.get(TA_MCP_DISCOVERY_MODULE.env_name)
+            class_name = self.app_config.get(TA_MCP_DISCOVERY_CLASS.env_name)
 
             try:
                 # Dynamic module loading

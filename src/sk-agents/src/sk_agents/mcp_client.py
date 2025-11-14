@@ -230,18 +230,31 @@ async def initialize_mcp_session(
     """
     try:
         # Step 1: Send initialize request
-        init_result = await session.initialize(
-            protocol_version="2025-03-26",
-            client_info={
-                "name": "teal-agents",
-                "version": get_package_version()
-            },
-            capabilities={
-                "roots": {"listChanged": False},
-                "sampling": {},
-                "experimental": {}
-            }
-        )
+        # Try with new SDK parameters (MCP SDK >= 1.13.1)
+        try:
+            init_result = await session.initialize(
+                protocol_version="2025-03-26",
+                client_info={
+                    "name": "teal-agents",
+                    "version": get_package_version()
+                },
+                capabilities={
+                    "roots": {"listChanged": False},
+                    "sampling": {},
+                    "experimental": {}
+                }
+            )
+        except TypeError as e:
+            # Fall back to old SDK (no parameters)
+            if "unexpected keyword argument" in str(e):
+                logger.warning(
+                    f"MCP SDK does not support initialization parameters. "
+                    f"Using parameter-less initialize() for '{server_name}'. "
+                    f"Consider upgrading MCP SDK to >= 1.13.1"
+                )
+                init_result = await session.initialize()
+            else:
+                raise
 
         logger.info(
             f"MCP session initialized for '{server_name}': "

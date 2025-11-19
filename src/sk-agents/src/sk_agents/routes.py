@@ -12,15 +12,13 @@ from fastapi import (
     HTTPException,
     Request,
     WebSocket,
-    WebSocketDisconnect,
-    status,
+    WebSocketDisconnect
 )
 from fastapi.responses import StreamingResponse
 from opentelemetry.propagate import extract
 from ska_utils import AppConfig, get_telemetry
 
 from sk_agents.a2a import A2AAgentExecutor
-from sk_agents.auth_storage.secure_auth_storage_manager import SecureAuthStorageManager
 from sk_agents.authorization.request_authorizer import RequestAuthorizer
 from sk_agents.configs import (
     TA_AGENT_BASE_URL,
@@ -44,6 +42,7 @@ from sk_agents.tealagents.models import (
     StateResponse,
     TaskStatus,
     UserMessage,
+    AuthenticationRequiredResponse
 )
 from sk_agents.tealagents.remote_plugin_loader import RemotePluginCatalog, RemotePluginLoader
 from sk_agents.tealagents.v1alpha1.agent.handler import TealAgentsV1Alpha1Handler
@@ -148,9 +147,10 @@ class Routes:
         app_config: AppConfig,
         authorization: str,
         state_manager: TaskPersistenceManager,
+        authorization_manager: RequestAuthorizer
     ) -> TealAgentsV1Alpha1Handler:
         agent_builder = Routes._create_agent_builder(app_config, authorization)
-        return TealAgentsV1Alpha1Handler(config, app_config, agent_builder, state_manager)
+        return TealAgentsV1Alpha1Handler(config, app_config, agent_builder, state_manager, authorization_manager)
 
     @staticmethod
     def get_a2a_routes(
@@ -328,14 +328,10 @@ class Routes:
 
     @staticmethod
     def get_stateful_routes(
-        name: str,
-        version: str,
-        description: str,
         config: BaseConfig,
         app_config: AppConfig,
         state_manager: TaskPersistenceManager,
         authorizer: RequestAuthorizer,
-        auth_storage_manager: SecureAuthStorageManager,
         input_class: type[UserMessage],
     ) -> APIRouter:
         """
@@ -343,13 +339,9 @@ class Routes:
         """
         router = APIRouter()
 
-        async def get_user_id(authorization: str = Header(None)):
-            user_id = await authorizer.authorize_request(authorization)
-            if not user_id:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
-                )
-            return user_id
+        async def get_user_id(token: str = Header(None)):
+            token = authorizer.validate_platform_auth(token)
+            return token
 
         @router.post(
             "",
@@ -360,16 +352,21 @@ class Routes:
         )
         async def chat(message: input_class, user_id: str = Depends(get_user_id)) -> StateResponse:
             # Handle new task creation or task retrieval
-            teal_handler = Routes.get_task_handler(config, app_config, user_id, state_manager)
+            teal_handler = Routes.get_task_handler(
+                config,
+                app_config,
+                user_id,
+                state_manager,
+                authorizer
+            )
             response_content = await teal_handler.invoke(user_id, message)
             # Return response with state identifiers
             status = TaskStatus.COMPLETED.value
             if type(response_content) is HitlResponse:
                 status = TaskStatus.PAUSED.value
+            if type(response_content) is AuthenticationRequiredResponse:
+                status = TaskStatus.FAILED.value
             return StateResponse(
-                session_id=response_content.session_id,
-                task_id=response_content.task_id,
-                request_id=response_content.request_id,
                 status=status,
                 content=response_content,  # Replace with actual response
             )
@@ -378,16 +375,31 @@ class Routes:
 
     @staticmethod
     def get_resume_routes(
-        config: BaseConfig, app_config: AppConfig, state_manager: TaskPersistenceManager
+        config: BaseConfig,
+        app_config: AppConfig,
+        state_manager: TaskPersistenceManager,
+        authorizer: RequestAuthorizer
     ) -> APIRouter:
         router = APIRouter()
 
         @router.post("/tealagents/v1alpha1/resume/{request_id}")
         async def resume(request_id: str, request: Request, body: ResumeRequest):
             authorization = request.headers.get("authorization", None)
-            teal_handler = Routes.get_task_handler(config, app_config, authorization, state_manager)
+            authorization = authorizer.validate_platform_auth(authorization)
+            teal_handler = Routes.get_task_handler(
+                config,
+                app_config,
+                authorization,
+                state_manager,
+                authorizer
+            )
             try:
-                return await teal_handler.resume_task(authorization, request_id, body, stream=False)
+                return await teal_handler.resume_task(
+                    authorization,
+                    request_id,
+                    body,
+                    stream=False
+                )
             except Exception as e:
                 logger.exception(f"Error in resume: {e}")
                 raise HTTPException(status_code=500, detail="Internal Server Error") from e
@@ -395,7 +407,14 @@ class Routes:
         @router.post("/tealagents/v1alpha1/resume/{request_id}/sse")
         async def resume_sse(request_id: str, request: Request, body: ResumeRequest):
             authorization = request.headers.get("authorization", None)
-            teal_handler = Routes.get_task_handler(config, app_config, authorization, state_manager)
+            authorization = authorizer.validate_platform_auth(authorization)
+            teal_handler = Routes.get_task_handler(
+                config,
+                app_config,
+                authorization,
+                state_manager,
+                authorizer
+            )
 
             async def event_generator():
                 try:

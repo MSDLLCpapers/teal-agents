@@ -108,6 +108,64 @@ TA_AUTH_STORAGE_MANAGER_MODULE = Config(
     default_value=None,
 )
 
+# This is the top level for a AD group either a Azure Tenant ID or
+# AWS User Pool ID
+TA_AD_GROUP_ID = Config(
+    env_name="TA_AD_GROUP_ID",
+    is_required=False,
+    default_value=None,
+)
+
+# This is the app client id for either Azure Entra or AWS Cognito
+TA_AD_CLIENT_ID = Config(
+    env_name="TA_AD_CLIENT_ID",
+    is_required=False,
+    default_value=None,
+)
+
+# this is the authority url for either Azure Entra or Aws Cognito
+TA_AD_AUTHORITY = Config(
+    env_name="TA_AD_AUTHORITY",
+    is_required=False,
+    default_value=None,
+)
+
+TA_CLIENT_LOGIN_URL = Config(
+    env_name="TA_CLIENT_LOGIN_URL",
+    is_required=False,
+    default_value="https://login.microsoftonline.com"
+)
+
+TA_CLIENT_SECRETS = Config(
+    env_name="TA_CLIENT_SECRETS",
+    is_required=False,
+    default_value=None
+)
+
+TA_AUTH_REQUIRED = Config(
+    env_name="TA_AUTH_REQUIRED",
+    is_required=True,
+    default_value="false"
+)
+
+TA_PLATFORM_CLIENT_ID = Config(
+    env_name="TA_PLATFORM_CLIENT_ID",
+    is_required=False,
+    default_value=None
+)
+
+TA_PLATFORM_AUTHORITY = Config(
+    env_name="TA_PLATFORM_AUTHORITY",
+    is_required=False,
+    default_value=None
+)
+
+TA_SCOPES = Config(
+    env_name="TA_SCOPES",
+    is_required=False,
+    default_value=None
+)
+
 configs: list[Config] = [
     TA_API_KEY,
     TA_SERVICE_CONFIG,
@@ -138,4 +196,13 @@ configs: list[Config] = [
     TA_PLUGIN_CATALOG_FILE,
     TA_AUTH_STORAGE_MANAGER_CLASS,
     TA_AUTH_STORAGE_MANAGER_MODULE,
+    TA_AD_GROUP_ID,
+    TA_AD_CLIENT_ID,
+    TA_AD_AUTHORITY,
+    TA_CLIENT_LOGIN_URL,
+    TA_CLIENT_SECRETS,
+    TA_AUTH_REQUIRED,
+    TA_PLATFORM_CLIENT_ID,
+    TA_PLATFORM_AUTHORITY,
+    TA_SCOPES
 ]

@@ -9,6 +9,7 @@ from sk_agents.configs import (
     TA_TYPES_MODULE,
 )
 from sk_agents.routes import Routes
+from sk_agents.utility_routes import UtilityRoutes
 from sk_agents.ska_types import (
     BaseConfig,
 )
@@ -72,4 +73,13 @@ class AppV1:
                 input_class=input_class,
             ),
             prefix=f"/{name}/{version}",
+        )
+
+        utility_routes = UtilityRoutes()
+        app.include_router(
+            utility_routes.get_health_routes(
+                config=config,
+                app_config=app_config
+            ),
+            prefix=f"/{name}/{version}"
         )

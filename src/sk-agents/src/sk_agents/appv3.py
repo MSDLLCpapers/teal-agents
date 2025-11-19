@@ -23,9 +23,11 @@ from sk_agents.configs import (
 )
 from sk_agents.persistence.persistence_factory import PersistenceFactory
 from sk_agents.routes import Routes
+from sk_agents.auth_routes import AuthRoutes
+from sk_agents.utility_routes import UtilityRoutes
 from sk_agents.ska_types import BaseConfig
 from sk_agents.skagents.chat_completion_builder import ChatCompletionBuilder
-from sk_agents.stateful import MockAuthenticationManager
+from sk_agents.authorization.authorizer_factory import AuthorizerFactory
 from sk_agents.tealagents.kernel_builder import KernelBuilder
 from sk_agents.tealagents.models import UserMessage
 from sk_agents.tealagents.remote_plugin_loader import RemotePluginCatalog, RemotePluginLoader
@@ -70,9 +72,8 @@ class AppV3:
 
     @staticmethod
     def _get_auth_manager(app_config: AppConfig):
-        # For initial implementation, use mock authentication
-        # Will be extended in future for Entra ID
-        return MockAuthenticationManager()
+        authorization_manager = AuthorizerFactory(app_config)
+        return authorization_manager.get_authorizer()
 
     @staticmethod
     def _create_chat_completions_builder(app_config: AppConfig):
@@ -134,11 +135,26 @@ class AppV3:
         # Include the new resume routes
         app.include_router(
             Routes.get_resume_routes(
-                config=config, app_config=app_config, state_manager=state_manager
+                config=config,
+                app_config=app_config,
+                state_manager=state_manager,
+                authorizer=auth_manager
             ),
             prefix=f"/{name}/{version}",
         )
-
+        auth_routes = AuthRoutes(app_config=app_config)
+        app.include_router(
+            auth_routes.get_routes(),
+            prefix=f"/{name}/{version}"
+        )
+        utility_routes = UtilityRoutes()
+        app.include_router(
+            utility_routes.get_health_routes(
+                config=config,
+                app_config=app_config
+            ),
+            prefix=f"/{name}/{version}"
+        )
         # Make config and other essentials available to request handlers
         app.state.config = config
         app.state.app_config = app_config

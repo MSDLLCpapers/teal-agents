@@ -16,10 +16,9 @@ from semantic_kernel.contents.utils.author_role import AuthorRole
 from semantic_kernel.kernel import Kernel
 from ska_utils import AppConfig
 
-from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
+from sk_agents.authorization.request_authorizer import RequestAuthorizer
 from sk_agents.exceptions import (
     AgentInvokeException,
-    AuthenticationException,
     PersistenceCreateError,
     PersistenceLoadError,
 )
@@ -37,10 +36,12 @@ from sk_agents.tealagents.models import (
     TealAgentsPartialResponse,
     TealAgentsResponse,
     UserMessage,
+    AuthenticationRequiredResponse
 )
 from sk_agents.tealagents.v1alpha1.agent.config import Config
 from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
 from sk_agents.tealagents.v1alpha1.utils import get_token_usage_for_response, item_to_content
+from sk_agents.configs import TA_AUTH_REQUIRED
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         app_config: AppConfig,
         agent_builder: AgentBuilder,
         state_manager: TaskPersistenceManager,
+        authorization_manager: RequestAuthorizer
     ):
         self.version = config.version
         self.name = config.name
@@ -61,7 +63,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise ValueError("Invalid config")
         self.agent_builder = agent_builder
         self.state = state_manager
-        self.authorizer = DummyAuthorizer()
+        self.authorizer = authorization_manager
+        self.require_auth = app_config.get(TA_AUTH_REQUIRED.env_name)
 
     @staticmethod
     async def _invoke_function(
@@ -116,14 +119,12 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
         return agent_task
 
-    async def authenticate_user(self, token: str) -> str:
+    async def authenticate_user(self, token: str) -> str | None:
         try:
             user_id = await self.authorizer.authorize_request(auth_header=token)
             return user_id
-        except Exception as e:
-            raise AuthenticationException(
-                message=(f"Unable to authenticate user, exception message: {e}")
-            ) from e
+        except Exception:
+            return None
 
     @staticmethod
     def handle_state_id(inputs: UserMessage) -> tuple[str, str, str]:
@@ -332,13 +333,22 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         TealAgentsResponse
         | RejectedToolResponse
         | HitlResponse
-        | AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse]
+        | AuthenticationRequiredResponse
+        | AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse | AuthenticationRequiredResponse]
     ):
         user_id = await self.authenticate_user(token=auth_token)
         agent_task = await self.state.load_by_request_id(request_id)
         if agent_task is None:
             raise AgentInvokeException(f"No agent task found for request ID: {request_id}")
 
+        if user_id is None and self.require_auth:
+            return AuthenticationRequiredResponse(
+                session_id=agent_task.session_id,
+                request_id=request_id,
+                task_id=agent_task.task_id,
+                message="authentication failed for the user please ensure all tokens are valid",
+                auth_url=self.authorizer["auth_full_url"]
+            )
         # Validate task has items
         if not agent_task.items:
             raise AgentInvokeException(
@@ -438,10 +448,18 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
     ) -> TealAgentsResponse | HitlResponse:
         # Initial setup
         logger.info("Beginning processing invoke")
-
+        logger.info(F"auth token {auth_token}")
         user_id = await self.authenticate_user(token=auth_token)
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
+        if user_id is None and self.require_auth:
+            return AuthenticationRequiredResponse(
+                session_id=session_id,
+                task_id=task_id,
+                request_id=request_id,
+                message="authentication failed for the user please ensure all tokens are valid",
+                auth_url=self.authorizer["auth_full_url"]
+            )
         inputs.session_id = session_id
         inputs.task_id = task_id
         agent_task = await self._manage_incoming_task(
@@ -472,6 +490,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         user_id = await self.authenticate_user(token=auth_token)
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
+        if user_id is None and self.require_auth:
+            return AuthenticationRequiredResponse(
+                session_id=session_id,
+                task_id=task_id,
+                request_id=request_id,
+                message="authentication failed for the user please ensure all tokens are valid",
+                auth_url=self.authorizer["auth_full_url"]
+            )
         agent_task = await self._manage_incoming_task(
             task_id, session_id, user_id, request_id, inputs
         )
@@ -714,7 +740,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 f"Request ID {request_id}, Error message: {str(e)}"
             ) from e
 
-        # # Persist and return response
+        # Persist and return response
         yield await self.prepare_agent_response(
             agent_task, request_id, final_response, token_usage, extra_data_collector
         )

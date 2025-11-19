@@ -12,6 +12,7 @@ from sk_agents.plugin_loader import get_plugin_loader
 from sk_agents.ska_types import ModelType
 from sk_agents.tealagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.tealagents.remote_plugin_loader import RemotePluginLoader
+from sk_agents.configs import TA_AD_CLIENT_ID
 
 
 class KernelBuilder:
@@ -45,7 +46,12 @@ class KernelBuilder:
     ) -> Kernel:
         try:
             kernel = self._create_base_kernel(model_name, service_id)
-            kernel = await self._parse_plugins(plugins, kernel, authorization, extra_data_collector)
+            kernel = await self._parse_plugins(
+                plugins,
+                kernel,
+                authorization,
+                extra_data_collector
+            )
             return self._load_remote_plugins(remote_plugins, kernel)
         except Exception as e:
             self.logger.exception(f"Could build kernel with service ID {service_id}. - {e}")
@@ -80,7 +86,10 @@ class KernelBuilder:
         if remote_plugins is None or len(remote_plugins) < 1:
             return kernel
         try:
-            self.remote_plugin_loader.load_remote_plugins(kernel, remote_plugins)
+            self.remote_plugin_loader.load_remote_plugins(
+                kernel,
+                remote_plugins
+            )
             return kernel
         except Exception as e:
             self.logger.exception(f"Could not load remote plugings. -{e}")
@@ -101,10 +110,19 @@ class KernelBuilder:
 
         for plugin_name, plugin_class in plugins.items():
             # Get plugin-specific authorization (with token cache if available)
-            plugin_authorization = await self._get_plugin_authorization(plugin_name, authorization)
+            plugin_authorization = await self._get_plugin_authorization(
+                plugin_name,
+                authorization
+            )
 
             # Create and add the plugin to the kernel
-            kernel.add_plugin(plugin_class(plugin_authorization, extra_data_collector), plugin_name)
+            kernel.add_plugin(
+                plugin_class(
+                    plugin_authorization,
+                    extra_data_collector
+                ),
+                plugin_name
+            )
 
         return kernel
 
@@ -126,20 +144,32 @@ class KernelBuilder:
 
         try:
             # Extract user ID from the authorization header
-            user_id = await self.authorizer.authorize_request(original_authorization)
+            user_id = await self.authorizer.authorize_request(
+                original_authorization
+            )
             if not user_id:
                 self.logger.warning(
                     f"Could not extract user ID from authorization for plugin {plugin_name}"
                 )
                 return original_authorization
-
+            plugin_identity = self.app_config.get(
+                TA_AD_CLIENT_ID.env_name
+            )
             # Try to retrieve cached OAuth2 tokens for this user and plugin
-            cached_auth_data = self.auth_storage_manager.retrieve(user_id, plugin_name)
+            cached_auth_data = self.auth_storage_manager.retrieve(
+                user_id,
+                plugin_identity
+            )
 
-            if cached_auth_data and hasattr(cached_auth_data, "access_token"):
-                self.logger.info(f"Using cached token for plugin {plugin_name}, user {user_id}")
+            if cached_auth_data and hasattr(
+                cached_auth_data,
+                "access_token"
+            ):
+                self.logger.info(
+                    f"Using cached token for plugin {plugin_name}, user {user_id}"
+                )
                 # Return the cached access token in Bearer format
-                return f"Bearer {cached_auth_data.access_token}"
+                return f"{cached_auth_data.access_token}"
             else:
                 self.logger.debug(
                     f"No cached tokens found for plugin {plugin_name}, user {user_id} - "

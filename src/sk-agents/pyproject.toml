@@ -21,6 +21,9 @@ dependencies = [
     "redis>=6.0.0",
     "google-generativeai>=0.8.5",
     "google-ai-generativelanguage>=0.6.15",
+    "msal>=1.20.0",
+    "httpx",
+    "PyJWT[crypto]>=2.8.0"
 ]
 
 [project.urls]

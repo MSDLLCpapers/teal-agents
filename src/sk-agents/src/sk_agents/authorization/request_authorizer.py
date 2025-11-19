@@ -27,3 +27,11 @@ class RequestAuthorizer(ABC):
                 be raised to signal an authentication failure.
         """
         pass
+
+    @abstractmethod
+    async def validate_platform_auth(self, auth_token: str) -> str:
+        pass
+
+    @abstractmethod
+    async def refresh_access_token(self, refresh_token: str) -> str:
+        pass

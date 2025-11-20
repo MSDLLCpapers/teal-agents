@@ -10,3 +10,6 @@ class DummyAuthorizer(RequestAuthorizer):
 
     async def refresh_access_token(self, refresh_token) -> str:
         return refresh_token
+
+    async def get_auth_url(self) -> str:
+        return "localhost"

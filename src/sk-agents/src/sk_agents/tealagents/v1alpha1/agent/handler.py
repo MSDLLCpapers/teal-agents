@@ -342,12 +342,13 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise AgentInvokeException(f"No agent task found for request ID: {request_id}")
 
         if user_id is None and self.require_auth:
+            auth_url = await self.authorizer.get_auth_url()
             return AuthenticationRequiredResponse(
                 session_id=agent_task.session_id,
                 request_id=request_id,
                 task_id=agent_task.task_id,
                 message="authentication failed for the user please ensure all tokens are valid",
-                auth_url=self.authorizer["auth_full_url"]
+                auth_url=auth_url
             )
         # Validate task has items
         if not agent_task.items:
@@ -420,8 +421,18 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         # Execute the tool calls using asyncio.gather(),
         # just as the agent would have.
         extra_data_collector = ExtraDataCollector()
-        agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
-        kernel = agent.agent.kernel
+        try:
+            agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+            kernel = agent.agent.kernel
+        except Exception:
+            auth_url = await self.authorizer.get_auth_url()
+            return AuthenticationRequiredResponse(
+                session_id=agent_task.session_id,
+                request_id=request_id,
+                task_id=agent_task.task_id,
+                message="authentication failed for the user please ensure all tokens are valid",
+                auth_url=auth_url
+            )
 
         # Create ToolContent objects from the results
         results = await asyncio.gather(
@@ -445,7 +456,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
     async def invoke(
         self, auth_token: str, inputs: UserMessage
-    ) -> TealAgentsResponse | HitlResponse:
+    ) -> TealAgentsResponse | HitlResponse | AuthenticationRequiredResponse:
         # Initial setup
         logger.info("Beginning processing invoke")
         logger.info(F"auth token {auth_token}")
@@ -453,12 +464,13 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
         if user_id is None and self.require_auth:
+            auth_url = await self.authorizer.get_auth_url()
             return AuthenticationRequiredResponse(
                 session_id=session_id,
                 task_id=task_id,
                 request_id=request_id,
                 message="authentication failed for the user please ensure all tokens are valid",
-                auth_url=self.authorizer["auth_full_url"]
+                auth_url=auth_url
             )
         inputs.session_id = session_id
         inputs.task_id = task_id
@@ -484,19 +496,20 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
     async def invoke_stream(
         self, auth_token: str, inputs: UserMessage
-    ) -> AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse]:
+    ) -> AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse | AuthenticationRequiredResponse]:
         # Initial setup
         logger.info("Beginning processing invoke")
         user_id = await self.authenticate_user(token=auth_token)
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
         if user_id is None and self.require_auth:
+            auth_url = await self.authorizer.get_auth_url()
             return AuthenticationRequiredResponse(
                 session_id=session_id,
                 task_id=task_id,
                 request_id=request_id,
                 message="authentication failed for the user please ensure all tokens are valid",
-                auth_url=self.authorizer["auth_full_url"]
+                auth_url=auth_url
             )
         agent_task = await self._manage_incoming_task(
             task_id, session_id, user_id, request_id, inputs
@@ -520,7 +533,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
     async def recursion_invoke(
         self, inputs: ChatHistory, session_id: str, task_id: str, request_id: str
-    ) -> TealAgentsResponse | HitlResponse:
+    ) -> TealAgentsResponse | HitlResponse | AuthenticationRequiredResponse:
         # Initial setup
 
         chat_history = inputs
@@ -529,7 +542,17 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             raise PersistenceLoadError(f"Agent task with ID {task_id} not found in state.")
 
         extra_data_collector = ExtraDataCollector()
-        agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        try:
+            agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        except Exception:
+            auth_url = await self.authorizer.get_auth_url()
+            return AuthenticationRequiredResponse(
+                session_id=agent_task.session_id,
+                request_id=request_id,
+                task_id=agent_task.task_id,
+                message="authentication failed for the user please ensure all tokens are valid",
+                auth_url=auth_url
+            )
 
         # Prepare metadata
         completion_tokens: int = 0
@@ -634,15 +657,25 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
     async def recursion_invoke_stream(
         self, inputs: ChatHistory, session_id: str, task_id: str, request_id: str
-    ) -> AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse]:
+    ) -> AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse | AuthenticationRequiredResponse]:
         chat_history = inputs
         agent_task = await self.state.load_by_request_id(request_id)
         if not agent_task:
             raise PersistenceLoadError(f"Agent task with ID {task_id} not found in state.")
 
         extra_data_collector = ExtraDataCollector()
-        agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
-
+        try:
+            agent = await self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector)
+        except Exception:
+            auth_url = await self.authorizer.get_auth_url()
+            yield AuthenticationRequiredResponse(
+                session_id=agent_task.session_id,
+                request_id=request_id,
+                task_id=agent_task.task_id,
+                message="authentication failed for the user please ensure all tokens are valid",
+                auth_url=auth_url
+            )
+            return
         # Prepare metadata
         final_response = []
         completion_tokens: int = 0

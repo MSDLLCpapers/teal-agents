@@ -33,5 +33,8 @@ class RequestAuthorizer(ABC):
         pass
 
     @abstractmethod
-    async def refresh_access_token(self, refresh_token: str) -> str:
+    async def refresh_access_token(self, refresh_token: str):
+        pass
+
+    async def get_auth_url(self) -> str:
         pass

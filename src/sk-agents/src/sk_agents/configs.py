@@ -148,6 +148,12 @@ TA_AUTH_REQUIRED = Config(
     default_value="false"
 )
 
+TA_TOOL_AUTH_REQUIRED = Config(
+    env_name="TA_TOOL_AUTH_REQUIRED",
+    is_required=True,
+    default_value="false"
+)
+
 TA_PLATFORM_CLIENT_ID = Config(
     env_name="TA_PLATFORM_CLIENT_ID",
     is_required=False,
@@ -204,5 +210,6 @@ configs: list[Config] = [
     TA_AUTH_REQUIRED,
     TA_PLATFORM_CLIENT_ID,
     TA_PLATFORM_AUTHORITY,
-    TA_SCOPES
+    TA_SCOPES,
+    TA_TOOL_AUTH_REQUIRED
 ]

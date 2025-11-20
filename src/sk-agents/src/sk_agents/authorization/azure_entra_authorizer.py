@@ -54,11 +54,13 @@ class AzureEntraAuthorizer(RequestAuthorizer):
             )
 
         if self.authority is None:
-            self.authority = f"{default_entra_url}{self.tenant_id}"
+            self.authority = f"{self.default_entra_url}{self.tenant_id}"
 
-        self.jwks_uri = f"{self.authority}{entra_jwks_endpoint}"
+        self.jwks_uri = f"{self.authority}{self.entra_jwks_endpoint}"
         self._jwk_client = self._get_jwk_client()
-        self.auth_base_url = f"{default_entra_url}{self.tenant_id}/oauth2/v2.0/authorize?client_id={self.client_id}"
+        self.auth_base_url = (
+            f"{self.default_entra_url}{self.tenant_id}/oauth2/v2.0/authorize?client_id={self.client_id}"
+        )
         self.auth_extension_url = f"&response_type=code&response_mode=form_post&scope=offline_access {self.scopes}"
         self.auth_full_url = f"{self.auth_base_url}{self.auth_extension_url}"
         self.httpx_client = httpx.AsyncClient(timeout=20.0)
@@ -180,7 +182,10 @@ class AzureEntraAuthorizer(RequestAuthorizer):
 
     async def validate_platform_auth(self, auth_token):
         if not auth_token:
-            return None
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid Platform token"
+            )
 
         token = auth_token
 
@@ -190,7 +195,10 @@ class AzureEntraAuthorizer(RequestAuthorizer):
             user_id = decoded_token.get("oid")  # Object ID
 
             if not user_id:
-                return None
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid Platform token"
+                )
 
             return token
 
@@ -229,3 +237,6 @@ class AzureEntraAuthorizer(RequestAuthorizer):
         except Exception as error:
             logger.info(error)
             return None
+
+    async def get_auth_url(self) -> str:
+        return self.auth_full_url

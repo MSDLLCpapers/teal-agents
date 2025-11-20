@@ -2,7 +2,7 @@ import logging
 
 from semantic_kernel.kernel import Kernel
 from ska_utils import AppConfig
-
+from datetime import datetime, timezone
 from sk_agents.auth_storage.auth_storage_factory import AuthStorageFactory
 from sk_agents.auth_storage.secure_auth_storage_manager import SecureAuthStorageManager
 from sk_agents.authorization.authorizer_factory import AuthorizerFactory
@@ -12,7 +12,8 @@ from sk_agents.plugin_loader import get_plugin_loader
 from sk_agents.ska_types import ModelType
 from sk_agents.tealagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.tealagents.remote_plugin_loader import RemotePluginLoader
-from sk_agents.configs import TA_AD_CLIENT_ID
+from sk_agents.configs import TA_AD_CLIENT_ID, TA_TOOL_AUTH_REQUIRED
+from sk_agents.exceptions import AuthenticationException
 
 
 class KernelBuilder:
@@ -139,7 +140,13 @@ class KernelBuilder:
         Returns:
             Authorization string to use for the plugin (either cached token or original)
         """
+        tool_auth_required = self.app_config.get(
+                TA_TOOL_AUTH_REQUIRED.env_name
+            )
         if not original_authorization:
+            return None
+
+        if tool_auth_required is False:
             return None
 
         try:
@@ -168,17 +175,30 @@ class KernelBuilder:
                 self.logger.info(
                     f"Using cached token for plugin {plugin_name}, user {user_id}"
                 )
+                if cached_auth_data.expires_at <= datetime.now(timezone.utc):
+                    new_auth_data = await self.authorizer.refresh_access_token(
+                        cached_auth_data.refresh_token
+                    )
+                    if new_auth_data:
+                        self.auth_storage_manager.store(
+                            user_id,
+                            plugin_identity,
+                            new_auth_data
+                        )
+                        return new_auth_data["access_token"]
+                    else:
+                        raise AuthenticationException("token failed to refresh")
                 # Return the cached access token in Bearer format
                 return f"{cached_auth_data.access_token}"
             else:
                 self.logger.debug(
                     f"No cached tokens found for plugin {plugin_name}, user {user_id} - "
-                    f"returning None"
+                    f"returning raising execptions"
                 )
-                return None
+                raise AuthenticationException("no auth found")
 
         except Exception as e:
             self.logger.warning(
                 f"Error retrieving cached tokens for plugin {plugin_name}: {e} - returning None"
             )
-            return None
+            raise AuthenticationException("no auth found")

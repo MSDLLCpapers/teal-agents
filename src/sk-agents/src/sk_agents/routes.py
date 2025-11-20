@@ -48,6 +48,8 @@ from sk_agents.tealagents.remote_plugin_loader import RemotePluginCatalog, Remot
 from sk_agents.tealagents.v1alpha1.agent.handler import TealAgentsV1Alpha1Handler
 from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
 from sk_agents.utils import docstring_parameter, get_sse_event_for_response
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 logger = logging.getLogger(__name__)
 
@@ -338,9 +340,11 @@ class Routes:
         Get the stateful API routes for the given configuration.
         """
         router = APIRouter()
+        security = HTTPBearer()
 
-        async def get_user_id(token: str = Header(None)):
-            token = authorizer.validate_platform_auth(token)
+        async def get_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)):
+            token = credentials.credentials
+            token = await authorizer.validate_platform_auth(token)
             return token
 
         @router.post(
@@ -381,11 +385,21 @@ class Routes:
         authorizer: RequestAuthorizer
     ) -> APIRouter:
         router = APIRouter()
+        security = HTTPBearer()
 
+        async def get_user_id(credentials: HTTPAuthorizationCredentials = Depends(security)):
+            token = credentials.credentials
+            token = await authorizer.validate_platform_auth(token)
+            return token
+        
         @router.post("/tealagents/v1alpha1/resume/{request_id}")
-        async def resume(request_id: str, request: Request, body: ResumeRequest):
-            authorization = request.headers.get("authorization", None)
-            authorization = authorizer.validate_platform_auth(authorization)
+        async def resume(
+            request_id: str,
+            request: Request,
+            body: ResumeRequest,
+            authorization: str = Depends(get_user_id)
+        ):
+            authorization = await authorizer.validate_platform_auth(authorization)
             teal_handler = Routes.get_task_handler(
                 config,
                 app_config,
@@ -405,9 +419,13 @@ class Routes:
                 raise HTTPException(status_code=500, detail="Internal Server Error") from e
 
         @router.post("/tealagents/v1alpha1/resume/{request_id}/sse")
-        async def resume_sse(request_id: str, request: Request, body: ResumeRequest):
-            authorization = request.headers.get("authorization", None)
-            authorization = authorizer.validate_platform_auth(authorization)
+        async def resume_sse(
+            request_id: str,
+            request: Request,
+            body: ResumeRequest,
+            authorization: str = Depends(get_user_id)
+        ):
+            authorization = await authorizer.validate_platform_auth(authorization)
             teal_handler = Routes.get_task_handler(
                 config,
                 app_config,

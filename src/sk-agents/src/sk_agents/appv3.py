@@ -108,25 +108,14 @@ class AppV3:
         # Create state and auth managers
         state_manager = AppV3._get_state_manager(app_config)
         auth_manager = AppV3._get_auth_manager(app_config)
-        auth_storage_manager = AppV3._get_auth_storage_manager(app_config)
-
-        # Get description from metadata if available
-        if config.metadata is not None and config.metadata.description is not None:
-            description = config.metadata.description
-        else:
-            description = f"{config.name} API"
 
         # Include only REST routes - No Websockets in V3
         app.include_router(
             Routes.get_stateful_routes(
-                name=name,
-                version=version,
-                description=description,
                 config=config,
                 app_config=app_config,
                 state_manager=state_manager,
                 authorizer=auth_manager,
-                auth_storage_manager=auth_storage_manager,
                 input_class=UserMessage,
             ),
             prefix=f"/{name}/{version}",

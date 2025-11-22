@@ -1,0 +1,10 @@
+apiVersion: tealagents/v1alpha1
+kind: Agent
+metadata:
+  name: {{name}}
+  description: {{description}}
+spec:
+  model: {{model}}
+  system_prompt: |
+    You are a helpful assistant named {{name}}.
+  plugins: []

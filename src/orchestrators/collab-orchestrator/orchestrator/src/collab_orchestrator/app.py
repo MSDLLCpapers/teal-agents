@@ -50,7 +50,7 @@ app_config = AppConfig()
 config_file = app_config.get(TA_SERVICE_CONFIG.env_name)
 config: BaseConfig = parse_yaml_file_as(BaseConfig, config_file)
 
-if config.apiVersion != "skagents/v1":
+if config.apiVersion != "skagents/v1" and config.apiVersion != "tealagents/v1alpha1":
     raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
 
 if config.description:

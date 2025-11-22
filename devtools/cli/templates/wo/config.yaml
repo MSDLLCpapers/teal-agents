@@ -1,0 +1,8 @@
+apiVersion: tealagents/v1alpha1
+kind: Workflow
+metadata:
+  name: {{name}}
+  description: {{description}}
+spec:
+  entrypoint: MyWorkflow
+  input_type: MyInput

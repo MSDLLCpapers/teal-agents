@@ -1,0 +1,8 @@
+apiVersion: tealagents/v1alpha1
+kind: TeamOrchestrator
+metadata:
+  name: {{name}}
+  description: {{description}}
+spec:
+  agents: []
+  human_in_the_loop: false

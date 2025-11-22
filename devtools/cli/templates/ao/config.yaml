@@ -1,0 +1,9 @@
+apiVersion: tealagents/v1alpha1
+kind: AssistantOrchestrator
+metadata:
+  name: {{name}}
+  description: {{description}}
+spec:
+  agents: []
+  fallback_agent: "FallbackAgent:1.0"
+  agent_chooser: "RecipientChooser:1.0"

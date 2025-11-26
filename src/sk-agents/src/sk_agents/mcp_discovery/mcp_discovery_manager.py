@@ -6,8 +6,23 @@ Follows the same pattern as TaskPersistenceManager and SecureAuthStorageManager.
 """
 
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Optional
+
+
+class DiscoveryError(Exception):
+    """Base exception for MCP discovery manager errors."""
+    pass
+
+
+class DiscoveryCreateError(DiscoveryError):
+    """Raised when discovery state creation fails."""
+    pass
+
+
+class DiscoveryUpdateError(DiscoveryError):
+    """Raised when discovery state update fails."""
+    pass
 
 
 class McpDiscoveryState:
@@ -44,7 +59,7 @@ class McpDiscoveryState:
         self.session_id = session_id
         self.discovered_servers = discovered_servers
         self.discovery_completed = discovery_completed
-        self.created_at = created_at or datetime.now()
+        self.created_at = created_at or datetime.now(timezone.utc)
 
 
 class McpDiscoveryManager(ABC):
@@ -71,7 +86,7 @@ class McpDiscoveryManager(ABC):
             state: Discovery state to create
 
         Raises:
-            ValueError: If state already exists for this (user_id, session_id)
+            DiscoveryCreateError: If state already exists for this (user_id, session_id)
         """
         pass
 
@@ -100,7 +115,7 @@ class McpDiscoveryManager(ABC):
             state: Updated discovery state
 
         Raises:
-            ValueError: If state does not exist
+            DiscoveryUpdateError: If state does not exist
         """
         pass
 
@@ -119,6 +134,13 @@ class McpDiscoveryManager(ABC):
     async def mark_completed(self, user_id: str, session_id: str) -> None:
         """
         Mark discovery as completed for (user_id, session_id).
+
+        If the discovery state does not exist, it will be created automatically
+        with an empty discovered_servers dict and discovery_completed=True.
+        A warning will be logged when auto-creating.
+
+        This operation is idempotent - calling it multiple times has the same
+        effect as calling it once.
 
         Args:
             user_id: User ID

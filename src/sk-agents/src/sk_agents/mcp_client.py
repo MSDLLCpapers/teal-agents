@@ -12,6 +12,7 @@ WebSocket support will be added when it becomes available in the MCP SDK.
 """
 
 import asyncio
+import inspect
 import logging
 from typing import Any, Dict, List, Optional, Callable, Awaitable
 from contextlib import AsyncExitStack
@@ -1209,9 +1210,6 @@ class McpPlugin(BasePlugin):
             # Create unique tool name to avoid collisions
             function_name = f"{self.server_name}_{captured_tool.tool_name}"
 
-            # Build type annotations from JSON schema
-            param_annotations = self._build_annotations(captured_tool.input_schema)
-
             @kernel_function(
                 name=function_name,
                 description=f"[{self.server_name}] {captured_tool.description}",
@@ -1219,8 +1217,13 @@ class McpPlugin(BasePlugin):
             async def tool_function(**kwargs):
                 return await captured_tool.invoke(self.user_id, **kwargs)
 
-            # Add type annotations for SK introspection
-            tool_function.__annotations__ = param_annotations
+            # CRITICAL FIX: Override __kernel_function_parameters__ after decoration
+            # This is the CORRECT way to set function parameters in Semantic Kernel
+            # The decorator has already read inspect.signature() (which only sees **kwargs),
+            # but we can override the parameters it uses to build the LLM schema
+            tool_function.__kernel_function_parameters__ = self._build_sk_parameters(
+                captured_tool.input_schema
+            )
 
             return tool_function
 
@@ -1232,43 +1235,51 @@ class McpPlugin(BasePlugin):
 
         setattr(self, attr_name, tool_function)
 
-    def _build_annotations(self, input_schema: Dict[str, Any]) -> Dict[str, type]:
+    def _build_sk_parameters(self, input_schema: Dict[str, Any]) -> list[dict[str, Any]]:
         """
-        Convert MCP JSON schema to Python type annotations.
+        Build Semantic Kernel parameter dictionaries from MCP JSON schema.
 
-        This allows Semantic Kernel to introspect the function signature
-        and expose full parameter information to the LLM.
+        This creates the parameter metadata in the format expected by
+        KernelParameterMetadata, which Semantic Kernel uses to build
+        the schema sent to the LLM.
+
+        This is the CORRECT way to override function parameters in SK -
+        by setting __kernel_function_parameters__ after decoration.
 
         Args:
             input_schema: MCP tool's JSON schema for inputs
 
         Returns:
-            Dictionary mapping parameter names to Python types
+            List of parameter dictionaries for SK
         """
-        annotations = {}
-
         if not input_schema or not isinstance(input_schema, dict):
-            annotations['return'] = str
-            return annotations
+            return []
 
         properties = input_schema.get('properties', {})
         required = input_schema.get('required', [])
+        params = []
 
         for param_name, param_schema in properties.items():
             if not isinstance(param_schema, dict):
                 continue
 
-            # Get Python type from JSON schema type
-            param_type = self._json_type_to_python(param_schema.get('type', 'string'))
+            # Build parameter dict in SK format
+            param_dict = {
+                "name": param_name,
+                "description": param_schema.get("description", ""),
+                "is_required": param_name in required,
+                "type_": param_schema.get("type", "string"),  # JSON type string
+                "default_value": param_schema.get("default", None),
+                "schema_data": param_schema,  # Full JSON schema sent to LLM
+            }
 
-            # Mark as optional if not required
-            # Note: SK will handle optional parameters appropriately
-            annotations[param_name] = param_type
+            # Add Python type object for better type handling
+            json_type = param_schema.get("type", "string")
+            param_dict["type_object"] = self._json_type_to_python(json_type)
 
-        # All MCP tools return strings currently
-        annotations['return'] = str
+            params.append(param_dict)
 
-        return annotations
+        return params
 
     @staticmethod
     def _json_type_to_python(json_type: str) -> type:

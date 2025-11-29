@@ -1,19 +1,19 @@
-"""MCP Discovery State Management Module."""
+"""MCP State Management Module."""
 
 from sk_agents.mcp_discovery.discovery_manager_factory import DiscoveryManagerFactory
 from sk_agents.mcp_discovery.in_memory_discovery_manager import (
-    InMemoryDiscoveryManager,
+    InMemoryStateManager,
 )
 from sk_agents.mcp_discovery.mcp_discovery_manager import (
-    McpDiscoveryManager,
-    McpDiscoveryState,
+    McpStateManager,
+    McpState,
 )
-from sk_agents.mcp_discovery.redis_discovery_manager import RedisDiscoveryManager
+from sk_agents.mcp_discovery.redis_discovery_manager import RedisStateManager
 
 __all__ = [
-    "McpDiscoveryManager",
-    "McpDiscoveryState",
+    "McpStateManager",
+    "McpState",
     "DiscoveryManagerFactory",
-    "InMemoryDiscoveryManager",
-    "RedisDiscoveryManager",
+    "InMemoryStateManager",
+    "RedisStateManager",
 ]

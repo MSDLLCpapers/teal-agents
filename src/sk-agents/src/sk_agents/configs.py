@@ -174,7 +174,7 @@ TA_MCP_DISCOVERY_MODULE = Config(
 TA_MCP_DISCOVERY_CLASS = Config(
     env_name="TA_MCP_DISCOVERY_CLASS",
     is_required=False,
-    default_value="InMemoryDiscoveryManager",
+    default_value="InMemoryStateManager",
 )
 
 configs: list[Config] = [

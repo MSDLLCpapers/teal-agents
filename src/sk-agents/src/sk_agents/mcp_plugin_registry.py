@@ -31,7 +31,7 @@ class McpPluginRegistry:
     1. Connects to MCP servers temporarily
     2. Discovers available tools
     3. Registers tools in catalog for governance/HITL
-    4. Serializes plugin data to external storage (via McpDiscoveryManager)
+    4. Serializes plugin data to external storage (via McpStateManager)
     5. Plugin classes reconstructed from storage at agent build time
 
     This ensures proper multi-tenant isolation and horizontal scalability.
@@ -72,7 +72,7 @@ class McpPluginRegistry:
         mcp_servers: List[McpServerConfig],
         user_id: str,
         session_id: str,
-        discovery_manager,  # McpDiscoveryManager
+        discovery_manager,  # McpStateManager
     ) -> None:
         """
         Discover MCP tools and store in external state.
@@ -367,7 +367,7 @@ class McpPluginRegistry:
 
     @classmethod
     async def get_plugin_classes_for_session(
-        cls, user_id: str, session_id: str, discovery_manager  # McpDiscoveryManager
+        cls, user_id: str, session_id: str, discovery_manager  # McpStateManager
     ) -> Dict[str, type]:
         """
         Load plugin classes from external storage for this session.

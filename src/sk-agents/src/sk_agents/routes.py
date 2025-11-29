@@ -148,7 +148,7 @@ class Routes:
         app_config: AppConfig,
         authorization: str,
         state_manager: TaskPersistenceManager,
-        mcp_discovery_manager=None,  # McpDiscoveryManager - Optional
+        mcp_discovery_manager=None,  # McpStateManager - Optional
     ) -> TealAgentsV1Alpha1Handler:
         agent_builder = Routes._create_agent_builder(app_config, authorization)
         return TealAgentsV1Alpha1Handler(config, app_config, agent_builder, state_manager, mcp_discovery_manager)
@@ -337,7 +337,7 @@ class Routes:
         state_manager: TaskPersistenceManager,
         authorizer: RequestAuthorizer,
         auth_storage_manager: SecureAuthStorageManager,
-        mcp_discovery_manager=None,  # McpDiscoveryManager - Optional
+        mcp_discovery_manager=None,  # McpStateManager - Optional
         input_class: type[UserMessage] = UserMessage,
     ) -> APIRouter:
         """

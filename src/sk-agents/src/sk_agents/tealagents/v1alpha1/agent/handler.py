@@ -52,7 +52,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         app_config: AppConfig,
         agent_builder: AgentBuilder,
         state_manager: TaskPersistenceManager,
-        discovery_manager=None,  # McpDiscoveryManager - Optional, only needed for MCP
+        discovery_manager=None,  # McpStateManager - Optional, only needed for MCP
     ):
         self.version = config.version
         self.name = config.name
@@ -101,9 +101,9 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         # Load or create discovery state
         discovery_state = await self.discovery_manager.load_discovery(user_id, session_id)
         if not discovery_state:
-            from sk_agents.mcp_discovery.mcp_discovery_manager import McpDiscoveryState
+            from sk_agents.mcp_discovery.mcp_discovery_manager import McpState
 
-            discovery_state = McpDiscoveryState(
+            discovery_state = McpState(
                 user_id=user_id,
                 session_id=session_id,
                 discovered_servers={},

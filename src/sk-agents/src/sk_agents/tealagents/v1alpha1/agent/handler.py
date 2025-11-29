@@ -65,6 +65,9 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         self.authorizer = DummyAuthorizer()
         self.discovery_manager = discovery_manager  # Store discovery manager (optional)
 
+        # Track which sessions have seen MCP auth status messages (to show only once per session)
+        self._mcp_status_shown_per_session: set[str] = set()
+
     async def _ensure_session_discovery(
         self, user_id: str, session_id: str, task_id: str, request_id: str
     ) -> AuthChallengeResponse | None:
@@ -694,9 +697,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
 
-        # Notify user about MCP server authentication check
+        # Notify user about MCP server authentication check (only once per session)
         mcp_servers = self.config.get_agent().mcp_servers
-        if mcp_servers and len(mcp_servers) > 0:
+        show_status = session_id not in self._mcp_status_shown_per_session
+
+        if show_status and mcp_servers and len(mcp_servers) > 0:
             yield TealAgentsPartialResponse(
                 task_id=task_id,
                 session_id=session_id,
@@ -714,14 +719,16 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             yield discovery_auth_challenge
             return
 
-        # Notify user that MCP authentication is verified
-        if mcp_servers and len(mcp_servers) > 0:
+        # Notify user that MCP authentication is verified (only once per session)
+        if show_status and mcp_servers and len(mcp_servers) > 0:
             yield TealAgentsPartialResponse(
                 task_id=task_id,
                 session_id=session_id,
                 request_id=request_id,
                 output_partial="✅ MCP authentication verified\n\n"
             )
+            # Mark this session as having seen the status messages
+            self._mcp_status_shown_per_session.add(session_id)
 
         agent_task = await self._manage_incoming_task(
             task_id, session_id, user_id, request_id, inputs

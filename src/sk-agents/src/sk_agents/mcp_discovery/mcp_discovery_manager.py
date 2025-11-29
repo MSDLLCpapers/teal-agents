@@ -1,7 +1,7 @@
 """
-MCP Discovery Manager - Abstract Interface
+MCP State Manager - Abstract Interface
 
-Provides abstract base class for managing MCP tool discovery state.
+Provides abstract base class for managing MCP tool discovery and session state.
 Follows the same pattern as TaskPersistenceManager and SecureAuthStorageManager.
 """
 
@@ -11,30 +11,41 @@ from typing import Dict, Optional
 
 
 class DiscoveryError(Exception):
-    """Base exception for MCP discovery manager errors."""
+    """Base exception for MCP state manager errors."""
     pass
 
 
 class DiscoveryCreateError(DiscoveryError):
-    """Raised when discovery state creation fails."""
+    """Raised when state creation fails."""
     pass
 
 
 class DiscoveryUpdateError(DiscoveryError):
-    """Raised when discovery state update fails."""
+    """Raised when state update fails."""
     pass
 
 
-class McpDiscoveryState:
+class McpState:
     """
-    Discovery state for a specific user session.
+    MCP state for a specific user session.
 
-    Stores the results of MCP server discovery including:
+    Stores the results of MCP server discovery and session management including:
     - Which servers have been discovered
     - Serialized plugin data for each server
+    - MCP session IDs for stateful servers
     - Completion status
 
     Scoped to (user_id, session_id) for session-level isolation.
+
+    Structure of discovered_servers:
+    {
+        "server_name": {
+            "tools": [...],  # Plugin metadata
+            "mcp_session_id": "session-abc123",  # Optional, for stateful servers
+            "last_used_at": "2025-01-15T10:30:00Z",  # Optional, session activity timestamp
+            "created_at": "2025-01-15T10:00:00Z"  # Optional, session creation timestamp
+        }
+    }
     """
 
     def __init__(
@@ -46,12 +57,12 @@ class McpDiscoveryState:
         created_at: Optional[datetime] = None,
     ):
         """
-        Initialize discovery state.
+        Initialize MCP state.
 
         Args:
             user_id: User ID for authentication and scoping
             session_id: Session ID for conversation grouping
-            discovered_servers: Mapping of server_name to serialized plugin data
+            discovered_servers: Mapping of server_name to plugin data and session info
             discovery_completed: Whether discovery has finished successfully
             created_at: Timestamp of state creation (defaults to now)
         """
@@ -62,14 +73,15 @@ class McpDiscoveryState:
         self.created_at = created_at or datetime.now(timezone.utc)
 
 
-class McpDiscoveryManager(ABC):
+class McpStateManager(ABC):
     """
-    Abstract interface for MCP discovery state management.
+    Abstract interface for MCP state management (discovery + sessions).
 
-    Implementations must provide storage for discovery state scoped to
+    Implementations must provide storage for MCP state scoped to
     (user_id, session_id) combinations. This enables:
     - Session-level tool isolation
     - Shared discovery across tasks in the same session
+    - MCP session persistence for stateful servers
     - External state storage (Redis, in-memory, etc.)
 
     Pattern matches:
@@ -78,12 +90,12 @@ class McpDiscoveryManager(ABC):
     """
 
     @abstractmethod
-    async def create_discovery(self, state: McpDiscoveryState) -> None:
+    async def create_discovery(self, state: McpState) -> None:
         """
-        Create initial discovery state for (user_id, session_id).
+        Create initial state for (user_id, session_id).
 
         Args:
-            state: Discovery state to create
+            state: MCP state to create
 
         Raises:
             DiscoveryCreateError: If state already exists for this (user_id, session_id)
@@ -93,26 +105,26 @@ class McpDiscoveryManager(ABC):
     @abstractmethod
     async def load_discovery(
         self, user_id: str, session_id: str
-    ) -> Optional[McpDiscoveryState]:
+    ) -> Optional[McpState]:
         """
-        Load discovery state for (user_id, session_id).
+        Load MCP state for (user_id, session_id).
 
         Args:
             user_id: User ID
             session_id: Session ID
 
         Returns:
-            Discovery state if exists, None otherwise
+            MCP state if exists, None otherwise
         """
         pass
 
     @abstractmethod
-    async def update_discovery(self, state: McpDiscoveryState) -> None:
+    async def update_discovery(self, state: McpState) -> None:
         """
-        Update existing discovery state.
+        Update existing MCP state.
 
         Args:
-            state: Updated discovery state
+            state: Updated MCP state
 
         Raises:
             DiscoveryUpdateError: If state does not exist
@@ -122,7 +134,7 @@ class McpDiscoveryManager(ABC):
     @abstractmethod
     async def delete_discovery(self, user_id: str, session_id: str) -> None:
         """
-        Delete discovery state for (user_id, session_id).
+        Delete MCP state for (user_id, session_id).
 
         Args:
             user_id: User ID
@@ -135,7 +147,7 @@ class McpDiscoveryManager(ABC):
         """
         Mark discovery as completed for (user_id, session_id).
 
-        If the discovery state does not exist, it will be created automatically
+        If the state does not exist, it will be created automatically
         with an empty discovered_servers dict and discovery_completed=True.
         A warning will be logged when auto-creating.
 
@@ -159,5 +171,70 @@ class McpDiscoveryManager(ABC):
 
         Returns:
             True if discovery completed, False otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def store_mcp_session(
+        self,
+        user_id: str,
+        session_id: str,
+        server_name: str,
+        mcp_session_id: str
+    ) -> None:
+        """
+        Store MCP session ID for a server.
+
+        If state doesn't exist, it will be created. If server doesn't exist
+        in discovered_servers, it will be added.
+
+        Args:
+            user_id: User ID
+            session_id: Teal agent session ID
+            server_name: Name of the MCP server
+            mcp_session_id: MCP session ID from server
+
+        Raises:
+            DiscoveryUpdateError: If state update fails
+        """
+        pass
+
+    @abstractmethod
+    async def get_mcp_session(
+        self,
+        user_id: str,
+        session_id: str,
+        server_name: str
+    ) -> Optional[str]:
+        """
+        Get MCP session ID for a server.
+
+        Args:
+            user_id: User ID
+            session_id: Teal agent session ID
+            server_name: Name of the MCP server
+
+        Returns:
+            MCP session ID if exists, None otherwise
+        """
+        pass
+
+    @abstractmethod
+    async def update_session_last_used(
+        self,
+        user_id: str,
+        session_id: str,
+        server_name: str
+    ) -> None:
+        """
+        Update last_used timestamp for an MCP session.
+
+        Args:
+            user_id: User ID
+            session_id: Teal agent session ID
+            server_name: Name of the MCP server
+
+        Raises:
+            DiscoveryUpdateError: If state or server doesn't exist
         """
         pass

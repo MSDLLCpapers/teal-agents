@@ -1,7 +1,7 @@
 """
-MCP Discovery Manager Factory
+MCP State Manager Factory
 
-Provides singleton factory for creating MCP discovery manager instances
+Provides singleton factory for creating MCP state manager instances
 with dynamic module loading and dependency injection.
 
 Follows the same pattern as PersistenceFactory and AuthStorageFactory.
@@ -17,17 +17,17 @@ logger = logging.getLogger(__name__)
 
 class DiscoveryManagerFactory(metaclass=Singleton):
     """
-    Factory for MCP discovery manager with dependency injection.
+    Factory for MCP state manager with dependency injection.
 
     Uses singleton pattern to ensure only one factory instance exists.
-    Dynamically loads discovery manager implementation based on
+    Dynamically loads state manager implementation based on
     environment variables.
 
     Configuration:
         TA_MCP_DISCOVERY_MODULE: Python module containing manager class
         TA_MCP_DISCOVERY_CLASS: Manager class name
 
-    Defaults to InMemoryDiscoveryManager for development.
+    Defaults to InMemoryStateManager for development.
     """
 
     def __init__(self, app_config: AppConfig):
@@ -38,17 +38,17 @@ class DiscoveryManagerFactory(metaclass=Singleton):
             app_config: Application configuration for env vars
         """
         self.app_config = app_config
-        self._manager: Optional["McpDiscoveryManager"] = None  # noqa: F821
+        self._manager: Optional["McpStateManager"] = None  # noqa: F821
 
-    def get_discovery_manager(self) -> "McpDiscoveryManager":  # noqa: F821
+    def get_discovery_manager(self) -> "McpStateManager":  # noqa: F821
         """
-        Get discovery manager instance (cached singleton).
+        Get state manager instance (cached singleton).
 
         Loads manager implementation on first call based on configuration,
         then caches for subsequent calls.
 
         Returns:
-            McpDiscoveryManager instance
+            McpStateManager instance
 
         Raises:
             Exception: If manager class cannot be loaded (falls back to in-memory)
@@ -65,26 +65,26 @@ class DiscoveryManagerFactory(metaclass=Singleton):
                 module = __import__(module_name, fromlist=[class_name])
                 manager_class = getattr(module, class_name)
                 self._manager = manager_class(self.app_config)
-                logger.info(f"Initialized MCP discovery manager: {class_name}")
+                logger.info(f"Initialized MCP state manager: {class_name}")
 
             except Exception as e:
                 logger.error(
-                    f"Failed to load discovery manager {class_name} from {module_name}: {e}. "
-                    f"Falling back to InMemoryDiscoveryManager"
+                    f"Failed to load state manager {class_name} from {module_name}: {e}. "
+                    f"Falling back to InMemoryStateManager"
                 )
 
                 # Fallback to in-memory implementation
                 try:
                     from sk_agents.mcp_discovery.in_memory_discovery_manager import (
-                        InMemoryDiscoveryManager,
+                        InMemoryStateManager,
                     )
 
-                    self._manager = InMemoryDiscoveryManager(self.app_config)
-                    logger.info("Fallback to InMemoryDiscoveryManager successful")
+                    self._manager = InMemoryStateManager(self.app_config)
+                    logger.info("Fallback to InMemoryStateManager successful")
 
                 except Exception as fallback_error:
                     logger.critical(
-                        f"Failed to load fallback InMemoryDiscoveryManager: {fallback_error}"
+                        f"Failed to load fallback InMemoryStateManager: {fallback_error}"
                     )
                     raise
 

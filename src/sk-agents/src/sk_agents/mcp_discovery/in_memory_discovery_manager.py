@@ -1,5 +1,5 @@
 """
-In-Memory MCP Discovery Manager
+In-Memory MCP State Manager
 
 Provides in-memory implementation for development and testing.
 Follows the same pattern as InMemoryPersistenceManager.
@@ -14,36 +14,36 @@ from typing import Dict, Optional, Tuple
 from sk_agents.mcp_discovery.mcp_discovery_manager import (
     DiscoveryCreateError,
     DiscoveryUpdateError,
-    McpDiscoveryManager,
-    McpDiscoveryState,
+    McpStateManager,
+    McpState,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class InMemoryDiscoveryManager(McpDiscoveryManager):
+class InMemoryStateManager(McpStateManager):
     """
-    In-memory implementation of MCP discovery manager.
+    In-memory implementation of MCP state manager.
 
-    Stores discovery state in memory with thread-safe access.
+    Stores MCP state in memory with thread-safe access.
     Suitable for:
     - Development and testing
     - Single-instance deployments
-    - Scenarios where discovery persistence is not required
+    - Scenarios where persistence is not required
 
     Note: State is lost on server restart.
     """
 
     def __init__(self, app_config):
         """
-        Initialize in-memory discovery manager.
+        Initialize in-memory state manager.
 
         Args:
             app_config: Application configuration (for consistency with other managers)
         """
         self.app_config = app_config
-        # Storage: {(user_id, session_id): McpDiscoveryState}
-        self._storage: Dict[Tuple[str, str], McpDiscoveryState] = {}
+        # Storage: {(user_id, session_id): McpState}
+        self._storage: Dict[Tuple[str, str], McpState] = {}
         self._lock = asyncio.Lock()
 
     def _make_key(self, user_id: str, session_id: str) -> Tuple[str, str]:
@@ -59,12 +59,12 @@ class InMemoryDiscoveryManager(McpDiscoveryManager):
         """
         return (user_id, session_id)
 
-    async def create_discovery(self, state: McpDiscoveryState) -> None:
+    async def create_discovery(self, state: McpState) -> None:
         """
-        Create initial discovery state.
+        Create initial MCP state.
 
         Args:
-            state: Discovery state to create
+            state: MCP state to create
 
         Raises:
             DiscoveryCreateError: If state already exists
@@ -73,26 +73,26 @@ class InMemoryDiscoveryManager(McpDiscoveryManager):
             key = self._make_key(state.user_id, state.session_id)
             if key in self._storage:
                 raise DiscoveryCreateError(
-                    f"Discovery state already exists for user={state.user_id}, "
+                    f"MCP state already exists for user={state.user_id}, "
                     f"session={state.session_id}"
                 )
             self._storage[key] = state
             logger.debug(
-                f"Created discovery state for user={state.user_id}, session={state.session_id}"
+                f"Created MCP state for user={state.user_id}, session={state.session_id}"
             )
 
     async def load_discovery(
         self, user_id: str, session_id: str
-    ) -> Optional[McpDiscoveryState]:
+    ) -> Optional[McpState]:
         """
-        Load discovery state.
+        Load MCP state.
 
         Args:
             user_id: User ID
             session_id: Session ID
 
         Returns:
-            Deep copy of discovery state if exists, None otherwise.
+            Deep copy of MCP state if exists, None otherwise.
             Returns a copy to prevent external mutations.
         """
         async with self._lock:
@@ -103,12 +103,12 @@ class InMemoryDiscoveryManager(McpDiscoveryManager):
             # Return deep copy to prevent external mutations bypassing update_discovery
             return copy.deepcopy(state)
 
-    async def update_discovery(self, state: McpDiscoveryState) -> None:
+    async def update_discovery(self, state: McpState) -> None:
         """
-        Update existing discovery state.
+        Update existing MCP state.
 
         Args:
-            state: Updated discovery state
+            state: Updated MCP state
 
         Raises:
             DiscoveryUpdateError: If state does not exist
@@ -117,17 +117,17 @@ class InMemoryDiscoveryManager(McpDiscoveryManager):
             key = self._make_key(state.user_id, state.session_id)
             if key not in self._storage:
                 raise DiscoveryUpdateError(
-                    f"Discovery state not found for user={state.user_id}, "
+                    f"MCP state not found for user={state.user_id}, "
                     f"session={state.session_id}"
                 )
             self._storage[key] = state
             logger.debug(
-                f"Updated discovery state for user={state.user_id}, session={state.session_id}"
+                f"Updated MCP state for user={state.user_id}, session={state.session_id}"
             )
 
     async def delete_discovery(self, user_id: str, session_id: str) -> None:
         """
-        Delete discovery state.
+        Delete MCP state.
 
         Args:
             user_id: User ID
@@ -138,7 +138,7 @@ class InMemoryDiscoveryManager(McpDiscoveryManager):
             if key in self._storage:
                 del self._storage[key]
                 logger.debug(
-                    f"Deleted discovery state for user={user_id}, session={session_id}"
+                    f"Deleted MCP state for user={user_id}, session={session_id}"
                 )
 
     async def mark_completed(self, user_id: str, session_id: str) -> None:
@@ -162,10 +162,10 @@ class InMemoryDiscoveryManager(McpDiscoveryManager):
             else:
                 # Auto-create state if it doesn't exist
                 logger.warning(
-                    f"Discovery state not found for user={user_id}, session={session_id}. "
+                    f"MCP state not found for user={user_id}, session={session_id}. "
                     f"Auto-creating with discovery_completed=True."
                 )
-                state = McpDiscoveryState(
+                state = McpState(
                     user_id=user_id,
                     session_id=session_id,
                     discovered_servers={},
@@ -189,3 +189,120 @@ class InMemoryDiscoveryManager(McpDiscoveryManager):
             key = self._make_key(user_id, session_id)
             state = self._storage.get(key)
             return state.discovery_completed if state else False
+
+    async def store_mcp_session(
+        self,
+        user_id: str,
+        session_id: str,
+        server_name: str,
+        mcp_session_id: str
+    ) -> None:
+        """
+        Store MCP session ID for a server.
+
+        Args:
+            user_id: User ID
+            session_id: Teal agent session ID
+            server_name: Name of the MCP server
+            mcp_session_id: MCP session ID from server
+        """
+        async with self._lock:
+            key = self._make_key(user_id, session_id)
+            state = self._storage.get(key)
+
+            # Auto-create state if doesn't exist
+            if not state:
+                logger.warning(
+                    f"MCP state not found for user={user_id}, session={session_id}. "
+                    f"Auto-creating to store session for {server_name}."
+                )
+                state = McpState(
+                    user_id=user_id,
+                    session_id=session_id,
+                    discovered_servers={},
+                    discovery_completed=False,
+                    created_at=datetime.now(timezone.utc),
+                )
+                self._storage[key] = state
+
+            # Ensure server entry exists
+            if server_name not in state.discovered_servers:
+                state.discovered_servers[server_name] = {}
+
+            # Store session data
+            state.discovered_servers[server_name]["mcp_session_id"] = mcp_session_id
+            state.discovered_servers[server_name]["created_at"] = datetime.now(timezone.utc).isoformat()
+            state.discovered_servers[server_name]["last_used_at"] = datetime.now(timezone.utc).isoformat()
+
+            logger.debug(
+                f"Stored MCP session {mcp_session_id} for server={server_name}, "
+                f"user={user_id}, session={session_id}"
+            )
+
+    async def get_mcp_session(
+        self,
+        user_id: str,
+        session_id: str,
+        server_name: str
+    ) -> Optional[str]:
+        """
+        Get MCP session ID for a server.
+
+        Args:
+            user_id: User ID
+            session_id: Teal agent session ID
+            server_name: Name of the MCP server
+
+        Returns:
+            MCP session ID if exists, None otherwise
+        """
+        async with self._lock:
+            key = self._make_key(user_id, session_id)
+            state = self._storage.get(key)
+
+            if not state:
+                return None
+
+            server_data = state.discovered_servers.get(server_name)
+            if not server_data:
+                return None
+
+            return server_data.get("mcp_session_id")
+
+    async def update_session_last_used(
+        self,
+        user_id: str,
+        session_id: str,
+        server_name: str
+    ) -> None:
+        """
+        Update last_used timestamp for an MCP session.
+
+        Args:
+            user_id: User ID
+            session_id: Teal agent session ID
+            server_name: Name of the MCP server
+
+        Raises:
+            DiscoveryUpdateError: If state or server doesn't exist
+        """
+        async with self._lock:
+            key = self._make_key(user_id, session_id)
+            state = self._storage.get(key)
+
+            if not state:
+                raise DiscoveryUpdateError(
+                    f"MCP state not found for user={user_id}, session={session_id}"
+                )
+
+            if server_name not in state.discovered_servers:
+                raise DiscoveryUpdateError(
+                    f"Server {server_name} not found in state for user={user_id}, session={session_id}"
+                )
+
+            state.discovered_servers[server_name]["last_used_at"] = datetime.now(timezone.utc).isoformat()
+
+            logger.debug(
+                f"Updated last_used for server={server_name}, "
+                f"user={user_id}, session={session_id}"
+            )

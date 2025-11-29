@@ -1,5 +1,5 @@
 """
-Redis MCP Discovery Manager
+Redis MCP State Manager
 
 Provides Redis-backed implementation for production deployments.
 Follows the same pattern as Redis persistence and auth storage.
@@ -16,18 +16,18 @@ from ska_utils import AppConfig, strtobool
 from sk_agents.mcp_discovery.mcp_discovery_manager import (
     DiscoveryCreateError,
     DiscoveryUpdateError,
-    McpDiscoveryManager,
-    McpDiscoveryState,
+    McpStateManager,
+    McpState,
 )
 
 logger = logging.getLogger(__name__)
 
 
-class RedisDiscoveryManager(McpDiscoveryManager):
+class RedisStateManager(McpStateManager):
     """
-    Redis-backed implementation of MCP discovery manager.
+    Redis-backed implementation of MCP state manager.
 
-    Stores discovery state in Redis for:
+    Stores MCP state in Redis for:
     - Production deployments
     - Multi-instance horizontal scaling
     - Persistence across server restarts
@@ -38,7 +38,7 @@ class RedisDiscoveryManager(McpDiscoveryManager):
 
     def __init__(self, app_config: AppConfig, redis_client: Optional[Redis] = None):
         """
-        Initialize Redis discovery manager.
+        Initialize Redis state manager.
 
         Args:
             app_config: Application configuration for Redis connection
@@ -46,7 +46,7 @@ class RedisDiscoveryManager(McpDiscoveryManager):
         """
         self.app_config = app_config
         self.redis = redis_client or self._create_redis_client()
-        self.key_prefix = "mcp_discovery"
+        self.key_prefix = "mcp_state"
 
         # TTL support: Default to 24 hours (86400 seconds)
         from sk_agents.configs import TA_REDIS_TTL
@@ -57,13 +57,13 @@ class RedisDiscoveryManager(McpDiscoveryManager):
             # Default to 24 hours for discovery state
             self.ttl = 86400
 
-        logger.debug(f"Redis discovery manager initialized with TTL={self.ttl}s")
+        logger.debug(f"Redis state manager initialized with TTL={self.ttl}s")
 
     async def close(self) -> None:
         """Close Redis connection and cleanup resources."""
         if self.redis:
             await self.redis.close()
-            logger.debug("Redis discovery manager connection closed")
+            logger.debug("Redis state manager connection closed")
 
     async def __aenter__(self):
         """Async context manager entry."""
@@ -119,7 +119,7 @@ class RedisDiscoveryManager(McpDiscoveryManager):
         """
         Create Redis key for storage.
 
-        Format: mcp_discovery:{user_id}:{session_id}
+        Format: mcp_state:{user_id}:{session_id}
 
         Args:
             user_id: User ID
@@ -130,12 +130,12 @@ class RedisDiscoveryManager(McpDiscoveryManager):
         """
         return f"{self.key_prefix}:{user_id}:{session_id}"
 
-    async def create_discovery(self, state: McpDiscoveryState) -> None:
+    async def create_discovery(self, state: McpState) -> None:
         """
-        Create initial discovery state in Redis.
+        Create initial MCP state in Redis.
 
         Args:
-            state: Discovery state to create
+            state: MCP state to create
 
         Raises:
             DiscoveryCreateError: If state already exists
@@ -144,7 +144,7 @@ class RedisDiscoveryManager(McpDiscoveryManager):
         exists = await self.redis.exists(key)
         if exists:
             raise DiscoveryCreateError(
-                f"Discovery state already exists for user={state.user_id}, "
+                f"MCP state already exists for user={state.user_id}, "
                 f"session={state.session_id}"
             )
 
@@ -152,22 +152,22 @@ class RedisDiscoveryManager(McpDiscoveryManager):
         # Set with TTL
         await self.redis.set(key, data, ex=self.ttl)
         logger.debug(
-            f"Created Redis discovery state: user={state.user_id}, session={state.session_id}, "
+            f"Created Redis MCP state: user={state.user_id}, session={state.session_id}, "
             f"TTL={self.ttl}s"
         )
 
     async def load_discovery(
         self, user_id: str, session_id: str
-    ) -> Optional[McpDiscoveryState]:
+    ) -> Optional[McpState]:
         """
-        Load discovery state from Redis.
+        Load MCP state from Redis.
 
         Args:
             user_id: User ID
             session_id: Session ID
 
         Returns:
-            Discovery state if exists, None otherwise
+            MCP state if exists, None otherwise
         """
         key = self._make_key(user_id, session_id)
         data = await self.redis.get(key)
@@ -175,12 +175,12 @@ class RedisDiscoveryManager(McpDiscoveryManager):
             return None
         return self._deserialize(data, user_id, session_id)
 
-    async def update_discovery(self, state: McpDiscoveryState) -> None:
+    async def update_discovery(self, state: McpState) -> None:
         """
-        Update existing discovery state in Redis.
+        Update existing MCP state in Redis.
 
         Args:
-            state: Updated discovery state
+            state: Updated MCP state
 
         Raises:
             DiscoveryUpdateError: If state does not exist
@@ -190,7 +190,7 @@ class RedisDiscoveryManager(McpDiscoveryManager):
         exists = await self.redis.exists(key)
         if not exists:
             raise DiscoveryUpdateError(
-                f"Discovery state not found for user={state.user_id}, "
+                f"MCP state not found for user={state.user_id}, "
                 f"session={state.session_id}"
             )
 
@@ -198,7 +198,7 @@ class RedisDiscoveryManager(McpDiscoveryManager):
         # Update with TTL to extend expiration
         await self.redis.set(key, data, ex=self.ttl)
         logger.debug(
-            f"Updated Redis discovery state: user={state.user_id}, session={state.session_id}"
+            f"Updated Redis MCP state: user={state.user_id}, session={state.session_id}"
         )
 
     async def delete_discovery(self, user_id: str, session_id: str) -> None:
@@ -257,10 +257,10 @@ class RedisDiscoveryManager(McpDiscoveryManager):
         else:
             # Auto-create state if it doesn't exist
             logger.warning(
-                f"Discovery state not found for user={user_id}, session={session_id}. "
+                f"MCP state not found for user={user_id}, session={session_id}. "
                 f"Auto-creating with discovery_completed=True."
             )
-            state = McpDiscoveryState(
+            state = McpState(
                 user_id=user_id,
                 session_id=session_id,
                 discovered_servers={},
@@ -287,12 +287,169 @@ class RedisDiscoveryManager(McpDiscoveryManager):
         state = await self.load_discovery(user_id, session_id)
         return state.discovery_completed if state else False
 
-    def _serialize(self, state: McpDiscoveryState) -> str:
+    async def store_mcp_session(
+        self,
+        user_id: str,
+        session_id: str,
+        server_name: str,
+        mcp_session_id: str
+    ) -> None:
         """
-        Serialize discovery state to JSON.
+        Store MCP session ID for a server using atomic Lua script.
 
         Args:
-            state: Discovery state to serialize
+            user_id: User ID
+            session_id: Teal agent session ID
+            server_name: Name of the MCP server
+            mcp_session_id: MCP session ID from server
+        """
+        key = self._make_key(user_id, session_id)
+
+        # Lua script for atomic store operation
+        lua_script = """
+        local key = KEYS[1]
+        local ttl = tonumber(ARGV[1])
+        local server_name = ARGV[2]
+        local mcp_session_id = ARGV[3]
+        local timestamp = ARGV[4]
+
+        local data = redis.call('GET', key)
+        local obj
+
+        if data then
+            -- State exists, update it
+            obj = cjson.decode(data)
+        else
+            -- State doesn't exist, create minimal state
+            obj = {
+                user_id = ARGV[5],
+                session_id = ARGV[6],
+                discovered_servers = {},
+                discovery_completed = false,
+                created_at = timestamp
+            }
+        end
+
+        -- Ensure server entry exists
+        if not obj.discovered_servers[server_name] then
+            obj.discovered_servers[server_name] = {}
+        end
+
+        -- Store session data
+        obj.discovered_servers[server_name].mcp_session_id = mcp_session_id
+        obj.discovered_servers[server_name].created_at = timestamp
+        obj.discovered_servers[server_name].last_used_at = timestamp
+
+        local updated_data = cjson.encode(obj)
+        redis.call('SET', key, updated_data, 'EX', ttl)
+        return 1
+        """
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+        await self.redis.eval(
+            lua_script, 1, key, self.ttl, server_name, mcp_session_id, timestamp, user_id, session_id
+        )
+
+        logger.debug(
+            f"Stored MCP session {mcp_session_id} for server={server_name}, "
+            f"user={user_id}, session={session_id}"
+        )
+
+    async def get_mcp_session(
+        self,
+        user_id: str,
+        session_id: str,
+        server_name: str
+    ) -> Optional[str]:
+        """
+        Get MCP session ID for a server.
+
+        Args:
+            user_id: User ID
+            session_id: Teal agent session ID
+            server_name: Name of the MCP server
+
+        Returns:
+            MCP session ID if exists, None otherwise
+        """
+        state = await self.load_discovery(user_id, session_id)
+
+        if not state:
+            return None
+
+        server_data = state.discovered_servers.get(server_name)
+        if not server_data:
+            return None
+
+        return server_data.get("mcp_session_id")
+
+    async def update_session_last_used(
+        self,
+        user_id: str,
+        session_id: str,
+        server_name: str
+    ) -> None:
+        """
+        Update last_used timestamp using atomic Lua script.
+
+        Args:
+            user_id: User ID
+            session_id: Teal agent session ID
+            server_name: Name of the MCP server
+
+        Raises:
+            DiscoveryUpdateError: If state or server doesn't exist
+        """
+        key = self._make_key(user_id, session_id)
+
+        # Lua script for atomic update
+        lua_script = """
+        local key = KEYS[1]
+        local ttl = tonumber(ARGV[1])
+        local server_name = ARGV[2]
+        local timestamp = ARGV[3]
+
+        local data = redis.call('GET', key)
+        if not data then
+            return 0  -- State not found
+        end
+
+        local obj = cjson.decode(data)
+
+        if not obj.discovered_servers[server_name] then
+            return -1  -- Server not found
+        end
+
+        obj.discovered_servers[server_name].last_used_at = timestamp
+
+        local updated_data = cjson.encode(obj)
+        redis.call('SET', key, updated_data, 'EX', ttl)
+        return 1
+        """
+
+        timestamp = datetime.now(timezone.utc).isoformat()
+        result = await self.redis.eval(lua_script, 1, key, self.ttl, server_name, timestamp)
+
+        if result == 0:
+            raise DiscoveryUpdateError(
+                f"MCP state not found for user={user_id}, session={session_id}"
+            )
+        elif result == -1:
+            raise DiscoveryUpdateError(
+                f"Server {server_name} not found in state for user={user_id}, session={session_id}"
+            )
+
+        logger.debug(
+            f"Updated last_used for server={server_name}, "
+            f"user={user_id}, session={session_id}"
+        )
+
+    def _serialize(self, state: McpState) -> str:
+        """
+        Serialize MCP state to JSON.
+
+        Args:
+            state: MCP state to serialize
 
         Returns:
             JSON string representation
@@ -309,9 +466,9 @@ class RedisDiscoveryManager(McpDiscoveryManager):
 
     def _deserialize(
         self, data: str | bytes, user_id: str, session_id: str
-    ) -> McpDiscoveryState:
+    ) -> McpState:
         """
-        Deserialize JSON to discovery state object.
+        Deserialize JSON to MCP state object.
 
         Args:
             data: JSON string or bytes from Redis
@@ -319,7 +476,7 @@ class RedisDiscoveryManager(McpDiscoveryManager):
             session_id: Session ID (for validation)
 
         Returns:
-            McpDiscoveryState object
+            McpState object
 
         Raises:
             ValueError: If deserialized user_id/session_id don't match parameters
@@ -342,7 +499,7 @@ class RedisDiscoveryManager(McpDiscoveryManager):
                 f"expected session_id '{session_id}'"
             )
 
-        return McpDiscoveryState(
+        return McpState(
             user_id=user_id,
             session_id=session_id,
             discovered_servers=obj["discovered_servers"],

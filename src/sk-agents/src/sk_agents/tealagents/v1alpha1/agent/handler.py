@@ -697,18 +697,6 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         state_ids = TealAgentsV1Alpha1Handler.handle_state_id(inputs)
         session_id, task_id, request_id = state_ids
 
-        # Notify user about MCP server authentication check (only once per session)
-        mcp_servers = self.config.get_agent().mcp_servers
-        show_status = session_id not in self._mcp_status_shown_per_session
-
-        if show_status and mcp_servers and len(mcp_servers) > 0:
-            yield TealAgentsPartialResponse(
-                task_id=task_id,
-                session_id=session_id,
-                request_id=request_id,
-                output_partial="🔍 Checking MCP server authentication...\n\n"
-            )
-
         # Ensure MCP discovery has been performed for this session
         # May return AuthChallengeResponse if auth required during discovery
         discovery_auth_challenge = await self._ensure_session_discovery(
@@ -719,15 +707,20 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             yield discovery_auth_challenge
             return
 
-        # Notify user that MCP authentication is verified (only once per session)
+        # Notify user that MCP is ready (only once per session, after discovery)
+        mcp_servers = self.config.get_agent().mcp_servers
+        show_status = session_id not in self._mcp_status_shown_per_session
+
         if show_status and mcp_servers and len(mcp_servers) > 0:
+            # Build simple server list for message
+            server_names = ", ".join(server.name for server in mcp_servers)
             yield TealAgentsPartialResponse(
                 task_id=task_id,
                 session_id=session_id,
                 request_id=request_id,
-                output_partial="✅ MCP authentication verified\n\n"
+                output_partial=f"✅ MCP initialized ({server_names})\n\n"
             )
-            # Mark this session as having seen the status messages
+            # Mark this session as having seen the status message
             self._mcp_status_shown_per_session.add(session_id)
 
         agent_task = await self._manage_incoming_task(

@@ -336,9 +336,13 @@ class RedisStateManager(McpStateManager):
         end
 
         -- Store session data
-        obj.discovered_servers[server_name].mcp_session_id = mcp_session_id
-        obj.discovered_servers[server_name].created_at = timestamp
-        obj.discovered_servers[server_name].last_used_at = timestamp
+        if not obj.discovered_servers[server_name].session then
+            obj.discovered_servers[server_name].session = {}
+        end
+
+        obj.discovered_servers[server_name].session.mcp_session_id = mcp_session_id
+        obj.discovered_servers[server_name].session.created_at = obj.discovered_servers[server_name].session.created_at or timestamp
+        obj.discovered_servers[server_name].session.last_used_at = timestamp
 
         local updated_data = cjson.encode(obj)
         redis.call('SET', key, updated_data, 'EX', ttl)
@@ -381,7 +385,11 @@ class RedisStateManager(McpStateManager):
         if not server_data:
             return None
 
-        return server_data.get("mcp_session_id")
+        session_bucket = server_data.get("session")
+        if not session_bucket:
+            return None
+
+        return session_bucket.get("mcp_session_id")
 
     async def update_session_last_used(
         self,
@@ -420,7 +428,10 @@ class RedisStateManager(McpStateManager):
             return -1  -- Server not found
         end
 
-        obj.discovered_servers[server_name].last_used_at = timestamp
+        if not obj.discovered_servers[server_name].session then
+            obj.discovered_servers[server_name].session = {}
+        end
+        obj.discovered_servers[server_name].session.last_used_at = timestamp
 
         local updated_data = cjson.encode(obj)
         redis.call('SET', key, updated_data, 'EX', ttl)

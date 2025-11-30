@@ -807,8 +807,10 @@ async def create_mcp_session_with_retry(
     server_config: McpServerConfig,
     connection_stack: AsyncExitStack,
     user_id: str = "default",
-    max_retries: int = 3
-) -> ClientSession:
+    max_retries: int = 3,
+    mcp_session_id: str | None = None,
+    on_stale_session: Callable[[str], Awaitable[None]] | None = None,
+) -> tuple[ClientSession, Callable[[], str | None]]:
     """
     Create MCP session with retry logic for transient failures.
 
@@ -832,7 +834,12 @@ async def create_mcp_session_with_retry(
 
     for attempt in range(max_retries):
         try:
-            session = await create_mcp_session(server_config, connection_stack, user_id)
+            session, get_session_id = await create_mcp_session(
+                server_config,
+                connection_stack,
+                user_id,
+                mcp_session_id=mcp_session_id,
+            )
 
             # If we succeed after retries, log it
             if attempt > 0:
@@ -841,10 +848,18 @@ async def create_mcp_session_with_retry(
                     f"after {attempt + 1} attempt(s)"
                 )
 
-            return session
+            return session, get_session_id
 
         except (ConnectionError, TimeoutError, OSError) as e:
             last_error = e
+
+            # If the first attempt with a stored session id fails, clear and retry fresh once
+            if mcp_session_id and on_stale_session:
+                try:
+                    await on_stale_session(mcp_session_id)
+                except Exception:
+                    logger.debug("Failed to clear stale MCP session id during retry path")
+                mcp_session_id = None
 
             # Don't retry on the last attempt
             if attempt < max_retries - 1:
@@ -862,7 +877,12 @@ async def create_mcp_session_with_retry(
                 )
 
         except Exception as e:
-            # Non-retryable errors (configuration issues, protocol errors, etc.)
+            # If failure might be due to stale session id, clear once then re-raise
+            if mcp_session_id and on_stale_session:
+                try:
+                    await on_stale_session(mcp_session_id)
+                except Exception:
+                    logger.debug("Failed to clear stale MCP session id during retry path")
             logger.error(
                 f"Non-retryable error connecting to MCP server '{server_config.name}': {e}"
             )
@@ -875,7 +895,12 @@ async def create_mcp_session_with_retry(
     ) from last_error
 
 
-async def create_mcp_session(server_config: McpServerConfig, connection_stack: AsyncExitStack, user_id: str = "default") -> ClientSession:
+async def create_mcp_session(
+    server_config: McpServerConfig,
+    connection_stack: AsyncExitStack,
+    user_id: str = "default",
+    mcp_session_id: str | None = None,
+) -> tuple[ClientSession, Callable[[], str | None]]:
     """Create MCP session using SDK transport factories."""
     transport_type = server_config.transport
     
@@ -896,7 +921,7 @@ async def create_mcp_session(server_config: McpServerConfig, connection_stack: A
         )
 
         await initialize_mcp_session(session, server_config.name)
-        return session
+        return session, (lambda: None)
         
     elif transport_type == "http":
         # Resolve auth headers for HTTP transport
@@ -908,7 +933,7 @@ async def create_mcp_session(server_config: McpServerConfig, connection_stack: A
 
             # Create custom httpx client factory if SSL verification is disabled
             httpx_client_factory = None
-            if not server_config.verify_ssl:
+            if getattr(server_config, "verify_ssl", True) is False:
                 logger.warning(
                     f"SSL verification disabled for MCP server '{server_config.name}'. "
                     f"Creating custom httpx client factory with verify=False"
@@ -940,10 +965,15 @@ async def create_mcp_session(server_config: McpServerConfig, connection_stack: A
                 httpx_client_factory = create_insecure_http_client
 
             # Build kwargs for streamablehttp_client
+            headers_with_session = resolved_headers.copy()
+            if mcp_session_id:
+                headers_with_session["Mcp-Session-Id"] = mcp_session_id
+
             client_kwargs = {
                 "url": server_config.url,
-                "headers": resolved_headers,
+                "headers": headers_with_session,
                 "timeout": server_config.timeout or 30.0,
+                "sse_read_timeout": server_config.sse_read_timeout or 300.0,
             }
             if httpx_client_factory is not None:
                 client_kwargs["httpx_client_factory"] = httpx_client_factory
@@ -952,7 +982,7 @@ async def create_mcp_session(server_config: McpServerConfig, connection_stack: A
                 logger.debug(f"No custom httpx_client_factory for {server_config.name}, using default SSL verification")
 
             # Use streamable HTTP transport
-            read, write, _ = await connection_stack.enter_async_context(
+            read, write, get_session_id = await connection_stack.enter_async_context(
                 streamablehttp_client(**client_kwargs)
             )
             session = await connection_stack.enter_async_context(
@@ -960,7 +990,7 @@ async def create_mcp_session(server_config: McpServerConfig, connection_stack: A
             )
 
             await initialize_mcp_session(session, server_config.name)
-            return session
+            return session, get_session_id
             
         except ImportError:
             raise NotImplementedError(
@@ -1051,44 +1081,93 @@ class McpTool:
         self.server_config = server_config
         self.server_name = server_name
 
-    async def invoke(self, user_id: str, **kwargs) -> str:
+    async def invoke(
+        self,
+        user_id: str,
+        session_id: str | None = None,
+        discovery_manager=None,
+        **kwargs,
+    ) -> str:
         """
-        Invoke the MCP tool with stateless connection.
-
-        Creates a temporary connection, executes the tool, and closes the connection.
-        This follows the "connect_and_execute" pattern.
+        Invoke the MCP tool with session-aware connection and fallback.
         """
         try:
-            # Validate inputs against schema
             if self.input_schema:
                 self._validate_inputs(kwargs)
 
-            # Stateless execution: connect → execute → close
-            async with AsyncExitStack() as stack:
-                # Create temporary connection
-                session = await create_mcp_session(
-                    self.server_config,
-                    stack,
-                    user_id
+            stored_session_id = None
+            if discovery_manager and session_id:
+                stored_session_id = await discovery_manager.get_mcp_session(
+                    user_id, session_id, self.server_name
                 )
 
-                logger.debug(f"Executing MCP tool: {self.server_name}.{self.tool_name}")
+            async def clear_stored_session():
+                if not (discovery_manager and session_id):
+                    return
+                state = await discovery_manager.load_discovery(user_id, session_id)
+                if state and self.server_name in state.discovered_servers:
+                    entry = state.discovered_servers[self.server_name]
+                    if "session" in entry:
+                        entry.pop("session", None)
+                        state.discovered_servers[self.server_name] = entry
+                        await discovery_manager.update_discovery(state)
 
-                # Execute tool
-                result = await session.call_tool(self.tool_name, kwargs)
+            async def connect_with(session_hint: str | None):
+                stack = AsyncExitStack()
+                session, get_session_id = await create_mcp_session_with_retry(
+                    self.server_config,
+                    stack,
+                    user_id,
+                    mcp_session_id=session_hint,
+                    on_stale_session=lambda sid: clear_stored_session(),
+                )
+                return stack, session, get_session_id
 
-                # Parse result
-                parsed_result = self._parse_result(result)
+            async def execute_with_stack(stack: AsyncExitStack, session, get_session_id, active_session_id: str | None):
+                try:
+                    logger.debug(f"Executing MCP tool: {self.server_name}.{self.tool_name}")
+                    result = await session.call_tool(self.tool_name, kwargs)
+                    parsed = self._parse_result(result)
 
-                logger.debug(f"MCP tool {self.tool_name} completed successfully")
+                    # Persist/refresh session id
+                    if discovery_manager and session_id:
+                        new_session_id = get_session_id() if get_session_id else None
+                        effective_session_id = new_session_id or active_session_id
+                        if effective_session_id:
+                            await discovery_manager.store_mcp_session(
+                                user_id,
+                                session_id,
+                                self.server_name,
+                                effective_session_id,
+                            )
+                            await discovery_manager.update_session_last_used(
+                                user_id, session_id, self.server_name
+                            )
 
-                # Connection auto-closes when exiting context
-                return parsed_result
+                    logger.debug(f"MCP tool {self.tool_name} completed successfully")
+                    return parsed
+                finally:
+                    await stack.aclose()
+
+            # First attempt (possibly with stored session id)
+            stack, session, get_session_id = await connect_with(stored_session_id)
+            try:
+                return await execute_with_stack(stack, session, get_session_id, stored_session_id)
+            except Exception:
+                # If we used a stored session and it failed, clear and retry once fresh
+                if stored_session_id:
+                    logger.info(
+                        f"Stored MCP session rejected for {self.server_name}; "
+                        f"session_id={stored_session_id}. Retrying without session."
+                    )
+                    await clear_stored_session()
+                    stack, session, get_session_id = await connect_with(None)
+                    return await execute_with_stack(stack, session, get_session_id, None)
+                raise
 
         except Exception as e:
             logger.error(f"Error invoking MCP tool {self.tool_name}: {e}")
 
-            # Provide helpful error messages
             error_msg = str(e).lower()
             if 'timeout' in error_msg:
                 raise RuntimeError(f"MCP tool '{self.tool_name}' timed out. Check server responsiveness.") from e
@@ -1157,6 +1236,8 @@ class McpPlugin(BasePlugin):
         user_id: User ID for OAuth2 token resolution (REQUIRED for MCP)
         authorization: Optional standard authorization header (rarely used with MCP)
         extra_data_collector: Optional collector for extra response data
+        session_id: Teal agent session id (for MCP session reuse)
+        discovery_manager: McpStateManager to persist/reuse MCP sessions
 
     Raises:
         ValueError: If user_id is not provided (MCP requirement)
@@ -1180,7 +1261,9 @@ class McpPlugin(BasePlugin):
         server_name: str,
         user_id: str,
         authorization: str | None = None,
-        extra_data_collector=None
+        extra_data_collector=None,
+        session_id: str | None = None,
+        discovery_manager=None,
     ):
         if not user_id:
             raise ValueError(
@@ -1192,6 +1275,8 @@ class McpPlugin(BasePlugin):
         self.tools = tools
         self.server_name = server_name
         self.user_id = user_id
+        self.session_id = session_id
+        self.discovery_manager = discovery_manager
 
         # Dynamically add kernel functions for each tool
         for tool in tools:
@@ -1215,7 +1300,12 @@ class McpPlugin(BasePlugin):
                 description=f"[{self.server_name}] {captured_tool.description}",
             )
             async def tool_function(**kwargs):
-                return await captured_tool.invoke(self.user_id, **kwargs)
+                return await captured_tool.invoke(
+                    user_id=self.user_id,
+                    session_id=self.session_id,
+                    discovery_manager=self.discovery_manager,
+                    **kwargs,
+                )
 
             # CRITICAL FIX: Override __kernel_function_parameters__ after decoration
             # This is the CORRECT way to set function parameters in Semantic Kernel

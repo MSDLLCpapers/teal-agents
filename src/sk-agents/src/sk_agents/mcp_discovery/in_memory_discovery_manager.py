@@ -225,14 +225,25 @@ class InMemoryStateManager(McpStateManager):
                 )
                 self._storage[key] = state
 
-            # Ensure server entry exists
-            if server_name not in state.discovered_servers:
-                state.discovered_servers[server_name] = {}
+            # Ensure server entry exists and preserve plugin_data if present
+            existing_entry = state.discovered_servers.get(server_name, {})
+            plugin_data = existing_entry.get("plugin_data")
+            state.discovered_servers[server_name] = {
+                "plugin_data": plugin_data,
+                **({"session": existing_entry.get("session")} if existing_entry.get("session") else {}),
+            }
 
             # Store session data
-            state.discovered_servers[server_name]["mcp_session_id"] = mcp_session_id
-            state.discovered_servers[server_name]["created_at"] = datetime.now(timezone.utc).isoformat()
-            state.discovered_servers[server_name]["last_used_at"] = datetime.now(timezone.utc).isoformat()
+            session_bucket = state.discovered_servers[server_name].get("session", {})
+            now_iso = datetime.now(timezone.utc).isoformat()
+            session_bucket.update(
+                {
+                    "mcp_session_id": mcp_session_id,
+                    "created_at": session_bucket.get("created_at", now_iso),
+                    "last_used_at": now_iso,
+                }
+            )
+            state.discovered_servers[server_name]["session"] = session_bucket
 
             logger.debug(
                 f"Stored MCP session {mcp_session_id} for server={server_name}, "
@@ -267,7 +278,10 @@ class InMemoryStateManager(McpStateManager):
             if not server_data:
                 return None
 
-            return server_data.get("mcp_session_id")
+            session_bucket = server_data.get("session")
+            if not session_bucket:
+                return None
+            return session_bucket.get("mcp_session_id")
 
     async def update_session_last_used(
         self,
@@ -300,7 +314,11 @@ class InMemoryStateManager(McpStateManager):
                     f"Server {server_name} not found in state for user={user_id}, session={session_id}"
                 )
 
-            state.discovered_servers[server_name]["last_used_at"] = datetime.now(timezone.utc).isoformat()
+            session_bucket = state.discovered_servers[server_name].get("session")
+            if not session_bucket:
+                session_bucket = {}
+            session_bucket["last_used_at"] = datetime.now(timezone.utc).isoformat()
+            state.discovered_servers[server_name]["session"] = session_bucket
 
             logger.debug(
                 f"Updated last_used for server={server_name}, "

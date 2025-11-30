@@ -7,6 +7,7 @@ making MCP tools behave like non-MCP code that exists in the codebase.
 
 import logging
 from contextlib import AsyncExitStack
+from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 from sk_agents.mcp_client import (
@@ -103,10 +104,25 @@ class McpPluginRegistry:
         for server_config in mcp_servers:
             try:
                 # Discover this server
-                plugin_data = await cls._discover_server(server_config, user_id)
+                plugin_data, discovered_session_id = await cls._discover_server(server_config, user_id)
 
-                # Store serialized plugin data
-                state.discovered_servers[server_config.name] = plugin_data
+                # Preserve any existing session bucket
+                existing_entry = state.discovered_servers.get(server_config.name, {})
+                session_bucket = existing_entry.get("session") or {}
+
+                # If discovery yielded a session id, update the session bucket now
+                if discovered_session_id:
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    session_bucket = {
+                        "mcp_session_id": discovered_session_id,
+                        "created_at": session_bucket.get("created_at", now_iso),
+                        "last_used_at": now_iso,
+                    }
+
+                state.discovered_servers[server_config.name] = {
+                    "plugin_data": plugin_data,
+                    **({"session": session_bucket} if session_bucket else {}),
+                }
 
                 # Update external storage
                 await discovery_manager.update_discovery(state)
@@ -147,12 +163,12 @@ class McpPluginRegistry:
         logger.info(f"MCP discovery complete for session {session_id}. Discovered {len(state.discovered_servers)} servers")
 
     @classmethod
-    async def _discover_server(cls, server_config: McpServerConfig, user_id: str) -> Dict:
+    async def _discover_server(cls, server_config: McpServerConfig, user_id: str) -> tuple[Dict, str | None]:
         """
         Discover tools from a single MCP server.
 
         Returns:
-            Dict: Serialized plugin data for storage
+            Tuple: (Serialized plugin data, optional mcp_session_id)
         """
         logger.info(f"Discovering tools from MCP server: {server_config.name}")
 
@@ -201,7 +217,7 @@ class McpPluginRegistry:
         # Temporary connection for discovery
         async with AsyncExitStack() as stack:
             # Create temp connection
-            session = await create_mcp_session(server_config, stack, user_id)
+            session, get_session_id = await create_mcp_session(server_config, stack, user_id)
 
             # List available tools
             tools_result = await session.list_tools()
@@ -227,10 +243,12 @@ class McpPluginRegistry:
             # Serialize plugin data for storage
             plugin_data = cls._serialize_plugin_data(mcp_tools, server_config.name)
 
+            session_identifier = get_session_id() if get_session_id else None
+
             logger.info(f"Discovered {len(mcp_tools)} tools from {server_config.name}")
             # Connection auto-closes when exiting context
 
-            return plugin_data
+            return plugin_data, session_identifier
 
     @classmethod
     def _register_tool_in_catalog(cls, tool_info: Any, server_config: McpServerConfig) -> None:
@@ -348,13 +366,22 @@ class McpPluginRegistry:
         """
         def create_class(tools_list, srv_name):
             class DynamicMcpPlugin(McpPlugin):
-                def __init__(self, user_id: str, authorization=None, extra_data_collector=None):
+                def __init__(
+                    self,
+                    user_id: str,
+                    authorization=None,
+                    extra_data_collector=None,
+                    session_id: str | None = None,
+                    discovery_manager=None,
+                ):
                     super().__init__(
                         tools=tools_list,
                         server_name=srv_name,
                         user_id=user_id,
                         authorization=authorization,
-                        extra_data_collector=extra_data_collector
+                        extra_data_collector=extra_data_collector,
+                        session_id=session_id,
+                        discovery_manager=discovery_manager,
                     )
 
             # Set a meaningful class name
@@ -387,7 +414,9 @@ class McpPluginRegistry:
 
         # Deserialize plugin classes
         plugin_classes = {}
-        for server_name, plugin_data in state.discovered_servers.items():
+        for server_name, entry in state.discovered_servers.items():
+            plugin_blob = entry.get("plugin_data") if isinstance(entry, dict) else None
+            plugin_data = plugin_blob if plugin_blob else entry  # fallback to legacy shape
             plugin_class = cls._deserialize_plugin_data(plugin_data)
             plugin_classes[server_name] = plugin_class
 

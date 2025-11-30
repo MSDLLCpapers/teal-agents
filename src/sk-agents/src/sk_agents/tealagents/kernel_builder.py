@@ -145,7 +145,9 @@ class KernelBuilder:
                 plugin_instance = plugin_class(
                     user_id=user_id,
                     authorization=self.authorization,
-                    extra_data_collector=None  # Can be passed if needed
+                    extra_data_collector=None,  # Can be passed if needed
+                    session_id=session_id,
+                    discovery_manager=mcp_discovery_manager,
                 )
 
                 # Register with kernel (same pattern as non-MCP!)

@@ -22,6 +22,7 @@ class McpServerConfig(BaseModel):
     headers: Optional[Dict[str, str]] = None  # Non-sensitive headers only
     timeout: Optional[float] = None  # Will be set automatically if not provided
     sse_read_timeout: Optional[float] = None  # Will be set automatically if not provided
+    verify_ssl: bool = True  # Allow opt-out for dev; defaults to verified SSL
 
     # Server-level authentication for tool catalog integration
     auth_server: Optional[str] = None  # OAuth2 authorization server URL

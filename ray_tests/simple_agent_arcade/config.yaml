@@ -1,0 +1,38 @@
+apiVersion: tealagents/v1alpha1
+kind: Chat
+description: >
+  Simple file assistant agent that can read and search local files
+name: FileAssistant
+version: 0.1
+input_type: BaseInput
+spec:
+  agent:
+    name: file_agent
+    role: File Assistant
+    model: gpt-5-2025-08-07
+    reasoning_effort: low
+    system_prompt: >
+      You are a helpful assistant with access to various tools and functions.
+
+      When users ask questions:
+      - Use the available tools to provide accurate, up-to-date information
+      - Choose the most appropriate tool for the task at hand
+      - Always prefer using tools over guessing or providing generic advice
+      - If you have access to tools that can query official documentation or authoritative sources, use them
+
+      Be direct and helpful in your responses.
+
+    plugins:
+      - FilePlugin
+    mcp_servers:
+      - name: arcade
+        transport: http
+        url: https://api.arcade.dev/mcp/dandavi3
+        headers:
+          Authorization: "Bearer ${GATEWAY_TOKEN}"
+          Arcade-User-Id: "david.daniel@merck.com"
+        trust_level: trusted
+        verify_ssl: false
+
+    toolset-gateway: 
+      url: https://api.arcade.dev/mcp/dandavi3

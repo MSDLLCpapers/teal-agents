@@ -11,10 +11,10 @@
 test.pptx
 .DS_Store
 .vscode
-.claude/
+*/.claude/
 .gemini/
 customization/
-ray_tests/
+ray_tests/test_env/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

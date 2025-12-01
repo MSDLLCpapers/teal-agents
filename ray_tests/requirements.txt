@@ -1,0 +1,30 @@
+# Requirements for Teal Agents Test Suite
+# This virtual environment is shared across all test agents in ray_tests/
+
+# Core dependencies for test agents
+httpx>=0.27.0              # Async HTTP client (for Merck API integration)
+python-dotenv>=1.0.0       # Environment variable management
+uvicorn>=0.30.0            # ASGI server for running FastAPI agents
+fastapi>=0.115.0           # Web framework (already in sk-agents but explicit here)
+
+# CLI and display dependencies
+prompt-toolkit>=3.0.0      # Interactive CLI with auto-completion
+rich>=13.0.0               # Rich text and beautiful formatting in terminal
+
+# Additional HTTP and data handling
+requests>=2.31.0           # HTTP library for OAuth and API testing
+pydantic-yaml>=1.0.0       # YAML parsing with Pydantic models
+openai>=1.0.0              # OpenAI SDK for testing compatibility
+
+# Install sk-agents and ska-utils in editable mode
+# This allows us to use the local development versions
+-e ../src/sk-agents
+-e ../shared/ska_utils
+
+# Note: The above editable installs will pull in all their dependencies including:
+# - semantic-kernel
+# - pydantic
+# - pyyaml
+# - anthropic
+# - boto3
+# - and all other sk-agents dependencies

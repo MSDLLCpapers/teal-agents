@@ -9,8 +9,8 @@ spec:
   agent:
     name: file_agent
     role: File Assistant
-    model: gpt-5-2025-08-07
-    reasoning_effort: low
+    model: gpt-4o-mini #gpt-5-mini #gpt-5-2025-08-07
+    # reasoning_effort: low
     system_prompt: >
       You are a helpful assistant with access to various tools and functions.
 

@@ -392,6 +392,7 @@ class McpPluginRegistry:
                     extra_data_collector=None,
                     session_id: str | None = None,
                     discovery_manager=None,
+                    **kwargs,
                 ):
                     super().__init__(
                         tools=tools_list,
@@ -401,6 +402,7 @@ class McpPluginRegistry:
                         extra_data_collector=extra_data_collector,
                         session_id=session_id,
                         discovery_manager=discovery_manager,
+                        **kwargs,
                     )
 
             # Set a meaningful class name

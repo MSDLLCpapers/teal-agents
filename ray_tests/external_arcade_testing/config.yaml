@@ -27,10 +27,12 @@ spec:
     mcp_servers:
       - name: arcade
         transport: http
-        url: https://api.arcade.dev/mcp/map-test-1  # from Arcade dashboard
+        url: https://api.arcade.dev/mcp/ray-test-1  # from Arcade dashboard
         headers:
           Authorization: "Bearer ${ARCADE_TOKEN}"
-          # Arcade-User-Id: "suzirui28@gmail.com"
+        user_id_header: Arcade-User-Id
+        user_id_source: env          # or "auth"
+        user_id_env_var: ARCADE_USER_ID 
         trust_level: trusted
         verify_ssl: true   # recommended; only disable if you truly must
 

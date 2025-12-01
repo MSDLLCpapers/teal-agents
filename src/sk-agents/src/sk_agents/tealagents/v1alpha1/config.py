@@ -37,6 +37,11 @@ class McpServerConfig(BaseModel):
     # Request-level timeout for individual MCP operations (seconds)
     request_timeout: Optional[float] = 30.0
 
+    # Optional per-server user header injection (opt-in)
+    user_id_header: Optional[str] = None          # e.g., "Arcade-User-Id"
+    user_id_source: Optional[Literal["auth", "env"]] = None  # where to read the value
+    user_id_env_var: Optional[str] = None         # env var name when source == "env"
+
     # OAuth 2.1 Configuration (MCP Compliance)
     oauth_client_id: Optional[str] = None  # Pre-registered OAuth client ID
     oauth_client_secret: Optional[str] = None  # Client secret (confidential clients only)

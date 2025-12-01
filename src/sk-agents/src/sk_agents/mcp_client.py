@@ -14,6 +14,7 @@ WebSocket support will be added when it becomes available in the MCP SDK.
 import asyncio
 import inspect
 import logging
+import os
 from typing import Any, Dict, List, Optional, Callable, Awaitable
 from contextlib import AsyncExitStack
 from abc import ABC, abstractmethod
@@ -515,6 +516,25 @@ async def resolve_server_auth_headers(
     """
     headers = {}
 
+    # Optional per-server user header injection (opt-in via config)
+    if server_config.user_id_header:
+        header_name = server_config.user_id_header
+        source = server_config.user_id_source
+        if source == "auth" and user_id and user_id != "default":
+            headers[header_name] = user_id
+            logger.info(f"Set {header_name} from auth user_id for {server_config.name}")
+        elif source == "env":
+            env_var = server_config.user_id_env_var or header_name.upper()
+            env_val = os.getenv(env_var)
+            if env_val:
+                headers[header_name] = env_val
+                logger.info(f"Set {header_name} from env {env_var} for {server_config.name}")
+            else:
+                logger.warning(
+                    f"user_id_source=env configured for {server_config.name} "
+                    f"but env var {env_var} is not set"
+                )
+
     # Start with any manually configured headers
     if server_config.headers:
         # If OAuth is configured, filter out Authorization headers (OAuth takes precedence)
@@ -528,6 +548,15 @@ async def resolve_server_auth_headers(
                 )
                 continue
             headers[header_key] = header_value
+
+    # Override Arcade-User-Id with runtime user_id; fallback to env when user_id is default/absent
+    fallback_arcade_user = os.getenv("ARCADE_USER_ID")
+    if user_id and user_id != "default":
+        headers["Arcade-User-Id"] = user_id
+        logger.info(f"Overriding Arcade-User-Id header with runtime user: {user_id}")
+    elif fallback_arcade_user:
+        headers["Arcade-User-Id"] = fallback_arcade_user
+        logger.info(f"Using fallback Arcade-User-Id from env: {fallback_arcade_user}")
 
     # If server has OAuth configuration, resolve tokens using OAuth flow
     if server_config.auth_server and server_config.scopes:

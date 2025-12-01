@@ -460,6 +460,7 @@ class RedisStateManager(McpStateManager):
         user_id: str,
         session_id: str,
         server_name: str,
+        expected_session_id: str | None = None,
     ) -> None:
         """Remove stored MCP session info for a server if present."""
         key = self._make_key(user_id, session_id)
@@ -468,6 +469,7 @@ class RedisStateManager(McpStateManager):
         local key = KEYS[1]
         local server_name = ARGV[1]
         local ttl = tonumber(ARGV[2])
+        local expected_session_id = ARGV[3]
 
         local data = redis.call('GET', key)
         if not data then
@@ -479,6 +481,16 @@ class RedisStateManager(McpStateManager):
             return -1 -- server missing
         end
 
+        -- Only clear if expected matches or no expectation provided
+        if obj.discovered_servers[server_name].session then
+            local current = obj.discovered_servers[server_name].session.mcp_session_id
+            if expected_session_id ~= nil and expected_session_id ~= '' then
+                if current ~= expected_session_id then
+                    return -2  -- session changed, skip clear
+                end
+            end
+        end
+
         obj.discovered_servers[server_name].session = nil
 
         local updated_data = cjson.encode(obj)
@@ -486,7 +498,8 @@ class RedisStateManager(McpStateManager):
         return 1
         """
 
-        result = await self.redis.eval(lua_script, 1, key, server_name, self.ttl)
+        expected_arg = expected_session_id or ""
+        result = await self.redis.eval(lua_script, 1, key, server_name, self.ttl, expected_arg)
         if result == 0:
             logger.debug(
                 f"clear_mcp_session: state missing for user={user_id}, session={session_id}"
@@ -494,6 +507,10 @@ class RedisStateManager(McpStateManager):
         elif result == -1:
             logger.debug(
                 f"clear_mcp_session: server missing for user={user_id}, session={session_id}, server={server_name}"
+            )
+        elif result == -2:
+            logger.debug(
+                f"clear_mcp_session: session changed for user={user_id}, session={session_id}, server={server_name}"
             )
         else:
             logger.debug(

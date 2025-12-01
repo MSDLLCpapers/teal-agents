@@ -330,6 +330,7 @@ class InMemoryStateManager(McpStateManager):
         user_id: str,
         session_id: str,
         server_name: str,
+        expected_session_id: str | None = None,
     ) -> None:
         """Remove stored MCP session info for a server if present."""
         async with self._lock:
@@ -341,6 +342,11 @@ class InMemoryStateManager(McpStateManager):
             if not entry:
                 return
             if "session" in entry:
+                if expected_session_id:
+                    current = entry.get("session", {}).get("mcp_session_id")
+                    if current and current != expected_session_id:
+                        # Another session already replaced it; do not clear
+                        return
                 entry.pop("session", None)
                 state.discovered_servers[server_name] = entry
                 logger.debug(

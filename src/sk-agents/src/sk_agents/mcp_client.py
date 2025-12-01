@@ -1101,11 +1101,16 @@ class McpTool:
                     user_id, session_id, self.server_name
                 )
 
-            async def clear_stored_session():
+            async def clear_stored_session(expected_session_id: str | None = None):
                 if not (discovery_manager and session_id):
                     return
                 try:
-                    await discovery_manager.clear_mcp_session(user_id, session_id, self.server_name)
+                    await discovery_manager.clear_mcp_session(
+                        user_id,
+                        session_id,
+                        self.server_name,
+                        expected_session_id=expected_session_id,
+                    )
                     logger.info(
                         f"Cleared stored MCP session for server={self.server_name}, user={user_id}, session={session_id}"
                     )
@@ -1134,15 +1139,21 @@ class McpTool:
                         new_session_id = get_session_id() if get_session_id else None
                         effective_session_id = new_session_id or active_session_id
                         if effective_session_id:
-                            await discovery_manager.store_mcp_session(
-                                user_id,
-                                session_id,
-                                self.server_name,
-                                effective_session_id,
-                            )
-                            await discovery_manager.update_session_last_used(
-                                user_id, session_id, self.server_name
-                            )
+                            try:
+                                await discovery_manager.store_mcp_session(
+                                    user_id,
+                                    session_id,
+                                    self.server_name,
+                                    effective_session_id,
+                                )
+                                await discovery_manager.update_session_last_used(
+                                    user_id, session_id, self.server_name
+                                )
+                            except Exception as storage_err:
+                                logger.warning(
+                                    f"Failed to persist MCP session for {self.server_name}: {storage_err}. "
+                                    f"Tool execution succeeded but session reuse may be skipped."
+                                )
 
                     logger.debug(f"MCP tool {self.tool_name} completed successfully")
                     return parsed
@@ -1167,10 +1178,10 @@ class McpTool:
                         f"Stored MCP session rejected for {self.server_name}; "
                         f"session_id={stored_session_id}. Retrying without session."
                     )
-                    await clear_stored_session()
+                    await clear_stored_session(stored_session_id)
                     stack, session, get_session_id = await connect_with(None)
                     return await execute_with_stack(stack, session, get_session_id, None)
-                raise
+            raise
 
         except Exception as e:
             logger.error(f"Error invoking MCP tool {self.tool_name}: {e}")

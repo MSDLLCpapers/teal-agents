@@ -245,6 +245,7 @@ class McpStateManager(ABC):
         user_id: str,
         session_id: str,
         server_name: str,
+        expected_session_id: str | None = None,
     ) -> None:
         """
         Clear the stored MCP session for a given server (if present).
@@ -253,5 +254,6 @@ class McpStateManager(ABC):
             user_id: User ID
             session_id: Teal agent session ID
             server_name: Name of the MCP server
+            expected_session_id: Optional session id to match before clearing
         """
         pass

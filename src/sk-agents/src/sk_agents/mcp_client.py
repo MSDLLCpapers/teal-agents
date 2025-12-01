@@ -24,6 +24,7 @@ import httpx
 from mcp import ClientSession, StdioServerParameters
 from semantic_kernel.functions import kernel_function
 from semantic_kernel.kernel import Kernel
+from ska_utils import AppConfig
 
 from sk_agents.ska_types import BasePlugin
 from sk_agents.tealagents.v1alpha1.config import McpServerConfig
@@ -1094,6 +1095,7 @@ class McpTool:
         user_id: str,
         session_id: str | None = None,
         discovery_manager=None,
+        app_config: AppConfig | None = None,
         **kwargs,
     ) -> str:
         """
@@ -1125,6 +1127,8 @@ class McpTool:
                 except Exception as clear_err:
                     logger.debug(f"clear_mcp_session failed silently: {clear_err}")
 
+            effective_app_config = app_config or self.app_config
+
             async def connect_with(session_hint: str | None):
                 stack = AsyncExitStack()
                 session, get_session_id = await create_mcp_session_with_retry(
@@ -1133,7 +1137,7 @@ class McpTool:
                     user_id,
                     mcp_session_id=session_hint,
                     on_stale_session=lambda sid: clear_stored_session(session_hint),
-                    app_config=app_config,
+                    app_config=effective_app_config,
                 )
                 return stack, session, get_session_id
 
@@ -1291,6 +1295,7 @@ class McpPlugin(BasePlugin):
         extra_data_collector=None,
         session_id: str | None = None,
         discovery_manager=None,
+        app_config: AppConfig | None = None,
     ):
         if not user_id:
             raise ValueError(
@@ -1304,6 +1309,8 @@ class McpPlugin(BasePlugin):
         self.user_id = user_id
         self.session_id = session_id
         self.discovery_manager = discovery_manager
+        # Store app_config for downstream MCP auth resolution
+        self.app_config = app_config
 
         # Dynamically add kernel functions for each tool
         for tool in tools:
@@ -1331,6 +1338,7 @@ class McpPlugin(BasePlugin):
                     user_id=self.user_id,
                     session_id=self.session_id,
                     discovery_manager=self.discovery_manager,
+                    app_config=self.app_config,
                     **kwargs,
                 )
 

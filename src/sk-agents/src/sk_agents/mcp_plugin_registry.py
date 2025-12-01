@@ -16,6 +16,7 @@ from sk_agents.mcp_client import (
     apply_trust_level_governance,
     create_mcp_session_with_retry,
     map_mcp_annotations_to_governance,
+    resolve_server_auth_headers,
 )
 from sk_agents.plugin_catalog.models import Governance, Oauth2PluginAuth, PluginTool
 from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
@@ -189,19 +190,19 @@ class McpPluginRegistry:
         """
         logger.info(f"Discovering tools from MCP server: {server_config.name}")
 
-            # Pre-flight auth validation using unified resolver (handles refresh/audience)
-            try:
-                await resolve_server_auth_headers(
-                    server_config,
-                    user_id=user_id,
-                    app_config=app_config,
-                )
-                logger.info(f"Auth verified for {server_config.name}, proceeding with discovery")
-            except AuthRequiredError:
-                raise
-            except Exception as e:
-                logger.error(f"Auth resolution failed for {server_config.name}: {e}")
-                raise
+        # Pre-flight auth validation using unified resolver (handles refresh/audience)
+        try:
+            await resolve_server_auth_headers(
+                server_config,
+                user_id=user_id,
+                app_config=app_config,
+            )
+            logger.info(f"Auth verified for {server_config.name}, proceeding with discovery")
+        except AuthRequiredError:
+            raise
+        except Exception as e:
+            logger.error(f"Auth resolution failed for {server_config.name}: {e}")
+            raise
 
         # Temporary connection for discovery
         async with AsyncExitStack() as stack:

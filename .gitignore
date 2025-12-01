@@ -11,6 +11,8 @@
 test.pptx
 .DS_Store
 .vscode
+.claude/
+.gemini/
 customization/
 ray_tests/
 

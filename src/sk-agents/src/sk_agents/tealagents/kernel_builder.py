@@ -148,6 +148,7 @@ class KernelBuilder:
                     extra_data_collector=None,  # Can be passed if needed
                     session_id=session_id,
                     discovery_manager=mcp_discovery_manager,
+                    app_config=self.app_config,
                 )
 
                 # Register with kernel (same pattern as non-MCP!)

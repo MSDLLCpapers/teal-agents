@@ -148,8 +148,7 @@ class AppV3:
                 config=config,
                 app_config=app_config,
             ),
-            prefix=f"/{name}/{version}",
-            tags=["Utility"]
+            prefix=f"/{name}/{version}"
         )
         
         # Make config and other essentials available to request handlers

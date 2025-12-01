@@ -83,6 +83,5 @@ class AppV1:
                 config=config,
                 app_config=app_config,
             ),
-            prefix=f"/{name}/{version}",
-            tags=["Utility"]
+            prefix=f"/{name}/{version}"
         )

@@ -74,6 +74,7 @@ class McpPluginRegistry:
         user_id: str,
         session_id: str,
         discovery_manager,  # McpStateManager
+        app_config,
     ) -> None:
         """
         Discover MCP tools and store in external state.
@@ -105,7 +106,7 @@ class McpPluginRegistry:
             try:
                 # Discover this server
                 plugin_data, discovered_session_id = await cls._discover_server(
-                    server_config, user_id, session_id, discovery_manager
+                    server_config, user_id, session_id, discovery_manager, app_config
                 )
 
                 # Preserve any existing session bucket
@@ -178,6 +179,7 @@ class McpPluginRegistry:
         user_id: str,
         session_id: str,
         discovery_manager,
+        app_config,
     ) -> tuple[Dict, str | None]:
         """
         Discover tools from a single MCP server.
@@ -187,47 +189,19 @@ class McpPluginRegistry:
         """
         logger.info(f"Discovering tools from MCP server: {server_config.name}")
 
-        # Pre-flight auth validation: Only for OAuth-configured servers
-        # For simple header auth, no pre-flight check needed (credentials in headers)
-        if server_config.auth_server and server_config.scopes:
-            from sk_agents.auth_storage.auth_storage_factory import AuthStorageFactory
-            from sk_agents.mcp_client import build_auth_storage_key, AuthRequiredError
-            from ska_utils import AppConfig
-            from datetime import datetime, timezone
-
-            # Check if user has valid auth token
-            auth_storage_factory = AuthStorageFactory(AppConfig())
-            auth_storage = auth_storage_factory.get_auth_storage_manager()
-
-            composite_key = build_auth_storage_key(
-                server_config.auth_server,
-                server_config.scopes
-            )
-            auth_data = auth_storage.retrieve(user_id, composite_key)
-
-            if not auth_data:
-                logger.warning(
-                    f"Auth required for {server_config.name}: No token found for user {user_id}"
+            # Pre-flight auth validation using unified resolver (handles refresh/audience)
+            try:
+                await resolve_server_auth_headers(
+                    server_config,
+                    user_id=user_id,
+                    app_config=app_config,
                 )
-                raise AuthRequiredError(
-                    server_name=server_config.name,
-                    auth_server=server_config.auth_server,
-                    scopes=server_config.scopes
-                )
-
-            # Validate token expiry
-            if auth_data.expires_at <= datetime.now(timezone.utc):
-                logger.warning(
-                    f"Auth required for {server_config.name}: Token expired at {auth_data.expires_at}"
-                )
-                raise AuthRequiredError(
-                    server_name=server_config.name,
-                    auth_server=server_config.auth_server,
-                    scopes=server_config.scopes,
-                    message=f"Token expired for MCP server '{server_config.name}'"
-                )
-
-            logger.info(f"Auth verified for {server_config.name}, proceeding with discovery")
+                logger.info(f"Auth verified for {server_config.name}, proceeding with discovery")
+            except AuthRequiredError:
+                raise
+            except Exception as e:
+                logger.error(f"Auth resolution failed for {server_config.name}: {e}")
+                raise
 
         # Temporary connection for discovery
         async with AsyncExitStack() as stack:

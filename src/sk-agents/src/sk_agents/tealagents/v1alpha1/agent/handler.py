@@ -127,7 +127,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             )
 
             await McpPluginRegistry.discover_and_materialize(
-                mcp_servers, user_id, session_id, self.discovery_manager
+                mcp_servers, user_id, session_id, self.discovery_manager, self.app_config
             )
 
             await self.discovery_manager.mark_completed(user_id, session_id)
@@ -274,9 +274,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         try:
             from sk_agents.auth_storage.auth_storage_factory import AuthStorageFactory
             from sk_agents.mcp_client import build_auth_storage_key
-            from ska_utils import AppConfig
 
-            auth_storage_factory = AuthStorageFactory(AppConfig())
+            auth_storage_factory = AuthStorageFactory(self.app_config)
             auth_storage = auth_storage_factory.get_auth_storage_manager()
 
             missing_auth_servers = []

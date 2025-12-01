@@ -488,7 +488,11 @@ def apply_governance_overrides(base_governance: Governance, tool_name: str, over
     )
 
 
-async def resolve_server_auth_headers(server_config: McpServerConfig, user_id: str = "default") -> Dict[str, str]:
+async def resolve_server_auth_headers(
+    server_config: McpServerConfig,
+    user_id: str = "default",
+    app_config: AppConfig | None = None,
+) -> Dict[str, str]:
     """
     Resolve authentication headers for MCP server connection.
 
@@ -527,13 +531,14 @@ async def resolve_server_auth_headers(server_config: McpServerConfig, user_id: s
     if server_config.auth_server and server_config.scopes:
         try:
             # Use AuthStorageFactory directly - no wrapper needed
-            from ska_utils import AppConfig
             from sk_agents.auth.oauth_client import OAuthClient
             from sk_agents.auth.oauth_models import RefreshTokenRequest
             from sk_agents.configs import TA_MCP_OAUTH_ENABLE_TOKEN_REFRESH, TA_MCP_OAUTH_ENABLE_AUDIENCE_VALIDATION
             from datetime import datetime, timedelta, timezone
 
-            app_config = AppConfig()
+            if app_config is None:
+                from ska_utils import AppConfig as SkaAppConfig
+                app_config = SkaAppConfig()
             auth_storage_factory = AuthStorageFactory(app_config)
             auth_storage = auth_storage_factory.get_auth_storage_manager()
 
@@ -810,6 +815,7 @@ async def create_mcp_session_with_retry(
     max_retries: int = 3,
     mcp_session_id: str | None = None,
     on_stale_session: Callable[[str], Awaitable[None]] | None = None,
+    app_config: AppConfig | None = None,
 ) -> tuple[ClientSession, Callable[[], str | None]]:
     """
     Create MCP session with retry logic for transient failures.
@@ -839,6 +845,7 @@ async def create_mcp_session_with_retry(
                 connection_stack,
                 user_id,
                 mcp_session_id=mcp_session_id,
+                app_config=app_config,
             )
 
             # If we succeed after retries, log it
@@ -900,6 +907,7 @@ async def create_mcp_session(
     connection_stack: AsyncExitStack,
     user_id: str = "default",
     mcp_session_id: str | None = None,
+    app_config: AppConfig | None = None,
 ) -> tuple[ClientSession, Callable[[], str | None]]:
     """Create MCP session using SDK transport factories."""
     transport_type = server_config.transport
@@ -925,7 +933,7 @@ async def create_mcp_session(
         
     elif transport_type == "http":
         # Resolve auth headers for HTTP transport
-        resolved_headers = await resolve_server_auth_headers(server_config, user_id)
+        resolved_headers = await resolve_server_auth_headers(server_config, user_id, app_config=app_config)
 
         # Try streamable HTTP first (preferred), fall back to SSE
         try:
@@ -1124,7 +1132,8 @@ class McpTool:
                     stack,
                     user_id,
                     mcp_session_id=session_hint,
-                    on_stale_session=lambda sid: clear_stored_session(),
+                    on_stale_session=lambda sid: clear_stored_session(session_hint),
+                    app_config=app_config,
                 )
                 return stack, session, get_session_id
 

@@ -56,6 +56,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
     ):
         self.version = config.version
         self.name = config.name
+        self.app_config = app_config
         if hasattr(config, "spec"):
             self.config = Config(config=config)
         else:

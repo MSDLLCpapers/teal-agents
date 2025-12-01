@@ -7,6 +7,8 @@ bypassing the FastAPI layer for CLI usage.
 
 import asyncio
 import logging
+import os
+import sys
 import uuid
 from pathlib import Path
 from typing import AsyncIterator, Optional
@@ -61,6 +63,10 @@ class DirectAgentClient:
 
         logger.info("Initializing DirectAgentClient...")
 
+        # Ensure project dir is on sys.path so relative plugin/factory modules resolve
+        if str(self.project_dir) not in sys.path:
+            sys.path.insert(0, str(self.project_dir))
+
         # Load environment variables FIRST
         if self.env_path.exists():
             load_dotenv(self.env_path)
@@ -73,12 +79,31 @@ class DirectAgentClient:
         AppConfig.add_configs(platform_configs)
         logger.info("Registered platform configs")
 
-        # Register custom factory configs
-        from merck_chat_completion_factory import MerckChatCompletionFactory
-        factory_configs = MerckChatCompletionFactory.get_configs()
-        if factory_configs:
-            AppConfig.add_configs(factory_configs)
-        logger.info("Registered MerckChatCompletionFactory configs")
+        # Register custom factory configs if provided
+        factory_module = os.getenv("TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE")
+        factory_class = os.getenv("TA_CUSTOM_CHAT_COMPLETION_FACTORY_CLASS_NAME")
+        if factory_module and factory_class:
+            # Ensure relative path resolves from project_dir
+            if not os.path.isabs(factory_module):
+                factory_module = str((self.project_dir / factory_module).resolve())
+                os.environ["TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE"] = factory_module
+            try:
+                module = __import__(
+                    Path(factory_module).stem.replace(".py", ""),
+                    globals(),
+                    locals(),
+                    [factory_class],
+                )
+                MerckChatCompletionFactory = getattr(module, factory_class)
+                factory_configs = MerckChatCompletionFactory.get_configs()
+                if factory_configs:
+                    AppConfig.add_configs(factory_configs)
+                logger.info("Registered custom ChatCompletionFactory configs")
+            except Exception as e:
+                logger.error(f"Failed to load custom ChatCompletionFactory: {e}")
+                raise
+        else:
+            logger.info("No custom ChatCompletionFactory configured; using default")
 
         # Load config.yaml
         if not self.config_path.exists():
@@ -94,6 +119,10 @@ class DirectAgentClient:
         from sk_agents.plugin_loader import get_plugin_loader
         plugin_module_path = app_config.get("TA_PLUGIN_MODULE")
         if plugin_module_path:
+            # Resolve relative plugin module to project directory
+            if not os.path.isabs(plugin_module_path):
+                plugin_module_path = str((self.project_dir / plugin_module_path).resolve())
+                app_config.props["TA_PLUGIN_MODULE"] = plugin_module_path
             plugin_loader = get_plugin_loader(plugin_module_path)
             logger.info(f"Initialized plugin loader with: {plugin_module_path}")
         else:

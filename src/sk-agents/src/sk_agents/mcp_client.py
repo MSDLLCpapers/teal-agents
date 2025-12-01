@@ -1305,6 +1305,7 @@ class McpPlugin(BasePlugin):
         session_id: str | None = None,
         discovery_manager=None,
         app_config: AppConfig | None = None,
+        **kwargs,
     ):
         if not user_id:
             raise ValueError(

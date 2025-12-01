@@ -88,12 +88,12 @@ class DirectAgentClient:
                 factory_module = str((self.project_dir / factory_module).resolve())
                 os.environ["TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE"] = factory_module
             try:
-                module = __import__(
-                    Path(factory_module).stem.replace(".py", ""),
-                    globals(),
-                    locals(),
-                    [factory_class],
-                )
+                module_path = Path(factory_module)
+                module_name = module_path.stem
+                module_dir = str(module_path.parent)
+                if module_dir not in sys.path:
+                    sys.path.insert(0, module_dir)
+                module = __import__(module_name, globals(), locals(), [factory_class])
                 MerckChatCompletionFactory = getattr(module, factory_class)
                 factory_configs = MerckChatCompletionFactory.get_configs()
                 if factory_configs:

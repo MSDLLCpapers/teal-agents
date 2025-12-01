@@ -161,6 +161,14 @@ class McpPluginRegistry:
                     f"Error: {underlying_error}\n"
                     f"Full traceback:\n{error_details}"
                 )
+                
+                # Capture failure in state
+                state.failed_servers[server_config.name] = underlying_error
+                try:
+                    await discovery_manager.update_discovery(state)
+                except Exception as update_err:
+                    logger.error(f"Failed to persist discovery error for {server_config.name}: {update_err}")
+                    
                 continue
 
         # If any servers require auth, raise the first one to trigger auth challenge

@@ -209,7 +209,8 @@ def validate_mcp_sdk_version() -> None:
 async def initialize_mcp_session(
     session: ClientSession,
     server_name: str,
-    server_info_obj: Any = None
+    server_info_obj: Any = None,
+    protocol_version: str = "2025-11-25"
 ) -> Any:
     """
     Initialize MCP session with proper protocol handshake.
@@ -235,7 +236,7 @@ async def initialize_mcp_session(
         # Try with new SDK parameters (MCP SDK >= 1.13.1)
         try:
             init_result = await session.initialize(
-                protocol_version="2025-03-26",
+                protocol_version=protocol_version,
                 client_info={
                     "name": "teal-agents",
                     "version": get_package_version()
@@ -929,7 +930,11 @@ async def create_mcp_session(
             ClientSession(read, write)
         )
 
-        await initialize_mcp_session(session, server_config.name)
+        await initialize_mcp_session(
+            session, 
+            server_config.name, 
+            protocol_version=server_config.protocol_version or "2025-11-25"
+        )
         return session, (lambda: None)
         
     elif transport_type == "http":
@@ -998,7 +1003,11 @@ async def create_mcp_session(
                 ClientSession(read, write)
             )
 
-            await initialize_mcp_session(session, server_config.name)
+            await initialize_mcp_session(
+                session, 
+                server_config.name,
+                protocol_version=server_config.protocol_version or "2025-11-25"
+            )
             return session, get_session_id
             
         except ImportError:

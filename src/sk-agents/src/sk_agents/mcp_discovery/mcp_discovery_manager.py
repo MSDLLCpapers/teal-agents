@@ -55,6 +55,7 @@ class McpState:
         discovered_servers: Dict[str, Dict],
         discovery_completed: bool,
         created_at: Optional[datetime] = None,
+        failed_servers: Optional[Dict[str, str]] = None,
     ):
         """
         Initialize MCP state.
@@ -65,12 +66,14 @@ class McpState:
             discovered_servers: Mapping of server_name to plugin data and session info
             discovery_completed: Whether discovery has finished successfully
             created_at: Timestamp of state creation (defaults to now)
+            failed_servers: Dictionary of failed servers and their error messages
         """
         self.user_id = user_id
         self.session_id = session_id
         self.discovered_servers = discovered_servers
         self.discovery_completed = discovery_completed
         self.created_at = created_at or datetime.now(timezone.utc)
+        self.failed_servers = failed_servers or {}
 
 
 class McpStateManager(ABC):

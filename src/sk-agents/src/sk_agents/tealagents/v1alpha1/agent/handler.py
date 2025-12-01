@@ -711,13 +711,38 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         show_status = session_id not in self._mcp_status_shown_per_session
 
         if show_status and mcp_servers and len(mcp_servers) > 0:
-            # Build simple server list for message
-            server_names = ", ".join(server.name for server in mcp_servers)
+            # Load state to check for failures
+            failed_servers = {}
+            if self.discovery_manager:
+                try:
+                    state = await self.discovery_manager.load_discovery(user_id, session_id)
+                    if state:
+                        failed_servers = state.failed_servers
+                except Exception:
+                    logger.debug("Failed to load discovery state for status message")
+
+            all_server_names = [server.name for server in mcp_servers]
+            successful_servers = [s for s in all_server_names if s not in failed_servers]
+            
+            messages = []
+            if successful_servers:
+                messages.append(f"✅ MCP connected: {', '.join(successful_servers)}")
+            
+            if failed_servers:
+                failed_list = []
+                for name, error in failed_servers.items():
+                    # Truncate error if too long
+                    short_error = (error[:50] + '...') if len(error) > 50 else error
+                    failed_list.append(f"{name} ({short_error})")
+                messages.append(f"⚠️ MCP connection failed: {', '.join(failed_list)}")
+                
+            status_msg = "\n".join(messages) + "\n\n"
+
             yield TealAgentsPartialResponse(
                 task_id=task_id,
                 session_id=session_id,
                 request_id=request_id,
-                output_partial=f"✅ MCP initialized ({server_names})\n\n"
+                output_partial=status_msg
             )
             # Mark this session as having seen the status message
             self._mcp_status_shown_per_session.add(session_id)

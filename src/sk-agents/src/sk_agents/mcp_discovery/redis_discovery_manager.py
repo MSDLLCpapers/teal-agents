@@ -534,6 +534,7 @@ class RedisStateManager(McpStateManager):
                 "discovered_servers": state.discovered_servers,
                 "discovery_completed": state.discovery_completed,
                 "created_at": state.created_at.isoformat(),
+                "failed_servers": state.failed_servers,
             }
         )
 
@@ -578,4 +579,5 @@ class RedisStateManager(McpStateManager):
             discovered_servers=obj["discovered_servers"],
             discovery_completed=obj["discovery_completed"],
             created_at=datetime.fromisoformat(obj["created_at"]),
+            failed_servers=obj.get("failed_servers", {}),
         )

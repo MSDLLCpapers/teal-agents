@@ -324,3 +324,25 @@ class InMemoryStateManager(McpStateManager):
                 f"Updated last_used for server={server_name}, "
                 f"user={user_id}, session={session_id}"
             )
+
+    async def clear_mcp_session(
+        self,
+        user_id: str,
+        session_id: str,
+        server_name: str,
+    ) -> None:
+        """Remove stored MCP session info for a server if present."""
+        async with self._lock:
+            key = self._make_key(user_id, session_id)
+            state = self._storage.get(key)
+            if not state:
+                return
+            entry = state.discovered_servers.get(server_name)
+            if not entry:
+                return
+            if "session" in entry:
+                entry.pop("session", None)
+                state.discovered_servers[server_name] = entry
+                logger.debug(
+                    f"Cleared MCP session for server={server_name}, user={user_id}, session={session_id}"
+                )

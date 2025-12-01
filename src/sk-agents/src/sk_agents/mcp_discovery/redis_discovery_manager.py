@@ -455,6 +455,51 @@ class RedisStateManager(McpStateManager):
             f"user={user_id}, session={session_id}"
         )
 
+    async def clear_mcp_session(
+        self,
+        user_id: str,
+        session_id: str,
+        server_name: str,
+    ) -> None:
+        """Remove stored MCP session info for a server if present."""
+        key = self._make_key(user_id, session_id)
+
+        lua_script = """
+        local key = KEYS[1]
+        local server_name = ARGV[1]
+        local ttl = tonumber(ARGV[2])
+
+        local data = redis.call('GET', key)
+        if not data then
+            return 0 -- state missing
+        end
+
+        local obj = cjson.decode(data)
+        if not obj.discovered_servers[server_name] then
+            return -1 -- server missing
+        end
+
+        obj.discovered_servers[server_name].session = nil
+
+        local updated_data = cjson.encode(obj)
+        redis.call('SET', key, updated_data, 'EX', ttl)
+        return 1
+        """
+
+        result = await self.redis.eval(lua_script, 1, key, server_name, self.ttl)
+        if result == 0:
+            logger.debug(
+                f"clear_mcp_session: state missing for user={user_id}, session={session_id}"
+            )
+        elif result == -1:
+            logger.debug(
+                f"clear_mcp_session: server missing for user={user_id}, session={session_id}, server={server_name}"
+            )
+        else:
+            logger.debug(
+                f"Cleared MCP session for server={server_name}, user={user_id}, session={session_id}"
+            )
+
     def _serialize(self, state: McpState) -> str:
         """
         Serialize MCP state to JSON.

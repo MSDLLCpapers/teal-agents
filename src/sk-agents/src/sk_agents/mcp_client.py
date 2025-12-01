@@ -1104,13 +1104,13 @@ class McpTool:
             async def clear_stored_session():
                 if not (discovery_manager and session_id):
                     return
-                state = await discovery_manager.load_discovery(user_id, session_id)
-                if state and self.server_name in state.discovered_servers:
-                    entry = state.discovered_servers[self.server_name]
-                    if "session" in entry:
-                        entry.pop("session", None)
-                        state.discovered_servers[self.server_name] = entry
-                        await discovery_manager.update_discovery(state)
+                try:
+                    await discovery_manager.clear_mcp_session(user_id, session_id, self.server_name)
+                    logger.info(
+                        f"Cleared stored MCP session for server={self.server_name}, user={user_id}, session={session_id}"
+                    )
+                except Exception as clear_err:
+                    logger.debug(f"clear_mcp_session failed silently: {clear_err}")
 
             async def connect_with(session_hint: str | None):
                 stack = AsyncExitStack()
@@ -1152,7 +1152,12 @@ class McpTool:
             # First attempt (possibly with stored session id)
             stack, session, get_session_id = await connect_with(stored_session_id)
             try:
-                return await execute_with_stack(stack, session, get_session_id, stored_session_id)
+                result = await execute_with_stack(stack, session, get_session_id, stored_session_id)
+                if stored_session_id and not (get_session_id and get_session_id() == stored_session_id):
+                    logger.info(
+                        f"MCP session reused successfully for {self.server_name}; session_id={stored_session_id}"
+                    )
+                return result
             except Exception:
                 # If we used a stored session and it failed, clear and retry once fresh
                 if stored_session_id:

@@ -125,7 +125,20 @@ class McpPluginRegistry:
                 }
 
                 # Update external storage
-                await discovery_manager.update_discovery(state)
+                if not discovered_session_id:
+                    await discovery_manager.update_discovery(state)
+
+                # If discovery yielded a session id, persist via state manager API
+                if discovered_session_id:
+                    await discovery_manager.store_mcp_session(
+                        user_id,
+                        session_id,
+                        server_config.name,
+                        discovered_session_id,
+                    )
+                    await discovery_manager.update_session_last_used(
+                        user_id, session_id, server_config.name
+                    )
 
             except AuthRequiredError as e:
                 # Auth error - collect and surface to user

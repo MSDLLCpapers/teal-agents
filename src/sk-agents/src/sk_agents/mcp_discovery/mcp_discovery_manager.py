@@ -238,3 +238,20 @@ class McpStateManager(ABC):
             DiscoveryUpdateError: If state or server doesn't exist
         """
         pass
+
+    @abstractmethod
+    async def clear_mcp_session(
+        self,
+        user_id: str,
+        session_id: str,
+        server_name: str,
+    ) -> None:
+        """
+        Clear the stored MCP session for a given server (if present).
+
+        Args:
+            user_id: User ID
+            session_id: Teal agent session ID
+            server_name: Name of the MCP server
+        """
+        pass

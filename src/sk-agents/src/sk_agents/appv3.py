@@ -148,9 +148,9 @@ class AppV3:
                 config=config,
                 app_config=app_config,
             ),
-            prefix=f"/{name}/{version}"
+            prefix=f"/{name}/{version}",
         )
-        
+
         # Make config and other essentials available to request handlers
         app.state.config = config
         app.state.app_config = app_config

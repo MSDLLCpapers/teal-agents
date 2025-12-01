@@ -75,7 +75,7 @@ class AppV1:
             ),
             prefix=f"/{name}/{version}",
         )
-        
+
         # Include utility routes for health checks
         utility_routes = UtilityRoutes(start_time=datetime.now())
         app.include_router(
@@ -83,5 +83,5 @@ class AppV1:
                 config=config,
                 app_config=app_config,
             ),
-            prefix=f"/{name}/{version}"
+            prefix=f"/{name}/{version}",
         )

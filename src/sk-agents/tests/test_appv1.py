@@ -59,14 +59,18 @@ def mock_routes():
 class TestAppV1Run:
     """Test AppV1.run method."""
 
+    @patch("sk_agents.appv1.UtilityRoutes")
     @patch("sk_agents.appv1.Routes")
     @patch("sk_agents.appv1.initialize_plugin_loader")
     @patch("sk_agents.appv1.get_type_loader")
+    @patch("sk_agents.appv1.datetime")
     def test_run_with_all_config_properties(
         self,
+        mock_datetime,
         mock_get_type_loader,
         mock_initialize_plugin_loader,
         mock_routes_class,
+        mock_utility_routes_class,
         mock_app_config,
         mock_base_config,
         mock_fastapi_app,
@@ -83,6 +87,15 @@ class TestAppV1Run:
         mock_get_type_loader.return_value = mock_type_loader
         mock_routes_class.get_rest_routes.return_value = MagicMock()
         mock_routes_class.get_websocket_routes.return_value = MagicMock()
+
+        # Mock UtilityRoutes
+        mock_utility_routes = MagicMock()
+        mock_utility_routes.get_health_routes.return_value = MagicMock()
+        mock_utility_routes_class.return_value = mock_utility_routes
+
+        # Mock datetime.now
+        mock_now = MagicMock()
+        mock_datetime.now.return_value = mock_now
 
         AppV1.run(
             name="test-service",
@@ -118,23 +131,34 @@ class TestAppV1Run:
         assert ws_call.kwargs["version"] == "1.0.0"
         assert ws_call.kwargs["root_handler_name"] == "skagents"
 
+        # Verify UtilityRoutes was instantiated with start_time
+        mock_utility_routes_class.assert_called_once_with(start_time=mock_now)
+        mock_utility_routes.get_health_routes.assert_called_once_with(
+            config=mock_base_config,
+            app_config=mock_app_config,
+        )
+
         # Verify routers were added to app with correct prefix
-        assert mock_fastapi_app.include_router.call_count == 2
+        assert mock_fastapi_app.include_router.call_count == 3
         for call in mock_fastapi_app.include_router.call_args_list:
             assert call.kwargs["prefix"] == "/test-service/1.0.0"
 
+    @patch("sk_agents.appv1.UtilityRoutes")
     @patch("sk_agents.appv1.Routes")
     @patch("sk_agents.appv1.initialize_plugin_loader")
     @patch("sk_agents.appv1.get_type_loader")
     @patch("sk_agents.appv1.os.path.exists")
     @patch("sk_agents.appv1.os.path.join")
+    @patch("sk_agents.appv1.datetime")
     def test_run_with_custom_types_file_discovered(
         self,
+        mock_datetime,
         mock_path_join,
         mock_path_exists,
         mock_get_type_loader,
         mock_initialize_plugin_loader,
         mock_routes_class,
+        mock_utility_routes_class,
         mock_app_config,
         mock_base_config,
         mock_fastapi_app,
@@ -155,6 +179,14 @@ class TestAppV1Run:
         mock_routes_class.get_rest_routes.return_value = MagicMock()
         mock_routes_class.get_websocket_routes.return_value = MagicMock()
 
+        # Mock UtilityRoutes
+        mock_utility_routes = MagicMock()
+        mock_utility_routes.get_health_routes.return_value = MagicMock()
+        mock_utility_routes_class.return_value = mock_utility_routes
+
+        # Mock datetime.now
+        mock_datetime.now.return_value = MagicMock()
+
         AppV1.run(
             name="test-service",
             version="1.0.0",
@@ -168,18 +200,22 @@ class TestAppV1Run:
         assert mock_app_config.props[TA_TYPES_MODULE.env_name] == custom_types_path
         mock_get_type_loader.assert_called_once_with(custom_types_path)
 
+    @patch("sk_agents.appv1.UtilityRoutes")
     @patch("sk_agents.appv1.Routes")
     @patch("sk_agents.appv1.initialize_plugin_loader")
     @patch("sk_agents.appv1.get_type_loader")
     @patch("sk_agents.appv1.os.path.exists")
     @patch("sk_agents.appv1.os.path.join")
+    @patch("sk_agents.appv1.datetime")
     def test_run_with_no_custom_types_file(
         self,
+        mock_datetime,
         mock_path_join,
         mock_path_exists,
         mock_get_type_loader,
         mock_initialize_plugin_loader,
         mock_routes_class,
+        mock_utility_routes_class,
         mock_app_config,
         mock_base_config,
         mock_fastapi_app,
@@ -200,6 +236,14 @@ class TestAppV1Run:
         mock_routes_class.get_rest_routes.return_value = MagicMock()
         mock_routes_class.get_websocket_routes.return_value = MagicMock()
 
+        # Mock UtilityRoutes
+        mock_utility_routes = MagicMock()
+        mock_utility_routes.get_health_routes.return_value = MagicMock()
+        mock_utility_routes_class.return_value = mock_utility_routes
+
+        # Mock datetime.now
+        mock_datetime.now.return_value = MagicMock()
+
         AppV1.run(
             name="test-service",
             version="1.0.0",
@@ -213,14 +257,18 @@ class TestAppV1Run:
         assert TA_TYPES_MODULE.env_name not in mock_app_config.props
         mock_get_type_loader.assert_called_once_with(None)
 
+    @patch("sk_agents.appv1.UtilityRoutes")
     @patch("sk_agents.appv1.Routes")
     @patch("sk_agents.appv1.initialize_plugin_loader")
     @patch("sk_agents.appv1.get_type_loader")
+    @patch("sk_agents.appv1.datetime")
     def test_run_with_no_output_type(
         self,
+        mock_datetime,
         mock_get_type_loader,
         mock_initialize_plugin_loader,
         mock_routes_class,
+        mock_utility_routes_class,
         mock_app_config,
         mock_base_config,
         mock_fastapi_app,
@@ -240,6 +288,14 @@ class TestAppV1Run:
         mock_routes_class.get_rest_routes.return_value = MagicMock()
         mock_routes_class.get_websocket_routes.return_value = MagicMock()
 
+        # Mock UtilityRoutes
+        mock_utility_routes = MagicMock()
+        mock_utility_routes.get_health_routes.return_value = MagicMock()
+        mock_utility_routes_class.return_value = mock_utility_routes
+
+        # Mock datetime.now
+        mock_datetime.now.return_value = MagicMock()
+
         AppV1.run(
             name="test-service",
             version="1.0.0",
@@ -253,14 +309,18 @@ class TestAppV1Run:
         rest_call = mock_routes_class.get_rest_routes.call_args
         assert rest_call.kwargs["output_class"] is Any
 
+    @patch("sk_agents.appv1.UtilityRoutes")
     @patch("sk_agents.appv1.Routes")
     @patch("sk_agents.appv1.initialize_plugin_loader")
     @patch("sk_agents.appv1.get_type_loader")
+    @patch("sk_agents.appv1.datetime")
     def test_run_with_no_description(
         self,
+        mock_datetime,
         mock_get_type_loader,
         mock_initialize_plugin_loader,
         mock_routes_class,
+        mock_utility_routes_class,
         mock_app_config,
         mock_base_config,
         mock_fastapi_app,
@@ -280,6 +340,14 @@ class TestAppV1Run:
         mock_routes_class.get_rest_routes.return_value = MagicMock()
         mock_routes_class.get_websocket_routes.return_value = MagicMock()
 
+        # Mock UtilityRoutes
+        mock_utility_routes = MagicMock()
+        mock_utility_routes.get_health_routes.return_value = MagicMock()
+        mock_utility_routes_class.return_value = mock_utility_routes
+
+        # Mock datetime.now
+        mock_datetime.now.return_value = MagicMock()
+
         AppV1.run(
             name="test-service",
             version="1.0.0",
@@ -291,14 +359,18 @@ class TestAppV1Run:
         rest_call = mock_routes_class.get_rest_routes.call_args
         assert rest_call.kwargs["description"] == "test-service API"
 
+    @patch("sk_agents.appv1.UtilityRoutes")
     @patch("sk_agents.appv1.Routes")
     @patch("sk_agents.appv1.initialize_plugin_loader")
     @patch("sk_agents.appv1.get_type_loader")
+    @patch("sk_agents.appv1.datetime")
     def test_run_missing_input_type_raises_error(
         self,
+        mock_datetime,
         mock_get_type_loader,
         mock_initialize_plugin_loader,
         mock_routes_class,
+        mock_utility_routes_class,
         mock_app_config,
         mock_base_config,
         mock_fastapi_app,
@@ -325,14 +397,18 @@ class TestAppV1Run:
                 app=mock_fastapi_app,
             )
 
+    @patch("sk_agents.appv1.UtilityRoutes")
     @patch("sk_agents.appv1.Routes")
     @patch("sk_agents.appv1.initialize_plugin_loader")
     @patch("sk_agents.appv1.get_type_loader")
+    @patch("sk_agents.appv1.datetime")
     def test_run_extracts_root_handler_from_apiversion(
         self,
+        mock_datetime,
         mock_get_type_loader,
         mock_initialize_plugin_loader,
         mock_routes_class,
+        mock_utility_routes_class,
         mock_app_config,
         mock_base_config,
         mock_fastapi_app,
@@ -352,6 +428,14 @@ class TestAppV1Run:
         mock_routes_class.get_rest_routes.return_value = MagicMock()
         mock_routes_class.get_websocket_routes.return_value = MagicMock()
 
+        # Mock UtilityRoutes
+        mock_utility_routes = MagicMock()
+        mock_utility_routes.get_health_routes.return_value = MagicMock()
+        mock_utility_routes_class.return_value = mock_utility_routes
+
+        # Mock datetime.now
+        mock_datetime.now.return_value = MagicMock()
+
         AppV1.run(
             name="test-service",
             version="1.0.0",
@@ -366,14 +450,18 @@ class TestAppV1Run:
         ws_call = mock_routes_class.get_websocket_routes.call_args
         assert ws_call.kwargs["root_handler_name"] == "tealagents"
 
+    @patch("sk_agents.appv1.UtilityRoutes")
     @patch("sk_agents.appv1.Routes")
     @patch("sk_agents.appv1.initialize_plugin_loader")
     @patch("sk_agents.appv1.get_type_loader")
+    @patch("sk_agents.appv1.datetime")
     def test_run_uses_dirname_of_config_file(
         self,
+        mock_datetime,
         mock_get_type_loader,
         mock_initialize_plugin_loader,
         mock_routes_class,
+        mock_utility_routes_class,
         mock_app_config,
         mock_base_config,
         mock_fastapi_app,
@@ -392,6 +480,14 @@ class TestAppV1Run:
         mock_routes_class.get_rest_routes.return_value = MagicMock()
         mock_routes_class.get_websocket_routes.return_value = MagicMock()
 
+        # Mock UtilityRoutes
+        mock_utility_routes = MagicMock()
+        mock_utility_routes.get_health_routes.return_value = MagicMock()
+        mock_utility_routes_class.return_value = mock_utility_routes
+
+        # Mock datetime.now
+        mock_datetime.now.return_value = MagicMock()
+
         AppV1.run(
             name="test-service",
             version="1.0.0",
@@ -405,14 +501,18 @@ class TestAppV1Run:
             agents_path=expected_agents_path, app_config=mock_app_config
         )
 
+    @patch("sk_agents.appv1.UtilityRoutes")
     @patch("sk_agents.appv1.Routes")
     @patch("sk_agents.appv1.initialize_plugin_loader")
     @patch("sk_agents.appv1.get_type_loader")
+    @patch("sk_agents.appv1.datetime")
     def test_run_passes_input_class_to_routes(
         self,
+        mock_datetime,
         mock_get_type_loader,
         mock_initialize_plugin_loader,
         mock_routes_class,
+        mock_utility_routes_class,
         mock_app_config,
         mock_base_config,
         mock_fastapi_app,
@@ -438,6 +538,14 @@ class TestAppV1Run:
         mock_routes_class.get_rest_routes.return_value = MagicMock()
         mock_routes_class.get_websocket_routes.return_value = MagicMock()
 
+        # Mock UtilityRoutes
+        mock_utility_routes = MagicMock()
+        mock_utility_routes.get_health_routes.return_value = MagicMock()
+        mock_utility_routes_class.return_value = mock_utility_routes
+
+        # Mock datetime.now
+        mock_datetime.now.return_value = MagicMock()
+
         AppV1.run(
             name="test-service",
             version="1.0.0",
@@ -453,18 +561,22 @@ class TestAppV1Run:
         ws_call = mock_routes_class.get_websocket_routes.call_args
         assert ws_call.kwargs["input_class"] is mock_input_class
 
+    @patch("sk_agents.appv1.UtilityRoutes")
     @patch("sk_agents.appv1.Routes")
     @patch("sk_agents.appv1.initialize_plugin_loader")
     @patch("sk_agents.appv1.get_type_loader")
     @patch("sk_agents.appv1.os.path.exists")
     @patch("sk_agents.appv1.os.path.join")
+    @patch("sk_agents.appv1.datetime")
     def test_run_custom_types_discovery_flow(
         self,
+        mock_datetime,
         mock_path_join,
         mock_path_exists,
         mock_get_type_loader,
         mock_initialize_plugin_loader,
         mock_routes_class,
+        mock_utility_routes_class,
         mock_app_config,
         mock_base_config,
         mock_fastapi_app,
@@ -485,6 +597,14 @@ class TestAppV1Run:
         mock_get_type_loader.return_value = mock_type_loader
         mock_routes_class.get_rest_routes.return_value = MagicMock()
         mock_routes_class.get_websocket_routes.return_value = MagicMock()
+
+        # Mock UtilityRoutes
+        mock_utility_routes = MagicMock()
+        mock_utility_routes.get_health_routes.return_value = MagicMock()
+        mock_utility_routes_class.return_value = mock_utility_routes
+
+        # Mock datetime.now
+        mock_datetime.now.return_value = MagicMock()
 
         AppV1.run(
             name="test-service",
@@ -507,14 +627,18 @@ class TestAppV1Run:
         # 5. Type loader created with custom types
         mock_get_type_loader.assert_called_once_with(custom_types_path)
 
+    @patch("sk_agents.appv1.UtilityRoutes")
     @patch("sk_agents.appv1.Routes")
     @patch("sk_agents.appv1.initialize_plugin_loader")
     @patch("sk_agents.appv1.get_type_loader")
+    @patch("sk_agents.appv1.datetime")
     def test_run_router_prefix_format(
         self,
+        mock_datetime,
         mock_get_type_loader,
         mock_initialize_plugin_loader,
         mock_routes_class,
+        mock_utility_routes_class,
         mock_app_config,
         mock_base_config,
         mock_fastapi_app,
@@ -535,6 +659,14 @@ class TestAppV1Run:
         mock_routes_class.get_rest_routes.return_value = mock_rest_router
         mock_routes_class.get_websocket_routes.return_value = mock_ws_router
 
+        # Mock UtilityRoutes
+        mock_utility_routes = MagicMock()
+        mock_utility_routes.get_health_routes.return_value = MagicMock()
+        mock_utility_routes_class.return_value = mock_utility_routes
+
+        # Mock datetime.now
+        mock_datetime.now.return_value = MagicMock()
+
         AppV1.run(
             name="my-agent",
             version="2.5.1",
@@ -543,7 +675,7 @@ class TestAppV1Run:
             app=mock_fastapi_app,
         )
 
-        assert mock_fastapi_app.include_router.call_count == 2
+        assert mock_fastapi_app.include_router.call_count == 3
         call1 = mock_fastapi_app.include_router.call_args_list[0]
         call2 = mock_fastapi_app.include_router.call_args_list[1]
 

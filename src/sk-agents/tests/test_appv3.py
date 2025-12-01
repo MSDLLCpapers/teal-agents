@@ -242,10 +242,12 @@ class TestAppV3Run:
     @patch.object(AppV3, "_get_auth_manager")
     @patch.object(AppV3, "_get_state_manager")
     @patch("sk_agents.appv3.Routes")
+    @patch("sk_agents.appv3.UtilityRoutes")
     @patch("os.path.dirname")
     def test_run_success_with_metadata_description(
         self,
         mock_dirname,
+        mock_utility_routes_class,
         mock_routes,
         mock_get_state_manager,
         mock_get_auth_manager,
@@ -270,8 +272,13 @@ class TestAppV3Run:
 
         mock_stateful_router = MagicMock()
         mock_resume_router = MagicMock()
+        mock_health_router = MagicMock()
         mock_routes.get_stateful_routes.return_value = mock_stateful_router
         mock_routes.get_resume_routes.return_value = mock_resume_router
+
+        mock_utility_routes = MagicMock()
+        mock_utility_routes.get_health_routes.return_value = mock_health_router
+        mock_utility_routes_class.return_value = mock_utility_routes
 
         # Execute
         AppV3.run("testapp", "v1", mock_app_config, mock_base_config, mock_fastapi_app)
@@ -300,10 +307,17 @@ class TestAppV3Run:
             config=mock_base_config, app_config=mock_app_config, state_manager=mock_state_manager
         )
 
+        # Verify utility routes setup
+        mock_utility_routes_class.assert_called_once()
+        mock_utility_routes.get_health_routes.assert_called_once_with(
+            config=mock_base_config, app_config=mock_app_config
+        )
+
         # Verify router inclusion
-        assert mock_fastapi_app.include_router.call_count == 2
+        assert mock_fastapi_app.include_router.call_count == 3
         mock_fastapi_app.include_router.assert_any_call(mock_stateful_router, prefix="/testapp/v1")
         mock_fastapi_app.include_router.assert_any_call(mock_resume_router, prefix="/testapp/v1")
+        mock_fastapi_app.include_router.assert_any_call(mock_health_router, prefix="/testapp/v1")
 
         # Verify app state setup
         assert mock_fastapi_app.state.config == mock_base_config
@@ -314,10 +328,12 @@ class TestAppV3Run:
     @patch.object(AppV3, "_get_auth_manager")
     @patch.object(AppV3, "_get_state_manager")
     @patch("sk_agents.appv3.Routes")
+    @patch("sk_agents.appv3.UtilityRoutes")
     @patch("os.path.dirname")
     def test_run_success_without_metadata_description(
         self,
         mock_dirname,
+        mock_utility_routes_class,
         mock_routes,
         mock_get_state_manager,
         mock_get_auth_manager,
@@ -351,8 +367,13 @@ class TestAppV3Run:
 
         mock_stateful_router = MagicMock()
         mock_resume_router = MagicMock()
+        mock_health_router = MagicMock()
         mock_routes.get_stateful_routes.return_value = mock_stateful_router
         mock_routes.get_resume_routes.return_value = mock_resume_router
+
+        mock_utility_routes = MagicMock()
+        mock_utility_routes.get_health_routes.return_value = mock_health_router
+        mock_utility_routes_class.return_value = mock_utility_routes
 
         # Execute
         AppV3.run("testapp", "v1", mock_app_config, config, mock_fastapi_app)
@@ -366,10 +387,12 @@ class TestAppV3Run:
     @patch.object(AppV3, "_get_auth_manager")
     @patch.object(AppV3, "_get_state_manager")
     @patch("sk_agents.appv3.Routes")
+    @patch("sk_agents.appv3.UtilityRoutes")
     @patch("os.path.dirname")
     def test_run_success_with_metadata_but_no_description(
         self,
         mock_dirname,
+        mock_utility_routes_class,
         mock_routes,
         mock_get_state_manager,
         mock_get_auth_manager,
@@ -404,8 +427,13 @@ class TestAppV3Run:
 
         mock_stateful_router = MagicMock()
         mock_resume_router = MagicMock()
+        mock_health_router = MagicMock()
         mock_routes.get_stateful_routes.return_value = mock_stateful_router
         mock_routes.get_resume_routes.return_value = mock_resume_router
+
+        mock_utility_routes = MagicMock()
+        mock_utility_routes.get_health_routes.return_value = mock_health_router
+        mock_utility_routes_class.return_value = mock_utility_routes
 
         # Execute
         AppV3.run("testapp", "v1", mock_app_config, config, mock_fastapi_app)

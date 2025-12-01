@@ -1153,7 +1153,9 @@ class McpTool:
             stack, session, get_session_id = await connect_with(stored_session_id)
             try:
                 result = await execute_with_stack(stack, session, get_session_id, stored_session_id)
-                if stored_session_id and not (get_session_id and get_session_id() == stored_session_id):
+                if stored_session_id and (
+                    not get_session_id or (get_session_id() == stored_session_id)
+                ):
                     logger.info(
                         f"MCP session reused successfully for {self.server_name}; session_id={stored_session_id}"
                     )

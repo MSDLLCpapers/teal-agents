@@ -14,7 +14,7 @@ from sk_agents.mcp_client import (
     McpPlugin,
     McpTool,
     apply_trust_level_governance,
-    create_mcp_session,
+    create_mcp_session_with_retry,
     map_mcp_annotations_to_governance,
 )
 from sk_agents.plugin_catalog.models import Governance, Oauth2PluginAuth, PluginTool
@@ -104,41 +104,37 @@ class McpPluginRegistry:
         for server_config in mcp_servers:
             try:
                 # Discover this server
-                plugin_data, discovered_session_id = await cls._discover_server(server_config, user_id)
+                plugin_data, discovered_session_id = await cls._discover_server(
+                    server_config, user_id, session_id, discovery_manager
+                )
 
                 # Preserve any existing session bucket
                 existing_entry = state.discovered_servers.get(server_config.name, {})
                 session_bucket = existing_entry.get("session") or {}
 
-                # If discovery yielded a session id, update the session bucket now
-                if discovered_session_id:
-                    now_iso = datetime.now(timezone.utc).isoformat()
-                    session_bucket = {
-                        "mcp_session_id": discovered_session_id,
-                        "created_at": session_bucket.get("created_at", now_iso),
-                        "last_used_at": now_iso,
-                    }
-
+                # Always persist freshly discovered plugin data
                 state.discovered_servers[server_config.name] = {
                     "plugin_data": plugin_data,
                     **({"session": session_bucket} if session_bucket else {}),
                 }
-
-                # Update external storage
-                if not discovered_session_id:
-                    await discovery_manager.update_discovery(state)
+                await discovery_manager.update_discovery(state)
 
                 # If discovery yielded a session id, persist via state manager API
                 if discovered_session_id:
-                    await discovery_manager.store_mcp_session(
-                        user_id,
-                        session_id,
-                        server_config.name,
-                        discovered_session_id,
-                    )
-                    await discovery_manager.update_session_last_used(
-                        user_id, session_id, server_config.name
-                    )
+                    try:
+                        await discovery_manager.store_mcp_session(
+                            user_id,
+                            session_id,
+                            server_config.name,
+                            discovered_session_id,
+                        )
+                        await discovery_manager.update_session_last_used(
+                            user_id, session_id, server_config.name
+                        )
+                    except Exception as err:
+                        logger.warning(
+                            f"Failed to persist MCP session for {server_config.name}: {err}"
+                        )
 
             except AuthRequiredError as e:
                 # Auth error - collect and surface to user
@@ -176,7 +172,13 @@ class McpPluginRegistry:
         logger.info(f"MCP discovery complete for session {session_id}. Discovered {len(state.discovered_servers)} servers")
 
     @classmethod
-    async def _discover_server(cls, server_config: McpServerConfig, user_id: str) -> tuple[Dict, str | None]:
+    async def _discover_server(
+        cls,
+        server_config: McpServerConfig,
+        user_id: str,
+        session_id: str,
+        discovery_manager,
+    ) -> tuple[Dict, str | None]:
         """
         Discover tools from a single MCP server.
 
@@ -229,8 +231,29 @@ class McpPluginRegistry:
 
         # Temporary connection for discovery
         async with AsyncExitStack() as stack:
-            # Create temp connection
-            session, get_session_id = await create_mcp_session(server_config, stack, user_id)
+            stored_session_id = None
+            if discovery_manager:
+                try:
+                    stored_session_id = await discovery_manager.get_mcp_session(
+                        user_id, session_id, server_config.name
+                    )
+                except Exception:
+                    logger.debug("Unable to fetch stored MCP session id for discovery")
+
+            # Create temp connection (reuse session id if available)
+            session, get_session_id = await create_mcp_session_with_retry(
+                server_config,
+                stack,
+                user_id,
+                mcp_session_id=stored_session_id,
+                on_stale_session=(
+                    lambda sid: discovery_manager.clear_mcp_session(
+                        user_id, session_id, server_config.name
+                    )
+                    if discovery_manager
+                    else None
+                ),
+            )
 
             # List available tools
             tools_result = await session.list_tools()

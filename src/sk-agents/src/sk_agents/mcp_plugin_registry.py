@@ -231,7 +231,7 @@ class McpPluginRegistry:
                 mcp_session_id=stored_session_id,
                 on_stale_session=(
                     lambda sid: discovery_manager.clear_mcp_session(
-                        user_id, session_id, server_config.name
+                        user_id, session_id, server_config.name, expected_session_id=sid
                     )
                     if discovery_manager
                     else None
@@ -342,6 +342,31 @@ class McpPluginRegistry:
         Returns:
             Dict: Serialized plugin data
         """
+
+        def _sanitize_server_config(server_config):
+            """Drop secrets before persisting discovery state."""
+            cfg = server_config.model_dump()
+
+            # Remove confidential OAuth client secret
+            cfg.pop("oauth_client_secret", None)
+
+            # Strip Authorization headers to avoid token leakage
+            headers = cfg.get("headers") or {}
+            cfg["headers"] = {
+                k: v for k, v in headers.items() if k.lower() != "authorization"
+            }
+
+            # Drop env entries that look sensitive (best‑effort)
+            env = cfg.get("env")
+            if isinstance(env, dict):
+                cfg["env"] = {
+                    k: v
+                    for k, v in env.items()
+                    if not any(s in k.lower() for s in ["secret", "token", "key", "password"])
+                }
+
+            return cfg
+
         tools_data = []
         for tool in tools:
             tools_data.append(
@@ -351,7 +376,7 @@ class McpPluginRegistry:
                     "input_schema": tool.input_schema,
                     "output_schema": tool.output_schema,
                     "server_name": tool.server_name,
-                    "server_config": tool.server_config.model_dump(),  # Pydantic serialization
+                    "server_config": _sanitize_server_config(tool.server_config),
                 }
             )
         return {"server_name": server_name, "tools": tools_data}

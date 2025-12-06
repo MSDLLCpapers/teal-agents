@@ -1177,7 +1177,7 @@ class McpTool:
                     stack,
                     user_id,
                     mcp_session_id=session_hint,
-                    on_stale_session=lambda sid: clear_stored_session(session_hint),
+                    on_stale_session=lambda sid: clear_stored_session(sid),
                     app_config=effective_app_config,
                 )
                 return stack, session, get_session_id

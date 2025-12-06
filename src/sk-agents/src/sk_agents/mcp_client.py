@@ -190,13 +190,13 @@ def validate_mcp_sdk_version() -> None:
         try:
             from packaging import version as pkg_version
             installed_version = pkg_version.parse(version_str)
-            required_version = pkg_version.parse("1.13.1")
+            required_version = pkg_version.parse("1.23.0")
 
             if installed_version < required_version:
                 logger.warning(
                     f"MCP SDK version {version_str} detected. "
-                    f"Recommended: >= 1.13.1 for full HTTP transport support. "
-                    f"Some features may not be available."
+                    f"Required: >= 1.23.0 for MCP spec 2025-11-25 (initialized/shutdown, HTTP fixes). "
+                    f"Please upgrade the MCP SDK."
                 )
             else:
                 logger.debug(f"MCP SDK version {version_str} is compatible")
@@ -233,8 +233,7 @@ async def initialize_mcp_session(
         ConnectionError: If initialization fails
     """
     try:
-        # Step 1: Send initialize request
-        # Try with new SDK parameters (MCP SDK >= 1.13.1)
+        # Step 1: Send initialize request (prefers spec path, falls back if SDK lacks args)
         try:
             init_result = await session.initialize(
                 protocol_version=protocol_version,
@@ -243,18 +242,19 @@ async def initialize_mcp_session(
                     "version": get_package_version()
                 },
                 capabilities={
-                    "roots": {"listChanged": False},
+                    # Per MCP spec 2025-11-25: advertise root change notifications if supported
+                    "roots": {"listChanged": True},
                     "sampling": {},
                     "experimental": {}
                 }
             )
         except TypeError as e:
-            # Fall back to old SDK (no parameters)
-            if "unexpected keyword argument" in str(e):
+            # Older SDKs (<=1.22) don't accept keyword args; degrade gracefully.
+            if "unexpected keyword argument 'protocol_version'" in str(e):
                 logger.warning(
-                    f"MCP SDK does not support initialization parameters. "
-                    f"Using parameter-less initialize() for '{server_name}'. "
-                    f"Consider upgrading MCP SDK to >= 1.13.1"
+                    f"MCP SDK initialize() does not accept protocol_version/capabilities; "
+                    f"falling back to legacy initialize() for '{server_name}'. "
+                    f"Upgrade SDK for full 2025-11-25 compliance."
                 )
                 init_result = await session.initialize()
             else:
@@ -269,26 +269,17 @@ async def initialize_mcp_session(
         # Step 2: Send initialized notification (MCP protocol requirement)
         # Per MCP spec: "After successful initialization, the client MUST send
         # an initialized notification to indicate it is ready to begin normal operations."
-        try:
-            # The MCP Python SDK may use different method names
-            # Try common variations
-            if hasattr(session, 'send_initialized'):
-                await session.send_initialized()
-                logger.debug(f"Sent initialized notification to '{server_name}'")
-            elif hasattr(session, 'initialized'):
-                await session.initialized()
-                logger.debug(f"Sent initialized notification to '{server_name}'")
-            else:
-                logger.warning(
-                    f"Could not find initialized notification method for '{server_name}'. "
-                    f"MCP SDK may not support this yet. Session may not function correctly."
-                )
-        except Exception as notify_error:
-            # Don't fail the entire initialization if notification fails
-            # Some SDK versions may not support this yet
+        # The spec requires an initialized notification; if SDK lacks it, warn and continue.
+        if hasattr(session, 'send_initialized'):
+            await session.send_initialized()
+            logger.debug(f"Sent initialized notification to '{server_name}'")
+        elif hasattr(session, 'initialized'):
+            await session.initialized()
+            logger.debug(f"Sent initialized notification to '{server_name}'")
+        else:
             logger.warning(
-                f"Failed to send initialized notification to '{server_name}': {notify_error}. "
-                f"Proceeding anyway, but server may not function correctly."
+                f"MCP SDK missing initialized notification method for '{server_name}'. "
+                f"Upgrade SDK for full spec compliance."
             )
 
         return init_result
@@ -310,7 +301,6 @@ async def graceful_shutdown_session(session: ClientSession, server_name: str) ->
         server_name: Name of the server for logging purposes
     """
     try:
-        # Try to send shutdown notification if supported
         if hasattr(session, 'send_shutdown'):
             await session.send_shutdown()
             logger.debug(f"Sent graceful shutdown to MCP server: {server_name}")
@@ -318,10 +308,12 @@ async def graceful_shutdown_session(session: ClientSession, server_name: str) ->
             await session.shutdown()
             logger.debug(f"Sent graceful shutdown to MCP server: {server_name}")
         else:
-            logger.debug(f"MCP SDK does not support shutdown notification for: {server_name}")
+            logger.warning(
+                f"MCP SDK missing shutdown method for '{server_name}'. "
+                f"Upgrade SDK for full spec compliance."
+            )
     except Exception as e:
-        # Shutdown failures are non-critical - log and continue with cleanup
-        logger.debug(f"Graceful shutdown failed for {server_name} (non-critical): {e}")
+        logger.debug(f"Graceful shutdown failed for {server_name}: {e}")
 
 
 def map_mcp_annotations_to_governance(annotations: Dict[str, Any], tool_description: str = "") -> Governance:
@@ -558,6 +550,20 @@ async def resolve_server_auth_headers(
         headers["Arcade-User-Id"] = fallback_arcade_user
         logger.info(f"Using fallback Arcade-User-Id from env: {fallback_arcade_user}")
 
+    # Precompute canonical resource URI for HTTP servers (enforce presence for spec compliance)
+    resource_uri: str | None = None
+    if server_config.transport == "http":
+        try:
+            resource_uri = server_config.effective_canonical_uri
+        except Exception as e:
+            logger.error(f"Unable to determine canonical URI for {server_config.name}: {e}")
+            raise AuthRequiredError(
+                server_name=server_config.name,
+                auth_server=server_config.auth_server or "unknown",
+                scopes=server_config.scopes or [],
+                message=f"Missing or invalid canonical URI for HTTP MCP server '{server_config.name}'"
+            )
+
     # If server has OAuth configuration, resolve tokens using OAuth flow
     if server_config.auth_server and server_config.scopes:
         try:
@@ -575,7 +581,11 @@ async def resolve_server_auth_headers(
 
             # Check feature flags
             enable_refresh = app_config.get(TA_MCP_OAUTH_ENABLE_TOKEN_REFRESH.env_name).lower() == "true"
-            enable_audience = app_config.get(TA_MCP_OAUTH_ENABLE_AUDIENCE_VALIDATION.env_name).lower() == "true"
+            # Enforce audience/resource validation for HTTP servers regardless of flag
+            if server_config.transport == "http":
+                enable_audience = True
+            else:
+                enable_audience = app_config.get(TA_MCP_OAUTH_ENABLE_AUDIENCE_VALIDATION.env_name).lower() == "true"
 
             # Generate composite key for OAuth2 token lookup
             composite_key = build_auth_storage_key(server_config.auth_server, server_config.scopes)
@@ -590,13 +600,6 @@ async def resolve_server_auth_headers(
                     auth_server=server_config.auth_server,
                     scopes=server_config.scopes
                 )
-
-            # Get canonical resource URI for validation
-            try:
-                resource_uri = server_config.effective_canonical_uri
-            except ValueError as e:
-                logger.warning(f"Cannot determine canonical URI for {server_config.name}: {e}")
-                resource_uri = None
 
             # Validate token for this resource (expiry + audience + resource binding)
             if enable_audience and resource_uri:

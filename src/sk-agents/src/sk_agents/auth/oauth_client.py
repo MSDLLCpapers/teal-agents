@@ -84,10 +84,10 @@ class OAuthClient:
         if not protocol_version:
             return False
 
-        # Check if protocol version is 2025-06-18 or later
+        # Check if protocol version is 2025-11-25 or later
         # Simple string comparison works for ISO date format (YYYY-MM-DD)
         try:
-            return protocol_version >= "2025-06-18"
+            return protocol_version >= "2025-11-25"
         except Exception:
             # If comparison fails, be conservative and include resource param
             logger.warning(f"Failed to compare protocol version: {protocol_version}")

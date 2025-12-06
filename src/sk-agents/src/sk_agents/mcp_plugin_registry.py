@@ -281,8 +281,19 @@ class McpPluginRegistry:
             # Create consistent tool_id format: mcp_{server_name}_{tool_name}
             tool_id = f"mcp_{server_config.name}_{tool_info.name}"
 
-            # Map MCP annotations to governance
-            annotations = getattr(tool_info, 'annotations', {}) or {}
+            # Map MCP annotations to governance.
+            # Newer MCP SDKs return a ToolAnnotations object without dict-like access.
+            annotations_obj = getattr(tool_info, "annotations", None)
+            if annotations_obj is None:
+                annotations = {}
+            elif hasattr(annotations_obj, "model_dump"):
+                annotations = annotations_obj.model_dump() or {}
+            elif isinstance(annotations_obj, dict):
+                annotations = annotations_obj
+            else:
+                # Best-effort fallback for unknown types
+                annotations = {}
+
             base_governance = map_mcp_annotations_to_governance(annotations)
             governance_with_trust = apply_trust_level_governance(
                 base_governance,

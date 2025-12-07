@@ -4,6 +4,12 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sk_agents.plugin_catalog.models import GovernanceOverride
 
 
+class ElicitationConfig(BaseModel):
+    """Feature flags for MCP elicitation modes."""
+    enable_form: bool = True
+    enable_url: bool = True
+
+
 class McpServerConfig(BaseModel):
     """Configuration for an MCP server connection supporting multiple transports."""
     model_config = ConfigDict(extra="allow")
@@ -197,3 +203,4 @@ class AgentConfig(BaseModel):
     plugins: list[str] | None = None
     remote_plugins: list[str] | None = None
     mcp_servers: list[McpServerConfig] | None = None
+    elicitation: ElicitationConfig | None = None

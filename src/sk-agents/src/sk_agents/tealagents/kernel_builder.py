@@ -47,6 +47,8 @@ class KernelBuilder:
         authorization: str | None = None,
         extra_data_collector: ExtraDataCollector | None = None,
         user_id: str | None = None,
+        elicitation_handler=None,
+        elicitation_modes: dict | None = None,
     ) -> Kernel:
         try:
             kernel = self._create_base_kernel(model_name, service_id)
@@ -96,7 +98,15 @@ class KernelBuilder:
             self.logger.exception(f"Could not load remote plugings. -{e}")
             raise
 
-    async def load_mcp_plugins(self, kernel: Kernel, user_id: str, session_id: str = None, mcp_discovery_manager=None) -> Kernel:
+    async def load_mcp_plugins(
+        self,
+        kernel: Kernel,
+        user_id: str,
+        session_id: str = None,
+        mcp_discovery_manager=None,
+        elicitation_handler=None,
+        elicitation_modes: dict | None = None,
+    ) -> Kernel:
         """
         Load MCP plugins by instantiating them from the session-level plugin registry.
 
@@ -149,6 +159,8 @@ class KernelBuilder:
                     session_id=session_id,
                     discovery_manager=mcp_discovery_manager,
                     app_config=self.app_config,
+                    elicitation_handler=elicitation_handler,
+                    elicitation_modes=elicitation_modes,
                 )
 
                 # Register with kernel (same pattern as non-MCP!)

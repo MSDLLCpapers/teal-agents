@@ -25,6 +25,8 @@ class AgentBuilder:
         extra_data_collector: ExtraDataCollector | None = None,
         output_type: str | None = None,
         user_id: str | None = None,
+        elicitation_handler=None,
+        elicitation_modes: dict | None = None,
     ) -> SKAgent:
         kernel = await self.kernel_builder.build_kernel(
             agent_config.model,
@@ -35,6 +37,8 @@ class AgentBuilder:
             self.authorization,
             extra_data_collector,
             user_id,
+            elicitation_handler=elicitation_handler,
+            elicitation_modes=elicitation_modes,
         )
 
         so_supported: bool = self.kernel_builder.model_supports_structured_output(

@@ -42,6 +42,8 @@ from sk_agents.tealagents.models import (
 from sk_agents.tealagents.v1alpha1.agent.config import Config
 from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
 from sk_agents.tealagents.v1alpha1.utils import get_token_usage_for_response, item_to_content
+from sk_agents.mcp_client import ElicitationResponse
+from sk_agents.mcp_elicitation_models import McpElicitationRequired
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +70,35 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         # Track which sessions have seen MCP auth status messages (to show only once per session)
         self._mcp_status_shown_per_session: set[str] = set()
+
+    def _get_elicitation_modes(self) -> dict | None:
+        """
+        Determine which elicitation modes to advertise based on config.
+
+        Returns a dict like {"form": {}, "url": {}} or None to disable capability.
+        """
+        cfg = getattr(self.config.get_agent(), "elicitation", None)
+        enable_form = True
+        enable_url = True
+        if cfg:
+            enable_form = bool(getattr(cfg, "enable_form", True))
+            enable_url = bool(getattr(cfg, "enable_url", True))
+
+        modes = {}
+        if enable_form:
+            modes["form"] = {}
+        if enable_url:
+            modes["url"] = {}
+
+        return modes if modes else None
+
+    @staticmethod
+    async def _default_elicitation_handler(req):
+        """
+        Default handler: reject politely so server can continue gracefully.
+        Users can override by wiring a real handler.
+        """
+        return ElicitationResponse(action="reject", content=None)
 
     async def _ensure_session_discovery(
         self, user_id: str, session_id: str, task_id: str, request_id: str
@@ -611,7 +642,9 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 agent.agent.kernel,
                 user_id,
                 session_id,
-                self.discovery_manager
+                self.discovery_manager,
+                elicitation_handler=None,
+                elicitation_modes=self._get_elicitation_modes(),
             )
 
         kernel = agent.agent.kernel
@@ -802,7 +835,9 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 agent.agent.kernel,
                 user_id,
                 session_id,
-                self.discovery_manager
+                self.discovery_manager,
+                elicitation_handler=self._default_elicitation_handler,
+                elicitation_modes=self._get_elicitation_modes(),
             )
 
         # Prepare metadata
@@ -928,7 +963,9 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 agent.agent.kernel,
                 user_id,
                 session_id,
-                self.discovery_manager
+                self.discovery_manager,
+                elicitation_handler=self._default_elicitation_handler,
+                elicitation_modes=self._get_elicitation_modes(),
             )
 
         # Prepare metadata

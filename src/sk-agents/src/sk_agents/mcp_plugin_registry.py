@@ -430,6 +430,7 @@ class McpPluginRegistry:
                     discovery_manager=None,
                     app_config=None,
                     elicitation_handler=None,
+                    elicitation_modes=None,
                     **kwargs,
                 ):
                     super().__init__(
@@ -442,6 +443,7 @@ class McpPluginRegistry:
                         discovery_manager=discovery_manager,
                         app_config=app_config,
                         elicitation_handler=elicitation_handler,
+                        elicitation_modes=elicitation_modes,
                         **kwargs,
                     )
 

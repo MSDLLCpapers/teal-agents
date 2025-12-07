@@ -8,7 +8,7 @@ Follows the same pattern as Redis persistence and auth storage.
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Any, Dict
 
 from redis.asyncio import Redis
 from ska_utils import AppConfig, strtobool
@@ -286,6 +286,72 @@ class RedisStateManager(McpStateManager):
         """
         state = await self.load_discovery(user_id, session_id)
         return state.discovery_completed if state else False
+
+    # ---------- Elicitation pending helpers ----------
+    async def store_pending_elicitation(self, user_id: str, session_id: str, elicitation_id: str, data: Dict[str, Any]) -> None:
+        key = self._make_key(user_id, session_id)
+        # Lua script to upsert pending elicitation without race conditions
+        lua_script = """
+        local key = KEYS[1]
+        local ttl = tonumber(ARGV[1])
+        local elicitation_id = ARGV[2]
+        local data_json = ARGV[3]
+        local timestamp = ARGV[4]
+
+        local obj
+        local existing = redis.call('GET', key)
+        if existing then
+            obj = cjson.decode(existing)
+        else
+            obj = {
+                user_id = ARGV[5],
+                session_id = ARGV[6],
+                discovered_servers = {},
+                discovery_completed = false,
+                failed_servers = {},
+                pending_elicitations = {},
+                created_at = timestamp
+            }
+        end
+
+        if not obj.pending_elicitations then
+            obj.pending_elicitations = {}
+        end
+
+        obj.pending_elicitations[elicitation_id] = cjson.decode(data_json)
+
+        local updated = cjson.encode(obj)
+        redis.call('SET', key, updated, 'EX', ttl)
+        return 1
+        """
+        ts = datetime.now(timezone.utc).isoformat()
+        await self.redis.eval(lua_script, 1, key, self.ttl, elicitation_id, json.dumps(data), ts, user_id, session_id)
+
+    async def get_pending_elicitation(self, user_id: str, session_id: str, elicitation_id: str) -> Optional[Dict[str, Any]]:
+        state = await self.load_discovery(user_id, session_id)
+        if not state:
+            return None
+        return state.pending_elicitations.get(elicitation_id)
+
+    async def delete_pending_elicitation(self, user_id: str, session_id: str, elicitation_id: str) -> None:
+        key = self._make_key(user_id, session_id)
+        lua_script = """
+        local key = KEYS[1]
+        local elicitation_id = ARGV[1]
+        local ttl = tonumber(ARGV[2])
+        local data = redis.call('GET', key)
+        if not data then
+            return 0
+        end
+        local obj = cjson.decode(data)
+        if obj.pending_elicitations then
+            obj.pending_elicitations[elicitation_id] = nil
+        end
+        local updated = cjson.encode(obj)
+        redis.call('SET', key, updated, 'EX', ttl)
+        return 1
+        """
+        await self.redis.eval(lua_script, 1, key, elicitation_id, self.ttl)
 
     async def store_mcp_session(
         self,

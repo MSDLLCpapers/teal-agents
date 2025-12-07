@@ -56,6 +56,7 @@ class McpState:
         discovery_completed: bool,
         created_at: Optional[datetime] = None,
         failed_servers: Optional[Dict[str, str]] = None,
+        pending_elicitations: Optional[Dict[str, Dict]] = None,
     ):
         """
         Initialize MCP state.
@@ -74,6 +75,7 @@ class McpState:
         self.discovery_completed = discovery_completed
         self.created_at = created_at or datetime.now(timezone.utc)
         self.failed_servers = failed_servers or {}
+        self.pending_elicitations = pending_elicitations or {}
 
 
 class McpStateManager(ABC):
@@ -175,6 +177,19 @@ class McpStateManager(ABC):
         Returns:
             True if discovery completed, False otherwise
         """
+        pass
+
+    # ---------- Elicitation pending helpers ----------
+    @abstractmethod
+    async def store_pending_elicitation(self, user_id: str, session_id: str, elicitation_id: str, data: Dict[str, Any]) -> None:
+        pass
+
+    @abstractmethod
+    async def get_pending_elicitation(self, user_id: str, session_id: str, elicitation_id: str) -> Optional[Dict[str, Any]]:
+        pass
+
+    @abstractmethod
+    async def delete_pending_elicitation(self, user_id: str, session_id: str, elicitation_id: str) -> None:
         pass
 
     @abstractmethod

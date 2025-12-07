@@ -190,6 +190,32 @@ class InMemoryStateManager(McpStateManager):
             state = self._storage.get(key)
             return state.discovery_completed if state else False
 
+    async def store_pending_elicitation(self, user_id: str, session_id: str, elicitation_id: str, data: Dict[str, Any]) -> None:
+        async with self._lock:
+            key = self._make_key(user_id, session_id)
+            state = self._storage.get(key)
+            if not state:
+                # create minimal state to hold elicitation
+                state = McpState(user_id=user_id, session_id=session_id, discovered_servers={}, discovery_completed=False)
+                self._storage[key] = state
+            state.pending_elicitations[elicitation_id] = data
+
+    async def get_pending_elicitation(self, user_id: str, session_id: str, elicitation_id: str) -> Optional[Dict[str, Any]]:
+        async with self._lock:
+            key = self._make_key(user_id, session_id)
+            state = self._storage.get(key)
+            if not state:
+                return None
+            return state.pending_elicitations.get(elicitation_id)
+
+    async def delete_pending_elicitation(self, user_id: str, session_id: str, elicitation_id: str) -> None:
+        async with self._lock:
+            key = self._make_key(user_id, session_id)
+            state = self._storage.get(key)
+            if not state:
+                return
+            state.pending_elicitations.pop(elicitation_id, None)
+
     async def store_mcp_session(
         self,
         user_id: str,

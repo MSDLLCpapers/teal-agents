@@ -428,6 +428,8 @@ class McpPluginRegistry:
                     extra_data_collector=None,
                     session_id: str | None = None,
                     discovery_manager=None,
+                    app_config=None,
+                    elicitation_handler=None,
                     **kwargs,
                 ):
                     super().__init__(
@@ -438,6 +440,8 @@ class McpPluginRegistry:
                         extra_data_collector=extra_data_collector,
                         session_id=session_id,
                         discovery_manager=discovery_manager,
+                        app_config=app_config,
+                        elicitation_handler=elicitation_handler,
                         **kwargs,
                     )
 

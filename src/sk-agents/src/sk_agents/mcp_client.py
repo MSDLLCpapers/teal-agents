@@ -39,6 +39,46 @@ from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
 logger = logging.getLogger(__name__)
 
 
+# ---------- Elicitation data models (skeleton) ----------
+
+@dataclass
+class ElicitationRequest:
+    """Represents an elicitation/create request from an MCP server."""
+    mode: str  # "form" (default) or "url"
+    message: str
+    requested_schema: Dict[str, Any] | None = None
+    elicitation_id: str | None = None
+    url: str | None = None
+    server_name: str | None = None
+
+
+@dataclass
+class ElicitationResponse:
+    """Client response to an elicitation request."""
+    action: str  # "accept" | "reject"
+    content: Dict[str, Any] | None = None
+
+
+ElicitationHandler = Callable[[ElicitationRequest], Awaitable[ElicitationResponse]]
+
+
+def _register_elicitation_handler(session: ClientSession, handler: ElicitationHandler | None):
+    """
+    Attach elicitation handler to the MCP session if provided.
+
+    The MCP Python SDK does not yet expose a stable hook for elicitation,
+    so we store the handler on the session for future wiring. This keeps
+    the public surface ready without breaking current behavior.
+    """
+    if not handler:
+        return
+    try:
+        setattr(session, "_ta_elicitation_handler", handler)
+        logger.debug("Registered elicitation handler on MCP session (stored for future dispatch)")
+    except Exception as e:
+        logger.warning(f"Unable to register elicitation handler: {e}")
+
+
 class AuthRequiredError(Exception):
     """
     Exception raised when MCP server authentication is required but missing.
@@ -245,7 +285,9 @@ async def initialize_mcp_session(
                     # Per MCP spec 2025-11-25: advertise root change notifications if supported
                     "roots": {"listChanged": True},
                     "sampling": {},
-                    "experimental": {}
+                    "experimental": {},
+                    # Advertise elicitation support (form + url modes). Servers may ignore.
+                    "elicitation": {"form": {}, "url": {}},
                 }
             )
         except TypeError as e:
@@ -850,6 +892,7 @@ async def create_mcp_session_with_retry(
     mcp_session_id: str | None = None,
     on_stale_session: Callable[[str], Awaitable[None]] | None = None,
     app_config: AppConfig | None = None,
+    elicitation_handler: ElicitationHandler | None = None,
 ) -> tuple[ClientSession, Callable[[], str | None]]:
     """
     Create MCP session with retry logic for transient failures.
@@ -880,6 +923,7 @@ async def create_mcp_session_with_retry(
                 user_id,
                 mcp_session_id=mcp_session_id,
                 app_config=app_config,
+                elicitation_handler=elicitation_handler,
             )
 
             # If we succeed after retries, log it
@@ -942,6 +986,7 @@ async def create_mcp_session(
     user_id: str = "default",
     mcp_session_id: str | None = None,
     app_config: AppConfig | None = None,
+    elicitation_handler: ElicitationHandler | None = None,
 ) -> tuple[ClientSession, Callable[[], str | None]]:
     """Create MCP session using SDK transport factories."""
     transport_type = server_config.transport
@@ -961,6 +1006,8 @@ async def create_mcp_session(
         session = await connection_stack.enter_async_context(
             ClientSession(read, write)
         )
+
+        _register_elicitation_handler(session, elicitation_handler)
 
         await initialize_mcp_session(
             session, 
@@ -1034,6 +1081,8 @@ async def create_mcp_session(
             session = await connection_stack.enter_async_context(
                 ClientSession(read, write)
             )
+
+            _register_elicitation_handler(session, elicitation_handler)
 
             await initialize_mcp_session(
                 session, 
@@ -1137,6 +1186,7 @@ class McpTool:
         session_id: str | None = None,
         discovery_manager=None,
         app_config: AppConfig | None = None,
+        elicitation_handler: ElicitationHandler | None = None,
         **kwargs,
     ) -> str:
         """
@@ -1179,6 +1229,7 @@ class McpTool:
                     mcp_session_id=session_hint,
                     on_stale_session=lambda sid: clear_stored_session(sid),
                     app_config=effective_app_config,
+                    elicitation_handler=elicitation_handler,
                 )
                 return stack, session, get_session_id
 
@@ -1337,6 +1388,7 @@ class McpPlugin(BasePlugin):
         session_id: str | None = None,
         discovery_manager=None,
         app_config: AppConfig | None = None,
+        elicitation_handler: ElicitationHandler | None = None,
     ):
         if not user_id:
             raise ValueError(
@@ -1352,6 +1404,8 @@ class McpPlugin(BasePlugin):
         self.discovery_manager = discovery_manager
         # Store app_config for downstream MCP auth resolution
         self.app_config = app_config
+        # Optional elicitation handler (form/url modes)
+        self.elicitation_handler = elicitation_handler
 
         # Dynamically add kernel functions for each tool
         for tool in tools:
@@ -1380,6 +1434,7 @@ class McpPlugin(BasePlugin):
                     session_id=self.session_id,
                     discovery_manager=self.discovery_manager,
                     app_config=self.app_config,
+                    elicitation_handler=self.elicitation_handler,
                     **kwargs,
                 )
 

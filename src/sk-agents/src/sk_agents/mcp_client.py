@@ -67,16 +67,94 @@ def _register_elicitation_handler(session: ClientSession, handler: ElicitationHa
     Attach elicitation handler to the MCP session if provided.
 
     The MCP Python SDK does not yet expose a stable hook for elicitation,
-    so we store the handler on the session for future wiring. This keeps
-    the public surface ready without breaking current behavior.
+    so we store the handler on the session and also hook notifications/
+    requests where available. If the SDK version doesn't support the
+    needed hooks, we fail silently (backwards compatible).
     """
     if not handler:
         return
     try:
         setattr(session, "_ta_elicitation_handler", handler)
         logger.debug("Registered elicitation handler on MCP session (stored for future dispatch)")
+
+        # Hook: notifications
+        if hasattr(session, "add_notification_handler"):
+            session.add_notification_handler("elicitation/create", _make_elicitation_notification_handler(handler))
+            session.add_notification_handler("notifications/elicitation/complete", _make_elicitation_complete_handler())
+
+        # Hook: error handler for URL-mode required errors (URLElicitationRequiredError)
+        if hasattr(session, "set_error_handler"):
+            session.set_error_handler(_make_elicitation_error_handler(handler))
+
     except Exception as e:
         logger.warning(f"Unable to register elicitation handler: {e}")
+
+
+def _make_elicitation_notification_handler(handler: ElicitationHandler):
+    async def _inner(params: Any):
+        try:
+            req = ElicitationRequest(
+                mode=params.get("mode", "form"),
+                message=params.get("message", ""),
+                requested_schema=params.get("requestedSchema"),
+                elicitation_id=params.get("elicitationId"),
+                url=params.get("url"),
+                server_name=params.get("server"),
+            )
+            resp = await handler(req)
+            return {
+                "result": {
+                    "action": resp.action,
+                    "content": resp.content,
+                }
+            }
+        except Exception as e:
+            logger.error(f"Elicitation handler failed: {e}")
+            # Reject on handler failure
+            return {"result": {"action": "reject", "content": None}}
+
+    return _inner
+
+
+def _make_elicitation_complete_handler():
+    async def _inner(params: Any):
+        # Currently we only log; callers can poll state if needed.
+        try:
+            logger.info(f"Elicitation complete notification: {params}")
+        except Exception:
+            pass
+        return None
+
+    return _inner
+
+
+def _make_elicitation_error_handler(handler: ElicitationHandler):
+    async def _inner(error: Any):
+        """
+        Handle URLElicitationRequiredError (-32042) by surfacing elicitations
+        to the handler. The handler can choose to auto-reject or ask user.
+        """
+        try:
+            if not isinstance(error, dict):
+                return
+            code = error.get("code")
+            if code != -32042:
+                return
+
+            elicitations = error.get("data", {}).get("elicitations", [])
+            for item in elicitations:
+                req = ElicitationRequest(
+                    mode=item.get("mode", "url"),
+                    message=item.get("message", ""),
+                    url=item.get("url"),
+                    elicitation_id=item.get("elicitationId"),
+                    server_name=item.get("server"),
+                )
+                await handler(req)
+        except Exception as e:
+            logger.error(f"Elicitation error handler failed: {e}")
+
+    return _inner
 
 
 class AuthRequiredError(Exception):

@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from typing import Any
 
 from fastapi import FastAPI
@@ -13,6 +14,7 @@ from sk_agents.ska_types import (
     BaseConfig,
 )
 from sk_agents.type_loader import get_type_loader
+from sk_agents.utility_routes import UtilityRoutes
 from sk_agents.utils import initialize_plugin_loader
 
 
@@ -70,6 +72,16 @@ class AppV1:
                 config=config,
                 app_config=app_config,
                 input_class=input_class,
+            ),
+            prefix=f"/{name}/{version}",
+        )
+
+        # Include utility routes for health checks
+        utility_routes = UtilityRoutes(start_time=datetime.now())
+        app.include_router(
+            utility_routes.get_health_routes(
+                config=config,
+                app_config=app_config,
             ),
             prefix=f"/{name}/{version}",
         )

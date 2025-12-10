@@ -6,6 +6,7 @@ class AppV3:
 """
 
 import os
+from datetime import datetime
 from enum import Enum
 
 from fastapi import FastAPI
@@ -29,6 +30,7 @@ from sk_agents.stateful import MockAuthenticationManager
 from sk_agents.tealagents.kernel_builder import KernelBuilder
 from sk_agents.tealagents.models import UserMessage
 from sk_agents.tealagents.remote_plugin_loader import RemotePluginCatalog, RemotePluginLoader
+from sk_agents.utility_routes import UtilityRoutes
 from sk_agents.utils import initialize_plugin_loader
 
 
@@ -150,6 +152,16 @@ class AppV3:
         app.include_router(
             Routes.get_resume_routes(
                 config=config, app_config=app_config, state_manager=state_manager, mcp_discovery_manager=mcp_discovery_manager
+            ),
+            prefix=f"/{name}/{version}",
+        )
+
+        # Include utility routes for health checks
+        utility_routes = UtilityRoutes(start_time=datetime.now())
+        app.include_router(
+            utility_routes.get_health_routes(
+                config=config,
+                app_config=app_config,
             ),
             prefix=f"/{name}/{version}",
         )

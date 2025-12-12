@@ -457,7 +457,7 @@ class TestMcpTool:
 class TestMcpPlugin:
     """Test MCP plugin wrapper."""
 
-    def test_plugin_requires_user_id(self, http_mcp_config):
+    def test_plugin_requires_user_id(self, http_mcp_config, mock_connection_manager):
         """Test that McpPlugin requires user_id."""
         tool = McpTool(
             tool_name="test_tool",
@@ -474,12 +474,35 @@ class TestMcpPlugin:
                 tools=[tool],
                 server_name="test",
                 user_id="",  # Empty user_id!
+                connection_manager=mock_connection_manager,
                 authorization=None,
                 extra_data_collector=None
             )
 
-    def test_plugin_initialization_with_user_id(self, http_mcp_config):
-        """Test successful plugin initialization with user_id."""
+    def test_plugin_requires_connection_manager(self, http_mcp_config):
+        """Test that McpPlugin requires connection_manager."""
+        tool = McpTool(
+            tool_name="test_tool",
+            description="Test",
+            input_schema={},
+            output_schema=None,
+            server_config=http_mcp_config,
+            server_name="test",
+        )
+
+        # Should raise ValueError without connection_manager
+        with pytest.raises(ValueError, match="MCP plugins require a connection_manager"):
+            McpPlugin(
+                tools=[tool],
+                server_name="test",
+                user_id="test_user",
+                connection_manager=None,  # Missing connection_manager!
+                authorization=None,
+                extra_data_collector=None
+            )
+
+    def test_plugin_initialization_with_user_id(self, http_mcp_config, mock_connection_manager):
+        """Test successful plugin initialization with user_id and connection_manager."""
         tool = McpTool(
             tool_name="test_tool",
             description="Test",
@@ -493,6 +516,7 @@ class TestMcpPlugin:
             tools=[tool],
             server_name="test",
             user_id="test_user",
+            connection_manager=mock_connection_manager,
             authorization="Bearer token",
             extra_data_collector=None
         )
@@ -500,9 +524,10 @@ class TestMcpPlugin:
         assert plugin.user_id == "test_user"
         assert plugin.server_name == "test"
         assert plugin.authorization == "Bearer token"
+        assert plugin.connection_manager == mock_connection_manager
         assert len(plugin.tools) == 1
 
-    def test_plugin_creates_kernel_functions(self, http_mcp_config):
+    def test_plugin_creates_kernel_functions(self, http_mcp_config, mock_connection_manager):
         """Test that plugin creates kernel functions for each tool."""
         tool1 = McpTool(
             tool_name="tool_one",
@@ -525,7 +550,8 @@ class TestMcpPlugin:
         plugin = McpPlugin(
             tools=[tool1, tool2],
             server_name="test",
-            user_id="test_user"
+            user_id="test_user",
+            connection_manager=mock_connection_manager,
         )
 
         # Should create functions for both tools

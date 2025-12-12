@@ -13,7 +13,6 @@ from mcp import ClientSession
 from mcp.types import Tool, TextContent
 
 from sk_agents.auth_storage.models import OAuth2AuthData
-from sk_agents.mcp_plugin_registry import McpPluginRegistry
 from sk_agents.tealagents.v1alpha1.config import McpServerConfig
 
 
@@ -220,17 +219,13 @@ def mock_stdio_client(mock_mcp_session):
 # ============================================================================
 
 @pytest.fixture
-def reset_mcp_registry():
-    """Reset McpPluginRegistry between tests."""
-    yield
-    McpPluginRegistry.clear()
-
-
-@pytest.fixture(autouse=True)
-def cleanup_mcp_registry():
-    """Automatically cleanup McpPluginRegistry after each test."""
-    yield
-    McpPluginRegistry.clear()
+def mock_connection_manager():
+    """Create a mock McpConnectionManager for testing."""
+    manager = MagicMock()
+    manager.get_or_create_session = AsyncMock()
+    manager._user_id = "test_user"
+    manager._session_id = "test_session"
+    return manager
 
 
 # ============================================================================

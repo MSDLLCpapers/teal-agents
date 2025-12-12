@@ -1130,6 +1130,7 @@ class McpTool:
         self.output_schema = output_schema
         self.server_config = server_config
         self.server_name = server_name
+        self.app_config: AppConfig | None = None  # Set via McpPlugin at instantiation time
 
     async def invoke(
         self,
@@ -1355,6 +1356,8 @@ class McpPlugin(BasePlugin):
 
         # Dynamically add kernel functions for each tool
         for tool in tools:
+            # Propagate app_config to tools for fallback auth resolution
+            tool.app_config = app_config
             self._add_tool_function(tool)
 
     def _add_tool_function(self, tool: McpTool):

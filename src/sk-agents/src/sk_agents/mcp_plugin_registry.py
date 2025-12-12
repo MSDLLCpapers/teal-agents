@@ -1,8 +1,9 @@
 """
-MCP Plugin Registry - Materializes MCP plugin classes at session start.
+MCP Plugin Registry - Discovers and stores MCP tools at session start.
 
-This registry discovers MCP tools and creates plugin CLASSES (not instances),
-making MCP tools behave like non-MCP code that exists in the codebase.
+This registry discovers MCP tools and stores them in external state.
+At request time, tools are loaded from state and used to instantiate
+McpPlugin directly in kernel_builder.
 """
 
 import logging
@@ -27,17 +28,20 @@ logger = logging.getLogger(__name__)
 
 class McpPluginRegistry:
     """
-    Registry for MCP plugin classes with per-session isolation.
+    Registry for MCP tools with per-session isolation.
 
     At session start, this registry:
     1. Connects to MCP servers temporarily
     2. Discovers available tools
     3. Registers tools in catalog for governance/HITL
-    4. Serializes plugin data to external storage (via McpStateManager)
-    5. Plugin classes reconstructed from storage at agent build time
+    4. Serializes tool data to external storage (via McpStateManager)
+
+    At request time:
+    - Tools are loaded from storage via get_tools_for_session()
+    - kernel_builder instantiates McpPlugin directly with these tools
 
     This ensures proper multi-tenant isolation and horizontal scalability.
-    Plugin state is stored externally (Redis/InMemory) instead of class variables.
+    Tool state is stored externally (Redis/InMemory) instead of class variables.
     """
 
     @staticmethod
@@ -382,19 +386,18 @@ class McpPluginRegistry:
         return {"server_name": server_name, "tools": tools_data}
 
     @classmethod
-    def _deserialize_plugin_data(cls, plugin_data: Dict) -> type:
+    def _deserialize_tools(cls, plugin_data: Dict) -> List[McpTool]:
         """
-        Deserialize plugin data to plugin class.
+        Deserialize plugin data to McpTool list.
 
         Args:
             plugin_data: Serialized plugin data from storage
 
         Returns:
-            type: Dynamically created McpPlugin class
+            List of McpTool objects
         """
         from sk_agents.tealagents.v1alpha1.config import McpServerConfig
 
-        # Reconstruct McpTool objects
         tools = []
         for tool_data in plugin_data["tools"]:
             server_config = McpServerConfig(**tool_data["server_config"])
@@ -408,53 +411,14 @@ class McpPluginRegistry:
             )
             tools.append(tool)
 
-        # Create plugin class dynamically
-        return cls._create_plugin_class(tools, plugin_data["server_name"])
+        return tools
 
     @classmethod
-    def _create_plugin_class(cls, tools: List[McpTool], server_name: str) -> type:
-        """
-        Create a McpPlugin class dynamically.
-
-        This is like having WeatherPlugin.py in the codebase - the class exists
-        and can be instantiated multiple times.
-        """
-        def create_class(tools_list, srv_name):
-            class DynamicMcpPlugin(McpPlugin):
-                def __init__(
-                    self,
-                    user_id: str,
-                    authorization=None,
-                    extra_data_collector=None,
-                    session_id: str | None = None,
-                    discovery_manager=None,
-                    **kwargs,
-                ):
-                    super().__init__(
-                        tools=tools_list,
-                        server_name=srv_name,
-                        user_id=user_id,
-                        authorization=authorization,
-                        extra_data_collector=extra_data_collector,
-                        session_id=session_id,
-                        discovery_manager=discovery_manager,
-                        **kwargs,
-                    )
-
-            # Set a meaningful class name
-            DynamicMcpPlugin.__name__ = f"McpPlugin_{srv_name}"
-            DynamicMcpPlugin.__qualname__ = f"McpPlugin_{srv_name}"
-
-            return DynamicMcpPlugin
-
-        return create_class(tools, server_name)
-
-    @classmethod
-    async def get_plugin_classes_for_session(
+    async def get_tools_for_session(
         cls, user_id: str, session_id: str, discovery_manager  # McpStateManager
-    ) -> Dict[str, type]:
+    ) -> Dict[str, List[McpTool]]:
         """
-        Load plugin classes from external storage for this session.
+        Load MCP tools from external storage for this session.
 
         Args:
             user_id: User ID
@@ -462,22 +426,22 @@ class McpPluginRegistry:
             discovery_manager: Manager for loading discovery state
 
         Returns:
-            Dictionary mapping server_name to plugin class
+            Dictionary mapping server_name to list of McpTool objects
         """
         # Load state from external storage
         state = await discovery_manager.load_discovery(user_id, session_id)
         if not state or not state.discovery_completed:
             return {}
 
-        # Deserialize plugin classes
-        plugin_classes = {}
+        # Deserialize tools for each server
+        server_tools = {}
         for server_name, entry in state.discovered_servers.items():
             plugin_blob = entry.get("plugin_data") if isinstance(entry, dict) else None
             plugin_data = plugin_blob if plugin_blob else entry  # fallback to legacy shape
-            plugin_class = cls._deserialize_plugin_data(plugin_data)
-            plugin_classes[server_name] = plugin_class
+            tools = cls._deserialize_tools(plugin_data)
+            server_tools[server_name] = tools
 
         logger.debug(
-            f"Loaded {len(plugin_classes)} MCP plugin classes for session {session_id}"
+            f"Loaded tools for {len(server_tools)} MCP servers for session {session_id}"
         )
-        return plugin_classes
+        return server_tools

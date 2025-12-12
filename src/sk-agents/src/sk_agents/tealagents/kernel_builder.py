@@ -105,21 +105,17 @@ class KernelBuilder:
         connection_manager,
     ) -> Kernel:
         """
-        Load MCP plugins by instantiating them from the session-level plugin registry.
+        Load MCP plugins by instantiating McpPlugin directly with tools from storage.
 
-        This mirrors the non-MCP plugin pattern:
-        1. Get plugin CLASSES from registry for this session (like loading from file)
-        2. Instantiate each plugin with connection_manager
-        3. Register with kernel
-
-        Only plugins that the user has authenticated to access will be loaded,
-        ensuring proper multi-tenant isolation at the session level.
+        This loads tools discovered at session start and creates McpPlugin instances
+        for each MCP server. Only tools that the user has authenticated to access
+        will be loaded, ensuring proper multi-tenant isolation at the session level.
 
         Args:
             kernel: The kernel to add plugins to
             user_id: User ID to get plugins for (required)
             session_id: Session ID for plugin isolation (required)
-            mcp_discovery_manager: Discovery manager for loading plugin state (required)
+            mcp_discovery_manager: Discovery manager for loading tool state (required)
             connection_manager: Request-scoped connection manager for connection reuse (required)
 
         Returns:
@@ -138,34 +134,39 @@ class KernelBuilder:
             raise ValueError("connection_manager is required when loading MCP plugins")
 
         try:
+            from sk_agents.mcp_client import McpPlugin
             from sk_agents.mcp_plugin_registry import McpPluginRegistry
 
-            # Get all MCP plugin classes for THIS session (session-level isolation)
-            plugin_classes = await McpPluginRegistry.get_plugin_classes_for_session(
+            # Get tools for THIS session (session-level isolation)
+            server_tools = await McpPluginRegistry.get_tools_for_session(
                 user_id, session_id, mcp_discovery_manager
             )
 
-            if not plugin_classes:
-                self.logger.debug(f"No MCP plugins found for user {user_id}, session {session_id}")
+            if not server_tools:
+                self.logger.debug(f"No MCP tools found for user {user_id}, session {session_id}")
                 return kernel
 
-            # Load each MCP plugin into the kernel
-            for server_name, plugin_class in plugin_classes.items():
-                # Instantiate plugin with required connection_manager
-                plugin_instance = plugin_class(
+            # Instantiate McpPlugin directly for each server
+            for server_name, tools in server_tools.items():
+                plugin_instance = McpPlugin(
+                    tools=tools,
+                    server_name=server_name,
                     user_id=user_id,
                     connection_manager=connection_manager,
                     authorization=self.authorization,
-                    extra_data_collector=None,  # Can be passed if needed
+                    extra_data_collector=None,
                 )
 
                 # Register with kernel
                 # Sanitize server name: SK requires plugin names to match ^[0-9A-Za-z_]+
                 sanitized_server_name = server_name.replace('-', '_').replace('.', '_')
                 kernel.add_plugin(plugin_instance, f"mcp_{sanitized_server_name}")
-                self.logger.info(f"Loaded MCP plugin for {server_name} as mcp_{sanitized_server_name} (user: {user_id}, session: {session_id})")
+                self.logger.info(
+                    f"Loaded MCP plugin for {server_name} as mcp_{sanitized_server_name} "
+                    f"(user: {user_id}, session: {session_id})"
+                )
 
-            self.logger.info(f"Loaded {len(plugin_classes)} MCP plugins for user {user_id}, session {session_id}")
+            self.logger.info(f"Loaded {len(server_tools)} MCP plugins for user {user_id}, session {session_id}")
             return kernel
 
         except Exception as e:

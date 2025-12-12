@@ -96,13 +96,20 @@ class KernelBuilder:
             self.logger.exception(f"Could not load remote plugings. -{e}")
             raise
 
-    async def load_mcp_plugins(self, kernel: Kernel, user_id: str, session_id: str = None, mcp_discovery_manager=None) -> Kernel:
+    async def load_mcp_plugins(
+        self,
+        kernel: Kernel,
+        user_id: str,
+        session_id: str,
+        mcp_discovery_manager,
+        connection_manager,
+    ) -> Kernel:
         """
         Load MCP plugins by instantiating them from the session-level plugin registry.
 
         This mirrors the non-MCP plugin pattern:
         1. Get plugin CLASSES from registry for this session (like loading from file)
-        2. Instantiate each plugin
+        2. Instantiate each plugin with connection_manager
         3. Register with kernel
 
         Only plugins that the user has authenticated to access will be loaded,
@@ -111,8 +118,9 @@ class KernelBuilder:
         Args:
             kernel: The kernel to add plugins to
             user_id: User ID to get plugins for (required)
-            session_id: Session ID for plugin isolation (optional, required if using MCP)
-            mcp_discovery_manager: Discovery manager for loading plugin state (optional, required if using MCP)
+            session_id: Session ID for plugin isolation (required)
+            mcp_discovery_manager: Discovery manager for loading plugin state (required)
+            connection_manager: Request-scoped connection manager for connection reuse (required)
 
         Returns:
             The kernel with session's MCP plugins loaded
@@ -120,12 +128,14 @@ class KernelBuilder:
         Note: MCP tools must be discovered first via McpPluginRegistry.discover_and_materialize()
         before calling this method.
         """
-        # Early return if optional parameters not provided (no MCP configured)
-        if not session_id or not mcp_discovery_manager:
-            return kernel
-
         if not user_id:
             raise ValueError("user_id is required when loading MCP plugins")
+        if not session_id:
+            raise ValueError("session_id is required when loading MCP plugins")
+        if not mcp_discovery_manager:
+            raise ValueError("mcp_discovery_manager is required when loading MCP plugins")
+        if not connection_manager:
+            raise ValueError("connection_manager is required when loading MCP plugins")
 
         try:
             from sk_agents.mcp_plugin_registry import McpPluginRegistry
@@ -141,17 +151,15 @@ class KernelBuilder:
 
             # Load each MCP plugin into the kernel
             for server_name, plugin_class in plugin_classes.items():
-                # Instantiate plugin (same pattern as non-MCP!)
+                # Instantiate plugin with required connection_manager
                 plugin_instance = plugin_class(
                     user_id=user_id,
+                    connection_manager=connection_manager,
                     authorization=self.authorization,
                     extra_data_collector=None,  # Can be passed if needed
-                    session_id=session_id,
-                    discovery_manager=mcp_discovery_manager,
-                    app_config=self.app_config,
                 )
 
-                # Register with kernel (same pattern as non-MCP!)
+                # Register with kernel
                 # Sanitize server name: SK requires plugin names to match ^[0-9A-Za-z_]+
                 sanitized_server_name = server_name.replace('-', '_').replace('.', '_')
                 kernel.add_plugin(plugin_instance, f"mcp_{sanitized_server_name}")

@@ -69,6 +69,44 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         # Track which sessions have seen MCP auth status messages (to show only once per session)
         self._mcp_status_shown_per_session: set[str] = set()
 
+    async def _create_mcp_connection_manager(self, user_id: str, session_id: str):
+        """
+        Create a request-scoped MCP connection manager if MCP servers are configured.
+
+        The connection manager provides:
+        - Lazy connection establishment (connect on first tool call per server)
+        - Connection reuse within the request (all tools share connections)
+        - Automatic cleanup at request end
+        - Session ID persistence for cross-request continuity
+
+        Args:
+            user_id: User ID for authentication
+            session_id: Session ID for session-level scoping
+
+        Returns:
+            McpConnectionManager if MCP servers configured, None otherwise
+        """
+        mcp_servers = self.config.get_agent().mcp_servers
+        if not mcp_servers or not self.discovery_manager:
+            return None
+
+        try:
+            from sk_agents.mcp_client import McpConnectionManager
+
+            # Build server configs dict keyed by server name
+            server_configs = {server.name: server for server in mcp_servers}
+
+            return McpConnectionManager(
+                server_configs=server_configs,
+                user_id=user_id,
+                session_id=session_id,
+                state_manager=self.discovery_manager,
+                app_config=self.app_config,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to create MCP connection manager: {e}. Falling back to per-tool connections.")
+            return None
+
     async def _ensure_session_discovery(
         self, user_id: str, session_id: str, task_id: str, request_id: str
     ) -> AuthChallengeResponse | None:
@@ -600,41 +638,54 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         _pending_tools = list(pending_tools_item.pending_tool_calls)
         pending_tools = [FunctionCallContent(**function_call) for function_call in _pending_tools]
 
-        # Execute the tool calls using asyncio.gather(),
-        # just as the agent would have.
-        extra_data_collector = ExtraDataCollector()
-        agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector, user_id=user_id)
+        # Create request-scoped connection manager for MCP connection reuse
+        connection_manager = await self._create_mcp_connection_manager(user_id, session_id)
 
-        # Load MCP plugins after agent construction (per-session isolation)
-        if self.config.get_agent().mcp_servers and self.discovery_manager:
-            await self.agent_builder.kernel_builder.load_mcp_plugins(
-                agent.agent.kernel,
-                user_id,
-                session_id,
-                self.discovery_manager
+        async def _execute_resume(conn_mgr=None):
+            # Execute the tool calls using asyncio.gather(),
+            # just as the agent would have.
+            extra_data_collector = ExtraDataCollector()
+            agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector, user_id=user_id)
+
+            # Load MCP plugins after agent construction (per-session isolation)
+            # connection_manager is required for MCP plugin loading
+            if self.config.get_agent().mcp_servers and self.discovery_manager and conn_mgr:
+                await self.agent_builder.kernel_builder.load_mcp_plugins(
+                    agent.agent.kernel,
+                    user_id,
+                    session_id,
+                    self.discovery_manager,
+                    conn_mgr
+                )
+
+            kernel = agent.agent.kernel
+
+            # Create ToolContent objects from the results
+            results = await asyncio.gather(
+                *[TealAgentsV1Alpha1Handler._invoke_function(kernel, fc) for fc in pending_tools]
             )
+            # Add results to chat history
+            for result in results:
+                chat_history.add_message(result.to_chat_message_content())
 
-        kernel = agent.agent.kernel
+            if stream:
+                final_response_stream = self.recursion_invoke_stream(
+                    chat_history, session_id, task_id, request_id,
+                    connection_manager=conn_mgr
+                )
+                return final_response_stream
+            else:
+                final_response_invoke = await self.recursion_invoke(
+                    inputs=chat_history, session_id=session_id, request_id=request_id, task_id=task_id,
+                    connection_manager=conn_mgr
+                )
+                return final_response_invoke
 
-        # Create ToolContent objects from the results
-        results = await asyncio.gather(
-            *[TealAgentsV1Alpha1Handler._invoke_function(kernel, fc) for fc in pending_tools]
-        )
-        # Add results to chat history
-        for result in results:
-            chat_history.add_message(result.to_chat_message_content())
-
-        if stream:
-            final_response_stream = self.recursion_invoke_stream(
-                chat_history, session_id, task_id, request_id
-            )
-            return final_response_stream
+        if connection_manager:
+            async with connection_manager:
+                return await _execute_resume(connection_manager)
         else:
-            final_response_invoke = await self.recursion_invoke(
-                inputs=chat_history, session_id=session_id, request_id=request_id, task_id=task_id
-            )
-
-            return final_response_invoke
+            return await _execute_resume()
 
     async def invoke(
         self, auth_token: str, inputs: UserMessage
@@ -679,9 +730,19 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
         TealAgentsV1Alpha1Handler._build_chat_history(agent_task, chat_history)
         logger.info("Building the final response")
-        final_response_invoke = await self.recursion_invoke(
-            inputs=chat_history, session_id=session_id, request_id=request_id, task_id=task_id
-        )
+
+        # Create request-scoped connection manager for MCP connection reuse
+        connection_manager = await self._create_mcp_connection_manager(user_id, session_id)
+        if connection_manager:
+            async with connection_manager:
+                final_response_invoke = await self.recursion_invoke(
+                    inputs=chat_history, session_id=session_id, request_id=request_id,
+                    task_id=task_id, connection_manager=connection_manager
+                )
+        else:
+            final_response_invoke = await self.recursion_invoke(
+                inputs=chat_history, session_id=session_id, request_id=request_id, task_id=task_id
+            )
         logger.info("Final response complete")
 
         return final_response_invoke
@@ -770,16 +831,26 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         logger.info("Building the final response")
         TealAgentsV1Alpha1Handler._build_chat_history(agent_task, chat_history)
 
-        # Yield from the recursive stream
-        async for response_chunk in self.recursion_invoke_stream(
-            chat_history, session_id, task_id, request_id
-        ):
-            yield response_chunk
+        # Create request-scoped connection manager for MCP connection reuse
+        connection_manager = await self._create_mcp_connection_manager(user_id, session_id)
+        if connection_manager:
+            async with connection_manager:
+                async for response_chunk in self.recursion_invoke_stream(
+                    chat_history, session_id, task_id, request_id,
+                    connection_manager=connection_manager
+                ):
+                    yield response_chunk
+        else:
+            async for response_chunk in self.recursion_invoke_stream(
+                chat_history, session_id, task_id, request_id
+            ):
+                yield response_chunk
 
         logger.info("Final response complete")
 
     async def recursion_invoke(
-        self, inputs: ChatHistory, session_id: str, task_id: str, request_id: str
+        self, inputs: ChatHistory, session_id: str, task_id: str, request_id: str,
+        connection_manager=None
     ) -> TealAgentsResponse | HitlResponse:
         # Initial setup
 
@@ -797,12 +868,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
 
         # Load MCP plugins after agent construction (per-session isolation)
-        if self.config.get_agent().mcp_servers and self.discovery_manager:
+        # connection_manager is required for MCP plugin loading
+        if self.config.get_agent().mcp_servers and self.discovery_manager and connection_manager:
             await self.agent_builder.kernel_builder.load_mcp_plugins(
                 agent.agent.kernel,
                 user_id,
                 session_id,
-                self.discovery_manager
+                self.discovery_manager,
+                connection_manager
             )
 
         # Prepare metadata
@@ -871,6 +944,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                     session_id=session_id,
                     task_id=task_id,
                     request_id=request_id,
+                    connection_manager=connection_manager,
                 )
                 return recursive_response
 
@@ -907,7 +981,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
 
     async def recursion_invoke_stream(
-        self, inputs: ChatHistory, session_id: str, task_id: str, request_id: str
+        self, inputs: ChatHistory, session_id: str, task_id: str, request_id: str,
+        connection_manager=None
     ) -> AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse]:
         chat_history = inputs
         agent_task = await self.state.load_by_request_id(request_id)
@@ -923,12 +998,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
 
         # Load MCP plugins after agent construction (per-session isolation)
-        if self.config.get_agent().mcp_servers and self.discovery_manager:
+        # connection_manager is required for MCP plugin loading
+        if self.config.get_agent().mcp_servers and self.discovery_manager and connection_manager:
             await self.agent_builder.kernel_builder.load_mcp_plugins(
                 agent.agent.kernel,
                 user_id,
                 session_id,
-                self.discovery_manager
+                self.discovery_manager,
+                connection_manager
             )
 
         # Prepare metadata
@@ -1005,7 +1082,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 await self._manage_function_calls(function_calls, chat_history, kernel)
                 # Make a recursive call to get the final streamed response
                 async for final_response_chunk in self.recursion_invoke_stream(
-                    chat_history, session_id, task_id, request_id
+                    chat_history, session_id, task_id, request_id,
+                    connection_manager=connection_manager
                 ):
                     yield final_response_chunk
                 return

@@ -1096,6 +1096,153 @@ def get_transport_info(server_config: McpServerConfig) -> str:
         return f"{server_config.transport}:unknown"
 
 
+class McpConnectionManager:
+    """
+    Request-scoped connection manager for MCP servers.
+
+    Manages MCP connections within a single agent invoke() request scope:
+    - Lazy connection establishment (connect on first tool call per server)
+    - Connection reuse within the request (all tools on same server share connection)
+    - Automatic cleanup at request end
+    - Session ID persistence via state manager for cross-request continuity
+
+    Lifecycle:
+        1. Created at start of invoke() request
+        2. Connections created lazily when first tool from server is called
+        3. Connections reused for all subsequent tool calls in same request
+        4. Cleanup at end of invoke() - close connections, persist session IDs
+
+    Usage:
+        async with McpConnectionManager(servers, user_id, ...) as conn_mgr:
+            session = await conn_mgr.get_or_create_session(server_name)
+            result = await session.call_tool(tool_name, args)
+    """
+
+    def __init__(
+        self,
+        server_configs: Dict[str, McpServerConfig],
+        user_id: str,
+        session_id: str,
+        state_manager=None,  # McpStateManager for session ID persistence
+        app_config: AppConfig = None,
+    ):
+        self._server_configs = server_configs
+        self._user_id = user_id
+        self._session_id = session_id
+        self._state_manager = state_manager
+        self._app_config = app_config
+
+        # Active connections (created lazily)
+        self._sessions: Dict[str, ClientSession] = {}
+        self._get_session_id_callbacks: Dict[str, Callable[[], str | None]] = {}
+        self._connection_stack: AsyncExitStack | None = None
+
+        # Stored session IDs from previous requests
+        self._stored_session_ids: Dict[str, str] = {}
+
+    async def __aenter__(self) -> "McpConnectionManager":
+        """Enter context - initialize and load stored session IDs."""
+        self._connection_stack = AsyncExitStack()
+        await self._connection_stack.__aenter__()
+
+        # Pre-load stored session IDs for all configured servers
+        if self._state_manager:
+            for server_name in self._server_configs:
+                try:
+                    stored_id = await self._state_manager.get_mcp_session(
+                        self._user_id, self._session_id, server_name
+                    )
+                    if stored_id:
+                        self._stored_session_ids[server_name] = stored_id
+                        logger.debug(f"Loaded stored MCP session for {server_name}")
+                except Exception as e:
+                    logger.debug(f"Could not load stored session for {server_name}: {e}")
+
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit context - persist session IDs and cleanup connections."""
+        try:
+            # Persist session IDs for servers that were connected
+            if self._state_manager:
+                for server_name, get_session_id in self._get_session_id_callbacks.items():
+                    try:
+                        current_id = get_session_id() if get_session_id else None
+                        if current_id:
+                            await self._state_manager.store_mcp_session(
+                                self._user_id, self._session_id, server_name, current_id
+                            )
+                            logger.debug(f"Persisted MCP session for {server_name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to persist MCP session for {server_name}: {e}")
+        finally:
+            # Close all connections
+            if self._connection_stack:
+                await self._connection_stack.__aexit__(exc_type, exc_val, exc_tb)
+            self._sessions.clear()
+            self._get_session_id_callbacks.clear()
+
+    async def get_or_create_session(self, server_name: str) -> ClientSession:
+        """
+        Get existing session or create new one for server (lazy connection).
+
+        Args:
+            server_name: Name of the MCP server
+
+        Returns:
+            Active MCP ClientSession for the server
+        """
+        if server_name in self._sessions:
+            logger.debug(f"Reusing MCP session for {server_name}")
+            return self._sessions[server_name]
+
+        server_config = self._server_configs.get(server_name)
+        if not server_config:
+            raise ValueError(f"Unknown MCP server: {server_name}")
+
+        if not self._connection_stack:
+            raise RuntimeError("McpConnectionManager must be used as async context manager")
+
+        stored_session_id = self._stored_session_ids.get(server_name)
+
+        session, get_session_id = await create_mcp_session_with_retry(
+            server_config,
+            self._connection_stack,
+            self._user_id,
+            mcp_session_id=stored_session_id,
+            on_stale_session=self._create_stale_handler(server_name),
+            app_config=self._app_config,
+        )
+
+        self._sessions[server_name] = session
+        self._get_session_id_callbacks[server_name] = get_session_id
+        logger.info(f"Created MCP session for {server_name}")
+        return session
+
+    def _create_stale_handler(self, server_name: str) -> Callable[[str], Awaitable[None]]:
+        """Create callback to handle stale session ID."""
+        async def handler(stale_id: str):
+            logger.info(f"Clearing stale MCP session for {server_name}")
+            if self._state_manager:
+                try:
+                    await self._state_manager.clear_mcp_session(
+                        self._user_id, self._session_id, server_name,
+                        expected_session_id=stale_id
+                    )
+                except Exception as e:
+                    logger.debug(f"Failed to clear stale session: {e}")
+            self._stored_session_ids.pop(server_name, None)
+        return handler
+
+    def has_active_session(self, server_name: str) -> bool:
+        """Check if server has an active session in this request."""
+        return server_name in self._sessions
+
+    def get_active_servers(self) -> List[str]:
+        """Get list of servers with active sessions."""
+        return list(self._sessions.keys())
+
+
 class McpTool:
     """
     Stateless wrapper for MCP tools to make them compatible with Semantic Kernel.
@@ -1134,110 +1281,43 @@ class McpTool:
 
     async def invoke(
         self,
-        user_id: str,
-        session_id: str | None = None,
-        discovery_manager=None,
-        app_config: AppConfig | None = None,
+        connection_manager: "McpConnectionManager",
         **kwargs,
     ) -> str:
         """
-        Invoke the MCP tool with session-aware connection and fallback.
+        Invoke the MCP tool using a request-scoped connection manager.
+
+        Args:
+            connection_manager: Request-scoped connection manager for connection reuse
+            **kwargs: Tool arguments
+
+        Returns:
+            Tool execution result as string
+
+        Raises:
+            ValueError: If connection_manager is not provided
+            RuntimeError: If tool execution fails
         """
+        if not connection_manager:
+            raise ValueError(
+                f"connection_manager is required for MCP tool invocation. "
+                f"Tool '{self.tool_name}' cannot be invoked without a connection manager."
+            )
+
         try:
             if self.input_schema:
                 self._validate_inputs(kwargs)
 
-            stored_session_id = None
-            if discovery_manager and session_id:
-                stored_session_id = await discovery_manager.get_mcp_session(
-                    user_id, session_id, self.server_name
-                )
+            logger.debug(f"Executing MCP tool: {self.server_name}.{self.tool_name}")
+            session = await connection_manager.get_or_create_session(self.server_name)
+            result = await session.call_tool(self.tool_name, kwargs)
+            parsed = self._parse_result(result)
+            logger.debug(f"MCP tool {self.tool_name} completed successfully")
+            return parsed
 
-            async def clear_stored_session(expected_session_id: str | None = None):
-                if not (discovery_manager and session_id):
-                    return
-                try:
-                    await discovery_manager.clear_mcp_session(
-                        user_id,
-                        session_id,
-                        self.server_name,
-                        expected_session_id=expected_session_id,
-                    )
-                    logger.info(
-                        f"Cleared stored MCP session for server={self.server_name}, user={user_id}, session={session_id}"
-                    )
-                except Exception as clear_err:
-                    logger.debug(f"clear_mcp_session failed silently: {clear_err}")
-
-            effective_app_config = app_config or self.app_config
-
-            async def connect_with(session_hint: str | None):
-                stack = AsyncExitStack()
-                session, get_session_id = await create_mcp_session_with_retry(
-                    self.server_config,
-                    stack,
-                    user_id,
-                    mcp_session_id=session_hint,
-                    on_stale_session=lambda sid: clear_stored_session(sid),
-                    app_config=effective_app_config,
-                )
-                return stack, session, get_session_id
-
-            async def execute_with_stack(stack: AsyncExitStack, session, get_session_id, active_session_id: str | None):
-                try:
-                    logger.debug(f"Executing MCP tool: {self.server_name}.{self.tool_name}")
-                    result = await session.call_tool(self.tool_name, kwargs)
-                    parsed = self._parse_result(result)
-
-                    # Persist/refresh session id
-                    if discovery_manager and session_id:
-                        new_session_id = get_session_id() if get_session_id else None
-                        effective_session_id = new_session_id or active_session_id
-                        if effective_session_id:
-                            try:
-                                await discovery_manager.store_mcp_session(
-                                    user_id,
-                                    session_id,
-                                    self.server_name,
-                                    effective_session_id,
-                                )
-                                await discovery_manager.update_session_last_used(
-                                    user_id, session_id, self.server_name
-                                )
-                            except Exception as storage_err:
-                                logger.warning(
-                                    f"Failed to persist MCP session for {self.server_name}: {storage_err}. "
-                                    f"Tool execution succeeded but session reuse may be skipped."
-                                )
-
-                    logger.debug(f"MCP tool {self.tool_name} completed successfully")
-                    return parsed
-                finally:
-                    await stack.aclose()
-
-            # First attempt (possibly with stored session id)
-            stack, session, get_session_id = await connect_with(stored_session_id)
-            try:
-                result = await execute_with_stack(stack, session, get_session_id, stored_session_id)
-                if stored_session_id and (
-                    not get_session_id or (get_session_id() == stored_session_id)
-                ):
-                    logger.info(
-                        f"MCP session reused successfully for {self.server_name}; session_id={stored_session_id}"
-                    )
-                return result
-            except Exception:
-                # If we used a stored session and it failed, clear and retry once fresh
-                if stored_session_id:
-                    logger.info(
-                        f"Stored MCP session rejected for {self.server_name}; "
-                        f"session_id={stored_session_id}. Retrying without session."
-                    )
-                    await clear_stored_session(stored_session_id)
-                    stack, session, get_session_id = await connect_with(None)
-                    return await execute_with_stack(stack, session, get_session_id, None)
+        except ValueError:
+            # Re-raise validation errors as-is
             raise
-
         except Exception as e:
             logger.error(f"Error invoking MCP tool {self.tool_name}: {e}")
 
@@ -1281,51 +1361,40 @@ class McpTool:
 
 class McpPlugin(BasePlugin):
     """
-    Plugin wrapper that holds stateless MCP tools for Semantic Kernel integration.
+    Plugin wrapper that holds MCP tools for Semantic Kernel integration.
 
     This plugin creates kernel functions with proper type annotations from MCP JSON schemas,
     allowing Semantic Kernel to expose full parameter information to the LLM.
 
     MCP-Specific Design Note:
     -------------------------
-    Unlike standard plugins, MCP plugins require a user_id parameter. This is necessary because:
+    MCP plugins require both user_id and connection_manager:
 
     1. **Per-User Authentication**: MCP tools connect to external services that require OAuth2
-       authentication. Tokens are stored per-user in AuthStorage and must be resolved at
-       invocation time.
+       authentication. Tokens are stored per-user in AuthStorage.
 
-    2. **Dynamic Token Resolution**: Each MCP tool invocation calls resolve_server_auth_headers()
-       which uses user_id to retrieve the current user's OAuth2 token from AuthStorage.
-
-    3. **Multi-User Support**: The same MCP plugin class can be instantiated multiple times
-       (once per user request), each with a different user_id for proper token isolation.
-
-    This differs from standard plugins which typically use static authorization headers
-    or no authentication at all.
+    2. **Connection Reuse**: All tool calls within a request share connections via the
+       connection_manager, reducing overhead from per-tool-call to per-request per-server.
 
     Args:
-        tools: List of stateless MCP tools discovered from the server
+        tools: List of MCP tools discovered from the server
         server_name: Name of the MCP server (used for logging and namespacing)
-        user_id: User ID for OAuth2 token resolution (REQUIRED for MCP)
+        user_id: User ID for OAuth2 token resolution (REQUIRED)
+        connection_manager: Request-scoped connection manager (REQUIRED)
         authorization: Optional standard authorization header (rarely used with MCP)
         extra_data_collector: Optional collector for extra response data
-        session_id: Teal agent session id (for MCP session reuse)
-        discovery_manager: McpStateManager to persist/reuse MCP sessions
 
     Raises:
-        ValueError: If user_id is not provided (MCP requirement)
+        ValueError: If user_id or connection_manager is not provided
 
     Example:
-        >>> # Discovery creates plugin class at session start
-        >>> plugin_class = McpPluginRegistry.get_plugin_class("github")
-        >>>
-        >>> # Instantiation happens per-request with user_id
-        >>> plugin_instance = plugin_class(
-        ...     user_id="user123",
-        ...     authorization="Bearer ...",
-        ...     extra_data_collector=collector
-        ... )
-        >>> kernel.add_plugin(plugin_instance, "mcp_github")
+        >>> async with McpConnectionManager(configs, user_id, session_id) as conn_mgr:
+        ...     plugin_instance = plugin_class(
+        ...         user_id="user123",
+        ...         connection_manager=conn_mgr,
+        ...         extra_data_collector=collector
+        ...     )
+        ...     kernel.add_plugin(plugin_instance, "mcp_github")
     """
 
     def __init__(
@@ -1333,31 +1402,28 @@ class McpPlugin(BasePlugin):
         tools: List[McpTool],
         server_name: str,
         user_id: str,
+        connection_manager: "McpConnectionManager",
         authorization: str | None = None,
         extra_data_collector=None,
-        session_id: str | None = None,
-        discovery_manager=None,
-        app_config: AppConfig | None = None,
     ):
         if not user_id:
             raise ValueError(
-                "MCP plugins require a user_id for per-request OAuth2 token resolution. "
-                "This is needed to retrieve user-specific tokens from AuthStorage."
+                "MCP plugins require a user_id for per-request OAuth2 token resolution."
+            )
+        if not connection_manager:
+            raise ValueError(
+                "MCP plugins require a connection_manager for request-scoped connection reuse. "
+                "Create one using McpConnectionManager and pass it to the plugin."
             )
 
         super().__init__(authorization, extra_data_collector)
         self.tools = tools
         self.server_name = server_name
         self.user_id = user_id
-        self.session_id = session_id
-        self.discovery_manager = discovery_manager
-        # Store app_config for downstream MCP auth resolution
-        self.app_config = app_config
+        self.connection_manager = connection_manager
 
         # Dynamically add kernel functions for each tool
         for tool in tools:
-            # Propagate app_config to tools for fallback auth resolution
-            tool.app_config = app_config
             self._add_tool_function(tool)
 
     def _add_tool_function(self, tool: McpTool):
@@ -1379,10 +1445,7 @@ class McpPlugin(BasePlugin):
             )
             async def tool_function(**kwargs):
                 return await captured_tool.invoke(
-                    user_id=self.user_id,
-                    session_id=self.session_id,
-                    discovery_manager=self.discovery_manager,
-                    app_config=self.app_config,
+                    connection_manager=self.connection_manager,
                     **kwargs,
                 )
 

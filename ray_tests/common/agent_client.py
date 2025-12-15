@@ -54,6 +54,7 @@ class DirectAgentClient:
         self.handler: Optional[TealAgentsV1Alpha1Handler] = None
         self.session_id: str = str(uuid.uuid4())
         self._initialized = False
+        self._app_config: Optional[AppConfig] = None
 
     async def initialize(self) -> None:
         """Initialize the agent handler and all dependencies."""
@@ -114,6 +115,7 @@ class DirectAgentClient:
 
         # Get AppConfig instance (already created by add_configs)
         app_config = AppConfig()
+        self._app_config = app_config
 
         # Initialize plugin loader with custom plugin module
         from sk_agents.plugin_loader import get_plugin_loader
@@ -286,6 +288,42 @@ class DirectAgentClient:
         logger.info(f"Created new session: {self.session_id}")
         return self.session_id
 
+    async def _create_mcp_connection_manager(self, user_id: str, session_id: str):
+        """
+        Create a request-scoped MCP connection manager if MCP servers are configured.
+
+        Args:
+            user_id: User ID for authentication
+            session_id: Session ID for session-level scoping
+
+        Returns:
+            McpConnectionManager if MCP servers configured, None otherwise
+        """
+        if not self.handler or not self._app_config:
+            return None
+
+        agent_config = self.handler.config.get_agent()
+        mcp_servers = agent_config.mcp_servers
+        if not mcp_servers or not self.handler.discovery_manager:
+            return None
+
+        try:
+            from sk_agents.mcp_client import McpConnectionManager
+
+            # Build server configs dict keyed by server name
+            server_configs = {server.name: server for server in mcp_servers}
+
+            return McpConnectionManager(
+                server_configs=server_configs,
+                user_id=user_id,
+                session_id=session_id,
+                state_manager=self.handler.discovery_manager,
+                app_config=self._app_config,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to create MCP connection manager: {e}")
+            return None
+
     async def get_available_tools(self, session_id: str | None = None) -> dict[str, list[dict]]:
         """
         Get all available tools from registered plugins.
@@ -312,24 +350,28 @@ class DirectAgentClient:
         )
 
         # Load MCP plugins after agent construction if session_id provided
-        # This follows the same pattern as handler.py
+        # This follows the same pattern as handler.py with connection manager
         if session_id and agent_config.mcp_servers and self.handler.discovery_manager:
-            await self.handler.agent_builder.kernel_builder.load_mcp_plugins(
-                agent.agent.kernel,
-                dummy_auth,
-                session_id,
-                self.handler.discovery_manager
-            )
+            connection_manager = await self._create_mcp_connection_manager(dummy_auth, session_id)
+            if connection_manager:
+                async with connection_manager:
+                    await self.handler.agent_builder.kernel_builder.load_mcp_plugins(
+                        agent.agent.kernel,
+                        dummy_auth,
+                        session_id,
+                        self.handler.discovery_manager,
+                        connection_manager,
+                    )
 
         kernel = agent.agent.kernel
-        
+
         # Extract plugin information
         tools_by_plugin = {}
-        
+
         for plugin_name in kernel.plugins.keys():
             plugin = kernel.plugins[plugin_name]
             tools = []
-            
+
             # Get functions from the plugin
             # plugin.functions is a dict of function_name -> KernelFunction
             if hasattr(plugin, 'functions'):
@@ -340,7 +382,7 @@ class DirectAgentClient:
                         "description": func.description or "No description available",
                         "parameters": []
                     }
-                    
+
                     # Extract parameter information if available
                     if hasattr(func, "metadata") and func.metadata:
                         if hasattr(func.metadata, "parameters"):
@@ -351,12 +393,12 @@ class DirectAgentClient:
                                     "required": param.is_required,
                                     "type": param.type_,
                                 })
-                    
+
                     tools.append(tool_info)
-            
+
             if tools:
                 tools_by_plugin[plugin_name] = tools
-        
+
         return tools_by_plugin
 
     async def call_tool(self, plugin_name: str, function_name: str, session_id: str | None = None, **kwargs) -> str:
@@ -390,30 +432,41 @@ class DirectAgentClient:
                 user_id=dummy_auth
             )
 
-            # Load MCP plugins after agent construction if session_id provided
-            # This follows the same pattern as handler.py and get_available_tools()
-            if session_id and agent_config.mcp_servers and self.handler.discovery_manager:
-                await self.handler.agent_builder.kernel_builder.load_mcp_plugins(
-                    agent.agent.kernel,
-                    dummy_auth,
-                    session_id,
-                    self.handler.discovery_manager
-                )
-
             kernel = agent.agent.kernel
-            
-            # Get the function
-            function = kernel.get_function(plugin_name, function_name)
-            
-            # Create kernel arguments
-            kernel_args = KernelArguments(**kwargs)
-            
-            # Invoke the function
-            result = await function.invoke(kernel, kernel_args)
-            
-            # Return the result as string
-            return str(result)
-            
+            connection_manager = None
+
+            # Load MCP plugins after agent construction if session_id provided
+            # This follows the same pattern as handler.py with connection manager
+            if session_id and agent_config.mcp_servers and self.handler.discovery_manager:
+                connection_manager = await self._create_mcp_connection_manager(dummy_auth, session_id)
+                if connection_manager:
+                    # Enter the connection manager context - we'll exit after invocation
+                    await connection_manager.__aenter__()
+                    await self.handler.agent_builder.kernel_builder.load_mcp_plugins(
+                        kernel,
+                        dummy_auth,
+                        session_id,
+                        self.handler.discovery_manager,
+                        connection_manager,
+                    )
+
+            try:
+                # Get the function
+                function = kernel.get_function(plugin_name, function_name)
+
+                # Create kernel arguments
+                kernel_args = KernelArguments(**kwargs)
+
+                # Invoke the function
+                result = await function.invoke(kernel, kernel_args)
+
+                # Return the result as string
+                return str(result)
+            finally:
+                # Clean up connection manager if we created one
+                if connection_manager:
+                    await connection_manager.__aexit__(None, None, None)
+
         except Exception as e:
             logger.error(f"Error calling tool {plugin_name}.{function_name}: {e}", exc_info=True)
             raise

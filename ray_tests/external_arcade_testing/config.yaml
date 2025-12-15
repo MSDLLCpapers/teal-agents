@@ -9,7 +9,7 @@ spec:
   agent:
     name: file_agent
     role: File Assistant
-    model: gpt-5-mini #gpt-4o-mini #gpt-5-2025-08-07
+    model: gpt-5-2025-08-07 #gpt-5-mini #gpt-4o-mini #
     reasoning_effort: low
     system_prompt: >
       You are a helpful assistant with access to various tools and functions.
@@ -34,7 +34,7 @@ spec:
         user_id_source: env          # or "auth"
         user_id_env_var: ARCADE_USER_ID 
         trust_level: trusted
-        verify_ssl: true   # recommended; only disable if you truly must
+        verify_ssl: false
 
       # AWS Knowledge MCP - public endpoint, no auth required
       - name: aws-knowledge

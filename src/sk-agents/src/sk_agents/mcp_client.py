@@ -1178,7 +1178,20 @@ class McpConnectionManager:
         finally:
             # Close all connections
             if self._connection_stack:
-                await self._connection_stack.__aexit__(exc_type, exc_val, exc_tb)
+                try:
+                    await self._connection_stack.__aexit__(exc_type, exc_val, exc_tb)
+                except RuntimeError as e:
+                    # Handle anyio task affinity errors gracefully.
+                    # This can happen when the connection manager is used across
+                    # recursive handler calls that change the async task context.
+                    # The MCP SDK's streamablehttp_client uses anyio.create_task_group()
+                    # which requires entering/exiting in the same async task.
+                    if "cancel scope" in str(e) and "different task" in str(e):
+                        logger.warning(
+                            f"MCP connection cleanup encountered task affinity issue (non-fatal): {e}"
+                        )
+                    else:
+                        raise
             self._sessions.clear()
             self._get_session_id_callbacks.clear()
 

@@ -144,7 +144,9 @@ class TestProtectedResourceMetadataDiscovery:
 
             assert prm is not None
             assert str(prm.resource) == "https://mcp.example.com/"
-            assert "https://auth.example.com" in prm.authorization_servers
+            # authorization_servers contains HttpUrl objects, convert to strings for comparison
+            auth_servers_str = [str(s) for s in prm.authorization_servers]
+            assert any("https://auth.example.com" in s for s in auth_servers_str)
             assert prm.scopes_supported == ["read", "write"]
 
     @pytest.mark.asyncio
@@ -249,8 +251,12 @@ class TestOAuthClientWithDiscovery:
         with patch("httpx.AsyncClient", return_value=mock_client):
             with patch("ska_utils.AppConfig") as mock_app_config_inner:
                 mock_config_inner_instance = mock_app_config_inner.return_value
-                mock_config_inner_instance.get.return_value = "test-client"
-                
+                # Return proper values for different config keys
+                mock_config_inner_instance.get.side_effect = lambda key: {
+                    "TA_OAUTH_REDIRECT_URI": "https://app.example.com/callback",
+                    "TA_OAUTH_CLIENT_NAME": "test-client",
+                }.get(key, "default")
+
                 client = OAuthClient()
                 auth_url = await client.initiate_authorization_flow(server_config, "test_user")
 
@@ -290,8 +296,12 @@ class TestOAuthClientWithDiscovery:
         with patch("httpx.AsyncClient", return_value=mock_client):
             with patch("ska_utils.AppConfig") as mock_app_config_inner:
                 mock_config_inner_instance = mock_app_config_inner.return_value
-                mock_config_inner_instance.get.return_value = "test-client"
-                
+                # Return proper values for different config keys
+                mock_config_inner_instance.get.side_effect = lambda key: {
+                    "TA_OAUTH_REDIRECT_URI": "https://app.example.com/callback",
+                    "TA_OAUTH_CLIENT_NAME": "test-client",
+                }.get(key, "default")
+
                 client = OAuthClient()
                 # Should not raise, should use fallback
                 auth_url = await client.initiate_authorization_flow(server_config, "test_user")

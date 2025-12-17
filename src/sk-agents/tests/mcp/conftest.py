@@ -4,6 +4,21 @@ Pytest fixtures for MCP testing.
 Provides mock OAuth2 storage, mock MCP servers, and test utilities.
 """
 
+import os
+
+# ============================================================================
+# Environment Setup for Tests - MUST BE BEFORE OTHER IMPORTS
+# ============================================================================
+# Set env vars at module level before any imports that use AppConfig
+# Required configs
+os.environ.setdefault("TA_API_KEY", "test-api-key")
+os.environ.setdefault("TA_SERVICE_CONFIG", "{}")
+# MCP-specific configs
+os.environ.setdefault("TA_MCP_OAUTH_STRICT_HTTPS_VALIDATION", "false")
+os.environ.setdefault("TA_MCP_OAUTH_ENABLE_TOKEN_REFRESH", "false")
+os.environ.setdefault("TA_MCP_OAUTH_ENABLE_SERVER_DISCOVERY", "false")
+os.environ.setdefault("TA_MCP_OAUTH_ENABLE_DYNAMIC_REGISTRATION", "false")
+
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 from unittest.mock import AsyncMock, MagicMock, Mock
@@ -11,6 +26,11 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 import pytest
 from mcp import ClientSession
 from mcp.types import Tool, TextContent
+
+# Initialize AppConfig with all configs BEFORE importing modules that use it
+from ska_utils import AppConfig
+from sk_agents.configs import configs as all_configs
+AppConfig.add_configs(all_configs)
 
 from sk_agents.auth_storage.models import OAuth2AuthData
 from sk_agents.tealagents.v1alpha1.config import McpServerConfig

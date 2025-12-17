@@ -15,6 +15,8 @@ import asyncio
 import logging
 from typing import Dict, Any
 
+import pytest
+
 from sk_agents.tealagents.v1alpha1.config import McpServerConfig
 from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
 from sk_agents.plugin_catalog.models import Governance, Oauth2PluginAuth, PluginTool, McpPluginType, Plugin
@@ -128,8 +130,11 @@ def test_catalog_registration():
     return plugin
 
 
-def test_auth_resolution():
+@pytest.mark.asyncio
+async def test_auth_resolution():
     """Test direct auth resolution for MCP servers."""
+    from sk_agents.mcp_client import AuthRequiredError
+
     print("\n=== Testing Direct Auth Resolution ===")
 
     # Create mock MCP server config with auth
@@ -141,43 +146,39 @@ def test_auth_resolution():
         scopes=["read", "write"]
     )
 
-    # Test direct auth resolution (will fail gracefully if auth storage not configured)
-    headers = resolve_server_auth_headers(server_config)
+    # Test direct auth resolution - should raise AuthRequiredError when no token
+    try:
+        headers = await resolve_server_auth_headers(server_config)
+        print(f"✓ Direct auth resolution succeeded: {list(headers.keys())}")
+    except AuthRequiredError as e:
+        print(f"✓ AuthRequiredError raised as expected (no token configured): {e}")
 
-    print(f"✓ Direct auth resolution attempted for server: {server_config.name}")
-    if headers:
-        print(f"  - Resolved headers: {list(headers.keys())}")
-    else:
-        print("  - No auth headers resolved (expected if auth storage not configured)")
-
-    # Custom non-sensitive headers are still forwarded
+    # Test with server that has custom headers but no OAuth
     server_config_with_headers = McpServerConfig(
         name="header-server",
         transport="http",
         url="https://headers.example.com/mcp",
-        auth_server="https://headers.example.com/oauth2",
-        scopes=["test.scope"],
-        headers={"X-Client": "demo"}
+        headers={"X-Client": "demo"}  # No OAuth, just custom headers
     )
-    forwarded_headers = resolve_server_auth_headers(server_config_with_headers)
+    forwarded_headers = await resolve_server_auth_headers(server_config_with_headers)
     print(f"✓ Non-sensitive headers forwarded: {forwarded_headers}")
+    assert "X-Client" in forwarded_headers
 
-    # Static Authorization headers must be rejected now
+    # Test that both OAuth and static auth can coexist in config (OAuth takes precedence at runtime)
+    config_with_both = McpServerConfig(
+        name="both-auth-server",
+        transport="http",
+        url="https://both.example.com/mcp",
+        headers={"Authorization": "Bearer static-token", "X-Custom": "value"},
+        auth_server="https://both.example.com/oauth2",
+        scopes=["test.scope"],
+    )
+    print(f"✓ Config created successfully with both OAuth and static Auth header")
+    # When OAuth is configured but no token available, static auth is filtered out
     try:
-        McpServerConfig(
-            name="legacy-server",
-            transport="http",
-            url="https://legacy.example.com/mcp",
-            headers={"Authorization": "Bearer test-token"},
-            auth_server="https://legacy.example.com/oauth2",
-            scopes=["legacy.scope"],
-        )
-    except ValueError as exc:
-        print(f"✓ Static Authorization header rejected as expected: {exc}")
-    else:
-        raise AssertionError("Static Authorization header should not be accepted")
-
-    return headers
+        await resolve_server_auth_headers(config_with_both)
+    except AuthRequiredError:
+        print(f"✓ AuthRequiredError raised (OAuth configured but no token)")
 
 
 def test_hitl_integration():

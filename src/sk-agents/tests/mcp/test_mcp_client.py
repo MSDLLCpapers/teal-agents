@@ -286,8 +286,9 @@ class TestGovernanceOverrides:
 class TestAuthHeaderResolution:
     """Test OAuth2 token resolution for MCP servers."""
 
+    @pytest.mark.asyncio
     @patch("sk_agents.mcp_client.AuthStorageFactory")
-    def test_resolve_with_valid_token(self, mock_factory_class, mock_oauth2_token):
+    async def test_resolve_with_valid_token(self, mock_factory_class, mock_oauth2_token):
         """Test resolving headers with valid OAuth2 token."""
         # Setup mocks
         mock_storage = MagicMock()
@@ -306,15 +307,18 @@ class TestAuthHeaderResolution:
         )
 
         # Resolve headers
-        headers = resolve_server_auth_headers(config, "test_user")
+        headers = await resolve_server_auth_headers(config, "test_user")
 
         # Verify
         assert "Authorization" in headers
         assert headers["Authorization"] == "Bearer mock_access_token_12345"
 
+    @pytest.mark.asyncio
     @patch("sk_agents.mcp_client.AuthStorageFactory")
-    def test_resolve_with_expired_token(self, mock_factory_class, expired_oauth2_token):
-        """Test that expired tokens are not used."""
+    async def test_resolve_with_expired_token(self, mock_factory_class, expired_oauth2_token):
+        """Test that expired tokens raise AuthRequiredError."""
+        from sk_agents.mcp_client import AuthRequiredError
+
         # Setup mocks
         mock_storage = MagicMock()
         mock_storage.retrieve.return_value = expired_oauth2_token
@@ -330,14 +334,16 @@ class TestAuthHeaderResolution:
             scopes=["read"]
         )
 
-        headers = resolve_server_auth_headers(config, "test_user")
+        # Should raise AuthRequiredError for expired token
+        with pytest.raises(AuthRequiredError, match="Token expired"):
+            await resolve_server_auth_headers(config, "test_user")
 
-        # Should NOT include Authorization header for expired token
-        assert "Authorization" not in headers
-
+    @pytest.mark.asyncio
     @patch("sk_agents.mcp_client.AuthStorageFactory")
-    def test_resolve_with_no_token(self, mock_factory_class):
-        """Test resolving headers when no token is stored."""
+    async def test_resolve_with_no_token(self, mock_factory_class):
+        """Test resolving headers when no token is stored raises AuthRequiredError."""
+        from sk_agents.mcp_client import AuthRequiredError
+
         # Setup mocks
         mock_storage = MagicMock()
         mock_storage.retrieve.return_value = None  # No token stored
@@ -353,13 +359,13 @@ class TestAuthHeaderResolution:
             scopes=["read"]
         )
 
-        headers = resolve_server_auth_headers(config, "test_user")
+        # Should raise AuthRequiredError when no token
+        with pytest.raises(AuthRequiredError, match="Authentication required"):
+            await resolve_server_auth_headers(config, "test_user")
 
-        # Should return empty headers
-        assert headers == {}
-
+    @pytest.mark.asyncio
     @patch("sk_agents.mcp_client.AuthStorageFactory")
-    def test_resolve_forwards_non_sensitive_headers(self, mock_factory_class, mock_oauth2_token):
+    async def test_resolve_forwards_non_sensitive_headers(self, mock_factory_class, mock_oauth2_token):
         """Test that non-sensitive custom headers are forwarded."""
         # Setup mocks
         mock_storage = MagicMock()
@@ -380,28 +386,44 @@ class TestAuthHeaderResolution:
             }
         )
 
-        headers = resolve_server_auth_headers(config, "test_user")
+        headers = await resolve_server_auth_headers(config, "test_user")
 
         # Should include both OAuth2 and custom headers
         assert headers["Authorization"] == "Bearer mock_access_token_12345"
         assert headers["X-Client-Version"] == "1.0"
         assert headers["X-Request-ID"] == "12345"
 
-    def test_resolve_blocks_static_authorization(self):
-        """Test that static Authorization headers are blocked at config validation."""
-        # Config validation should prevent static Authorization headers
-        with pytest.raises(ValueError, match="Static Authorization headers are no longer supported"):
-            McpServerConfig(
-                name="test",
-                transport="http",
-                url="https://api.example.com/mcp",
-                auth_server="https://example.com/oauth",
-                scopes=["read"],
-                headers={
-                    "Authorization": "Bearer static_token",  # Should be blocked!
-                    "X-Client": "test"
-                }
-            )
+    @pytest.mark.asyncio
+    @patch("sk_agents.mcp_client.AuthStorageFactory")
+    async def test_resolve_oauth_takes_precedence_over_static_auth(self, mock_factory_class, mock_oauth2_token):
+        """Test that OAuth takes precedence when both OAuth and static Authorization are configured."""
+        # Setup mocks
+        mock_storage = MagicMock()
+        mock_storage.retrieve.return_value = mock_oauth2_token
+        mock_factory = MagicMock()
+        mock_factory.get_auth_storage_manager.return_value = mock_storage
+        mock_factory_class.return_value = mock_factory
+
+        # Config with both OAuth and static Authorization header
+        # OAuth should take precedence
+        config = McpServerConfig(
+            name="test",
+            transport="http",
+            url="https://api.example.com/mcp",
+            auth_server="https://example.com/oauth",
+            scopes=["read"],
+            headers={
+                "Authorization": "Bearer static_token",  # Should be overridden by OAuth
+                "X-Client": "test"
+            }
+        )
+
+        headers = await resolve_server_auth_headers(config, "test_user")
+
+        # OAuth token should be used instead of static Authorization
+        assert headers["Authorization"] == "Bearer mock_access_token_12345"
+        # Other custom headers should still be forwarded
+        assert headers["X-Client"] == "test"
 
 
 # ============================================================================
@@ -445,8 +467,8 @@ class TestMcpTool:
             server_name="test-server",
         )
 
-        # Should raise RuntimeError wrapping ValueError for missing required parameter
-        with pytest.raises(RuntimeError, match="MCP tool 'test_tool' failed"):
+        # Should raise ValueError for missing required parameter
+        with pytest.raises(ValueError, match="Missing required parameter 'required_param'"):
             await tool.invoke("test_user", optional_param="value")
 
 

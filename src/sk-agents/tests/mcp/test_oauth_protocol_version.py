@@ -13,9 +13,9 @@ from sk_agents.auth.oauth_models import AuthorizationRequest, TokenRequest
 class TestProtocolVersionDetection:
     """Test protocol version-based resource parameter inclusion."""
 
-    def test_should_include_resource_param_with_2025_06_18(self):
-        """Resource param should be included for protocol version 2025-06-18."""
-        result = OAuthClient.should_include_resource_param(protocol_version="2025-06-18")
+    def test_should_include_resource_param_with_2025_11_25(self):
+        """Resource param should be included for protocol version 2025-11-25 and later."""
+        result = OAuthClient.should_include_resource_param(protocol_version="2025-11-25")
         assert result is True
 
     def test_should_include_resource_param_with_newer_version(self):

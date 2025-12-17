@@ -11,7 +11,6 @@ This PR introduces MCP support to Teal Agents, enabling agents to discover and u
 | Feature | Description |
 |---------|-------------|
 | **HTTP Transport** | Primary focus - connects to remote MCP servers |
-| **OAuth 2.1 with PKCE** | Secure authentication for HTTP MCP servers |
 | **Session-Scoped Discovery** | Tools discovered once per session, stored externally |
 | **Request-Scoped Connections** | Lazy connection pooling within each request |
 | **Governance/HITL** | Secure-by-default with trust levels |

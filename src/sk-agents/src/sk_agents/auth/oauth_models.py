@@ -4,7 +4,6 @@ OAuth 2.1 Request and Response Models
 Models for OAuth authorization flows following MCP specification.
 """
 
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl
@@ -23,10 +22,15 @@ class AuthorizationRequest(BaseModel):
     """
 
     auth_server: HttpUrl = Field(..., description="Authorization server base URL")
-    authorization_endpoint: HttpUrl | None = Field(None, description="Discovered authorization endpoint (RFC 8414)")
+    authorization_endpoint: HttpUrl | None = Field(
+        None, description="Discovered authorization endpoint (RFC 8414)"
+    )
     client_id: str = Field(..., description="OAuth client ID")
     redirect_uri: HttpUrl = Field(..., description="OAuth callback URL")
-    resource: str | None = Field(None, description="Canonical MCP server URI (resource binding) - conditional per protocol version")
+    resource: str | None = Field(
+        None,
+        description="Canonical MCP server URI (resource binding) per protocol version",
+    )
     scopes: list[str] = Field(..., description="Requested OAuth scopes")
     state: str = Field(..., description="CSRF protection state parameter")
     code_challenge: str = Field(..., description="PKCE code challenge (S256)")
@@ -58,10 +62,17 @@ class TokenRequest(BaseModel):
     refresh_token: str | None = Field(None, description="Refresh token (for refresh_token grant)")
     redirect_uri: HttpUrl | None = Field(None, description="OAuth callback URL (must match)")
     code_verifier: str | None = Field(None, description="PKCE code verifier")
-    resource: str | None = Field(None, description="Canonical MCP server URI (resource binding) - conditional per protocol version")
+    resource: str | None = Field(
+        None,
+        description="Canonical MCP server URI (resource binding) per protocol version",
+    )
     client_id: str = Field(..., description="OAuth client ID")
-    client_secret: str | None = Field(None, description="OAuth client secret (confidential clients only)")
-    requested_scopes: list[str] | None = Field(None, description="Requested scopes for validation (prevents escalation attacks)")
+    client_secret: str | None = Field(
+        None, description="OAuth client secret (confidential clients only)"
+    )
+    requested_scopes: list[str] | None = Field(
+        None, description="Requested scopes for validation (prevents escalation attacks)"
+    )
 
 
 class TokenResponse(BaseModel):
@@ -93,13 +104,20 @@ class RefreshTokenRequest(BaseModel):
 
     token_endpoint: HttpUrl = Field(..., description="Token endpoint URL")
     refresh_token: str = Field(..., description="Refresh token")
-    resource: str | None = Field(None, description="Canonical MCP server URI (must match original) - conditional per protocol version")
+    resource: str | None = Field(
+        None,
+        description="Canonical MCP server URI (must match original) per protocol version",
+    )
     client_id: str = Field(..., description="OAuth client ID")
-    client_secret: str | None = Field(None, description="OAuth client secret (confidential clients only)")
+    client_secret: str | None = Field(
+        None, description="OAuth client secret (confidential clients only)"
+    )
     grant_type: Literal["refresh_token"] = Field(
         default="refresh_token", description="OAuth grant type"
     )
-    requested_scopes: list[str] | None = Field(None, description="Original requested scopes for validation (prevents escalation)")
+    requested_scopes: list[str] | None = Field(
+        None, description="Original requested scopes for validation (prevents escalation)"
+    )
 
 
 class OAuthError(BaseModel):
@@ -131,8 +149,7 @@ class MCP401Response(BaseModel):
     www_authenticate: str = Field(..., description="WWW-Authenticate header value")
     error_code: int = Field(401, description="HTTP status code")
     error_message: str = Field(
-        "Authentication required",
-        description="Human-readable error message"
+        "Authentication required", description="Human-readable error message"
     )
 
 
@@ -141,10 +158,8 @@ class MCP403Response(BaseModel):
 
     error_code: int = Field(403, description="HTTP status code")
     error_message: str = Field(
-        "Insufficient permissions",
-        description="Human-readable error message"
+        "Insufficient permissions", description="Human-readable error message"
     )
     required_scopes: list[str] | None = Field(
-        None,
-        description="Scopes required for this operation"
+        None, description="Scopes required for this operation"
     )

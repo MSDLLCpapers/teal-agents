@@ -7,18 +7,15 @@ Tests discovery, tool deserialization, and catalog registration.
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
-from mcp.types import Tool
 
 from sk_agents.mcp_client import McpTool
 from sk_agents.mcp_discovery.mcp_discovery_manager import McpState
 from sk_agents.mcp_plugin_registry import McpPluginRegistry
-from sk_agents.plugin_catalog.models import Governance
-from sk_agents.tealagents.v1alpha1.config import McpServerConfig
-
 
 # ============================================================================
 # Fixtures for Discovery Manager
 # ============================================================================
+
 
 @pytest.fixture
 def mock_discovery_manager():
@@ -52,16 +49,14 @@ def mock_discovery_state_with_tools(http_mcp_config):
                             "description": "A test tool for MCP",
                             "input_schema": {
                                 "type": "object",
-                                "properties": {
-                                    "param1": {"type": "string"}
-                                },
-                                "required": ["param1"]
+                                "properties": {"param1": {"type": "string"}},
+                                "required": ["param1"],
                             },
                             "output_schema": None,
                             "server_name": "test-http",
                             "server_config": http_mcp_config.model_dump(),
                         }
-                    ]
+                    ],
                 }
             }
         },
@@ -72,6 +67,7 @@ def mock_discovery_state_with_tools(http_mcp_config):
 # ============================================================================
 # Test Tool Deserialization
 # ============================================================================
+
 
 class TestToolDeserialization:
     """Test deserializing tools from state storage."""
@@ -89,7 +85,7 @@ class TestToolDeserialization:
                     "server_name": "test-http",
                     "server_config": http_mcp_config.model_dump(),
                 }
-            ]
+            ],
         }
 
         tools = McpPluginRegistry._deserialize_tools(plugin_data)
@@ -120,8 +116,8 @@ class TestToolDeserialization:
                     "output_schema": None,
                     "server_name": "test-http",
                     "server_config": http_mcp_config.model_dump(),
-                }
-            ]
+                },
+            ],
         }
 
         tools = McpPluginRegistry._deserialize_tools(plugin_data)
@@ -134,11 +130,8 @@ class TestToolDeserialization:
         """Test that input/output schemas are preserved."""
         input_schema = {
             "type": "object",
-            "properties": {
-                "name": {"type": "string"},
-                "count": {"type": "integer"}
-            },
-            "required": ["name"]
+            "properties": {"name": {"type": "string"}, "count": {"type": "integer"}},
+            "required": ["name"],
         }
         output_schema = {"type": "string"}
 
@@ -153,7 +146,7 @@ class TestToolDeserialization:
                     "server_name": "test-http",
                     "server_config": http_mcp_config.model_dump(),
                 }
-            ]
+            ],
         }
 
         tools = McpPluginRegistry._deserialize_tools(plugin_data)
@@ -166,6 +159,7 @@ class TestToolDeserialization:
 # Test get_tools_for_session
 # ============================================================================
 
+
 class TestGetToolsForSession:
     """Test loading tools from external state storage."""
 
@@ -175,17 +169,13 @@ class TestGetToolsForSession:
         mock_discovery_manager.load_discovery.return_value = None
 
         tools = await McpPluginRegistry.get_tools_for_session(
-            user_id="test_user",
-            session_id="test_session",
-            discovery_manager=mock_discovery_manager
+            user_id="test_user", session_id="test_session", discovery_manager=mock_discovery_manager
         )
 
         assert tools == {}
 
     @pytest.mark.asyncio
-    async def test_get_tools_returns_empty_when_discovery_incomplete(
-        self, mock_discovery_manager
-    ):
+    async def test_get_tools_returns_empty_when_discovery_incomplete(self, mock_discovery_manager):
         """Test that empty dict is returned when discovery is not completed."""
         incomplete_state = McpState(
             user_id="test_user",
@@ -196,9 +186,7 @@ class TestGetToolsForSession:
         mock_discovery_manager.load_discovery.return_value = incomplete_state
 
         tools = await McpPluginRegistry.get_tools_for_session(
-            user_id="test_user",
-            session_id="test_session",
-            discovery_manager=mock_discovery_manager
+            user_id="test_user", session_id="test_session", discovery_manager=mock_discovery_manager
         )
 
         assert tools == {}
@@ -211,9 +199,7 @@ class TestGetToolsForSession:
         mock_discovery_manager.load_discovery.return_value = mock_discovery_state_with_tools
 
         server_tools = await McpPluginRegistry.get_tools_for_session(
-            user_id="test_user",
-            session_id="test_session",
-            discovery_manager=mock_discovery_manager
+            user_id="test_user", session_id="test_session", discovery_manager=mock_discovery_manager
         )
 
         assert "test-http" in server_tools
@@ -234,38 +220,40 @@ class TestGetToolsForSession:
                 "test-http": {
                     "plugin_data": {
                         "server_name": "test-http",
-                        "tools": [{
-                            "tool_name": "http_tool",
-                            "description": "HTTP tool",
-                            "input_schema": {},
-                            "output_schema": None,
-                            "server_name": "test-http",
-                            "server_config": http_mcp_config.model_dump(),
-                        }]
+                        "tools": [
+                            {
+                                "tool_name": "http_tool",
+                                "description": "HTTP tool",
+                                "input_schema": {},
+                                "output_schema": None,
+                                "server_name": "test-http",
+                                "server_config": http_mcp_config.model_dump(),
+                            }
+                        ],
                     }
                 },
                 "test-stdio": {
                     "plugin_data": {
                         "server_name": "test-stdio",
-                        "tools": [{
-                            "tool_name": "stdio_tool",
-                            "description": "Stdio tool",
-                            "input_schema": {},
-                            "output_schema": None,
-                            "server_name": "test-stdio",
-                            "server_config": stdio_mcp_config.model_dump(),
-                        }]
+                        "tools": [
+                            {
+                                "tool_name": "stdio_tool",
+                                "description": "Stdio tool",
+                                "input_schema": {},
+                                "output_schema": None,
+                                "server_name": "test-stdio",
+                                "server_config": stdio_mcp_config.model_dump(),
+                            }
+                        ],
                     }
-                }
+                },
             },
             discovery_completed=True,
         )
         mock_discovery_manager.load_discovery.return_value = multi_server_state
 
         server_tools = await McpPluginRegistry.get_tools_for_session(
-            user_id="test_user",
-            session_id="test_session",
-            discovery_manager=mock_discovery_manager
+            user_id="test_user", session_id="test_session", discovery_manager=mock_discovery_manager
         )
 
         assert len(server_tools) == 2
@@ -278,6 +266,7 @@ class TestGetToolsForSession:
 # ============================================================================
 # Test Tool Catalog Registration
 # ============================================================================
+
 
 class TestCatalogRegistration:
     """Test MCP tool registration in plugin catalog."""
@@ -345,11 +334,14 @@ class TestCatalogRegistration:
 # Test Session Isolation
 # ============================================================================
 
+
 class TestSessionIsolation:
     """Test that tools are isolated per (user_id, session_id)."""
 
     @pytest.mark.asyncio
-    async def test_different_sessions_get_different_tools(self, mock_discovery_manager, http_mcp_config):
+    async def test_different_sessions_get_different_tools(
+        self, mock_discovery_manager, http_mcp_config
+    ):
         """Test that different sessions load their own tools."""
         # Session A has tool_a
         state_a = McpState(
@@ -359,14 +351,16 @@ class TestSessionIsolation:
                 "server": {
                     "plugin_data": {
                         "server_name": "server",
-                        "tools": [{
-                            "tool_name": "tool_a",
-                            "description": "Tool A",
-                            "input_schema": {},
-                            "output_schema": None,
-                            "server_name": "server",
-                            "server_config": http_mcp_config.model_dump(),
-                        }]
+                        "tools": [
+                            {
+                                "tool_name": "tool_a",
+                                "description": "Tool A",
+                                "input_schema": {},
+                                "output_schema": None,
+                                "server_name": "server",
+                                "server_config": http_mcp_config.model_dump(),
+                            }
+                        ],
                     }
                 }
             },
@@ -381,14 +375,16 @@ class TestSessionIsolation:
                 "server": {
                     "plugin_data": {
                         "server_name": "server",
-                        "tools": [{
-                            "tool_name": "tool_b",
-                            "description": "Tool B",
-                            "input_schema": {},
-                            "output_schema": None,
-                            "server_name": "server",
-                            "server_config": http_mcp_config.model_dump(),
-                        }]
+                        "tools": [
+                            {
+                                "tool_name": "tool_b",
+                                "description": "Tool B",
+                                "input_schema": {},
+                                "output_schema": None,
+                                "server_name": "server",
+                                "server_config": http_mcp_config.model_dump(),
+                            }
+                        ],
                     }
                 }
             },

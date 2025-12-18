@@ -11,7 +11,7 @@ References:
 
 import asyncio
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -92,7 +92,7 @@ class ServerMetadataCache:
         async with self._lock:
             if auth_server in self._cache:
                 metadata, cached_at = self._cache[auth_server]
-                if datetime.now(timezone.utc) - cached_at < timedelta(seconds=self.ttl):
+                if datetime.now(UTC) - cached_at < timedelta(seconds=self.ttl):
                     logger.debug(f"Cache hit for auth server metadata: {auth_server}")
                     return metadata
 
@@ -130,7 +130,7 @@ class ServerMetadataCache:
 
             # Cache result
             async with self._lock:
-                self._cache[auth_server] = (metadata, datetime.now(timezone.utc))
+                self._cache[auth_server] = (metadata, datetime.now(UTC))
 
             return metadata
 
@@ -172,7 +172,7 @@ class ServerMetadataCache:
         async with self._lock:
             if cache_key in self._cache:
                 metadata, cached_at = self._cache[cache_key]
-                if datetime.now(timezone.utc) - cached_at < timedelta(seconds=self.ttl):
+                if datetime.now(UTC) - cached_at < timedelta(seconds=self.ttl):
                     logger.debug(f"Cache hit for protected resource metadata: {mcp_server}")
                     return metadata
 
@@ -193,7 +193,7 @@ class ServerMetadataCache:
                     )
                     # Cache the None result to avoid repeated requests
                     async with self._lock:
-                        self._cache[cache_key] = (None, datetime.now(timezone.utc))
+                        self._cache[cache_key] = (None, datetime.now(UTC))
                     return None
 
                 response.raise_for_status()
@@ -214,7 +214,7 @@ class ServerMetadataCache:
 
             # Cache result
             async with self._lock:
-                self._cache[cache_key] = (metadata, datetime.now(timezone.utc))
+                self._cache[cache_key] = (metadata, datetime.now(UTC))
 
             return metadata
 
@@ -222,7 +222,7 @@ class ServerMetadataCache:
             if e.response.status_code == 404:
                 # Already handled above, but just in case
                 async with self._lock:
-                    self._cache[cache_key] = (None, datetime.now(timezone.utc))
+                    self._cache[cache_key] = (None, datetime.now(UTC))
                 return None
             logger.error(
                 f"Failed to fetch protected resource metadata from {well_known_url}: "

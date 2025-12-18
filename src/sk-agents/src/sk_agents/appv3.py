@@ -119,7 +119,11 @@ class AppV3:
         auth_storage_manager = AppV3._get_auth_storage_manager(app_config)
 
         # Only create MCP discovery manager if MCP servers are configured
-        mcp_servers = getattr(config.spec.agent, 'mcp_servers', None) if hasattr(config, 'spec') and hasattr(config.spec, 'agent') else None
+        mcp_servers = (
+            getattr(config.spec.agent, "mcp_servers", None)
+            if hasattr(config, "spec") and hasattr(config.spec, "agent")
+            else None
+        )
         if mcp_servers and len(mcp_servers) > 0:
             mcp_discovery_manager = AppV3._get_mcp_discovery_manager(app_config)
         else:
@@ -151,7 +155,10 @@ class AppV3:
         # Include the new resume routes
         app.include_router(
             Routes.get_resume_routes(
-                config=config, app_config=app_config, state_manager=state_manager, mcp_discovery_manager=mcp_discovery_manager
+                config=config,
+                app_config=app_config,
+                state_manager=state_manager,
+                mcp_discovery_manager=mcp_discovery_manager,
             ),
             prefix=f"/{name}/{version}",
         )

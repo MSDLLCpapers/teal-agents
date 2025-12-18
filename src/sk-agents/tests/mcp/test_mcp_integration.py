@@ -11,17 +11,20 @@ This script validates the key functionality of the integrated MCP auth system:
 Note: This is a validation script, not a full test suite.
 """
 
-import asyncio
 import logging
-from typing import Dict, Any
 
 import pytest
 
-from sk_agents.tealagents.v1alpha1.config import McpServerConfig
-from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
-from sk_agents.plugin_catalog.models import Governance, Oauth2PluginAuth, PluginTool, McpPluginType, Plugin
 from sk_agents.hitl.hitl_manager import check_for_intervention
 from sk_agents.mcp_client import map_mcp_annotations_to_governance, resolve_server_auth_headers
+from sk_agents.plugin_catalog.models import (
+    McpPluginType,
+    Oauth2PluginAuth,
+    Plugin,
+    PluginTool,
+)
+from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
+from sk_agents.tealagents.v1alpha1.config import McpServerConfig
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -38,7 +41,7 @@ def test_mcp_server_config():
         transport="http",
         url="https://api.github.com/mcp",
         auth_server="https://github.com/login/oauth",
-        scopes=["repo", "read:user"]
+        scopes=["repo", "read:user"],
     )
 
     print(f"✓ Created MCP server config: {config.name}")
@@ -68,17 +71,17 @@ def test_catalog_registration():
         transport="http",
         url="https://test.example.com/mcp",
         auth_server="https://auth.example.com",
-        scopes=["read", "write"]
+        scopes=["read", "write"],
     )
 
     # Create mock tool annotations
     mock_annotations = [
         {"destructiveHint": True, "readOnlyHint": False},
-        {"destructiveHint": False, "readOnlyHint": True}
+        {"destructiveHint": False, "readOnlyHint": True},
     ]
 
     # Test governance mapping directly
-    for i, annotations in enumerate(mock_annotations):
+    for _, annotations in enumerate(mock_annotations):
         governance = map_mcp_annotations_to_governance(annotations)
         print(f"✓ Mapped annotations {annotations} to governance:")
         print(f"  - Requires HITL: {governance.requires_hitl}")
@@ -89,21 +92,18 @@ def test_catalog_registration():
     plugin_tools = []
     tool_names = ["create_file", "read_file"]
 
-    for i, (tool_name, annotations) in enumerate(zip(tool_names, mock_annotations)):
+    for _, (tool_name, annotations) in enumerate(zip(tool_names, mock_annotations, strict=False)):
         tool_id = f"mcp_{server_config.name}-{server_config.name}_{tool_name}"
         governance = map_mcp_annotations_to_governance(annotations)
 
-        auth = Oauth2PluginAuth(
-            auth_server=server_config.auth_server,
-            scopes=server_config.scopes
-        )
+        auth = Oauth2PluginAuth(auth_server=server_config.auth_server, scopes=server_config.scopes)
 
         plugin_tool = PluginTool(
             tool_id=tool_id,
             name=tool_name.replace("_", " ").title(),
             description=f"MCP tool: {tool_name}",
             governance=governance,
-            auth=auth
+            auth=auth,
         )
         plugin_tools.append(plugin_tool)
 
@@ -115,7 +115,7 @@ def test_catalog_registration():
         version="1.0.0",
         owner="mcp-integration",
         plugin_type=McpPluginType(),
-        tools=plugin_tools
+        tools=plugin_tools,
     )
 
     print(f"✓ Created plugin directly: {plugin.plugin_id}")
@@ -143,7 +143,7 @@ async def test_auth_resolution():
         transport="http",
         url="https://test.example.com/mcp",
         auth_server="https://auth.example.com",
-        scopes=["read", "write"]
+        scopes=["read", "write"],
     )
 
     # Test direct auth resolution - should raise AuthRequiredError when no token
@@ -158,7 +158,7 @@ async def test_auth_resolution():
         name="header-server",
         transport="http",
         url="https://headers.example.com/mcp",
-        headers={"X-Client": "demo"}  # No OAuth, just custom headers
+        headers={"X-Client": "demo"},  # No OAuth, just custom headers
     )
     forwarded_headers = await resolve_server_auth_headers(server_config_with_headers)
     print(f"✓ Non-sensitive headers forwarded: {forwarded_headers}")
@@ -173,12 +173,12 @@ async def test_auth_resolution():
         auth_server="https://both.example.com/oauth2",
         scopes=["test.scope"],
     )
-    print(f"✓ Config created successfully with both OAuth and static Auth header")
+    print("✓ Config created successfully with both OAuth and static Auth header")
     # When OAuth is configured but no token available, static auth is filtered out
     try:
         await resolve_server_auth_headers(config_with_both)
     except AuthRequiredError:
-        print(f"✓ AuthRequiredError raised (OAuth configured but no token)")
+        print("✓ AuthRequiredError raised (OAuth configured but no token)")
 
 
 def test_hitl_integration():
@@ -193,8 +193,7 @@ def test_hitl_integration():
 
     # Test HITL check for destructive MCP tool
     destructive_call = MockFunctionCallContent(
-        plugin_name="mcp_test-server",
-        function_name="test-server_create_file"
+        plugin_name="mcp_test-server", function_name="test-server_create_file"
     )
 
     try:
@@ -205,8 +204,7 @@ def test_hitl_integration():
 
     # Test HITL check for read-only MCP tool
     readonly_call = MockFunctionCallContent(
-        plugin_name="mcp_test-server",
-        function_name="test-server_read_file"
+        plugin_name="mcp_test-server", function_name="test-server_read_file"
     )
 
     try:
@@ -223,13 +221,13 @@ def test_existing_catalog_integration():
     try:
         # Test using the existing catalog factory
         catalog = PluginCatalogFactory().get_catalog()
-        print(f"✓ Existing catalog obtained")
+        print("✓ Existing catalog obtained")
 
         # Test dynamic registration capability
-        if hasattr(catalog, 'register_dynamic_plugin'):
-            print(f"✓ Catalog supports dynamic registration")
+        if hasattr(catalog, "register_dynamic_plugin"):
+            print("✓ Catalog supports dynamic registration")
         else:
-            print(f"• Catalog does not support dynamic registration (needs upgrade)")
+            print("• Catalog does not support dynamic registration (needs upgrade)")
 
         # Test tool lookup (will be empty unless tools are registered)
         tool_id = "mcp_test-server-test-server_create_file"
@@ -237,7 +235,7 @@ def test_existing_catalog_integration():
         if tool:
             print(f"✓ Found MCP tool in existing catalog: {tool_id}")
         else:
-            print(f"• MCP tool not found in catalog (expected if not registered)")
+            print("• MCP tool not found in catalog (expected if not registered)")
 
     except Exception as e:
         print(f"✓ Existing catalog test attempted (expected to fail if not configured): {e}")

@@ -9,7 +9,7 @@ Implementation uses AuthStorage with temporary keys and TTL.
 
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from ska_utils import AppConfig
@@ -72,7 +72,7 @@ class OAuthFlowState:
     def is_expired(self, ttl_seconds: int = 300) -> bool:
         """Check if flow state has expired (default 5 minutes)"""
         expires_at = self.created_at + timedelta(seconds=ttl_seconds)
-        return datetime.now(timezone.utc) > expires_at
+        return datetime.now(UTC) > expires_at
 
 
 class OAuthStateManager:
@@ -137,7 +137,7 @@ class OAuthStateManager:
             server_name=server_name,
             resource=resource,
             scopes=scopes,
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.now(UTC),
         )
 
         # Store with temporary key
@@ -188,9 +188,9 @@ class OAuthStateManager:
             # Handle both dict and object storage
             if not isinstance(data, dict):
                 # If AuthStorage returns an object, try to convert
-                if hasattr(data, 'to_dict'):
+                if hasattr(data, "to_dict"):
                     data = data.to_dict()
-                elif hasattr(data, '__dict__'):
+                elif hasattr(data, "__dict__"):
                     data = data.__dict__
                 else:
                     logger.error(f"Unexpected flow state data type: {type(data)}")
@@ -261,9 +261,9 @@ class OAuthStateManager:
 
             # Handle both dict and object storage
             if not isinstance(data, dict):
-                if hasattr(data, 'to_dict'):
+                if hasattr(data, "to_dict"):
                     data = data.to_dict()
-                elif hasattr(data, '__dict__'):
+                elif hasattr(data, "__dict__"):
                     data = data.__dict__
                 else:
                     logger.error(f"Unexpected flow state data type: {type(data)}")

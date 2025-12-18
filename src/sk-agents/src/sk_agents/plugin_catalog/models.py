@@ -25,7 +25,11 @@ class Governance(BaseModel):
 
 # Governance Override Model for MCP tool configuration
 class GovernanceOverride(BaseModel):
-    """Optional governance overrides for MCP tools. Only specified fields will override auto-inferred values."""
+    """Optional governance overrides for MCP tools.
+
+    Only specified fields will override auto-inferred values.
+    """
+
     requires_hitl: bool | None = None
     cost: Literal["low", "medium", "high"] | None = None
     data_sensitivity: Literal["public", "proprietary", "confidential", "sensitive"] | None = None

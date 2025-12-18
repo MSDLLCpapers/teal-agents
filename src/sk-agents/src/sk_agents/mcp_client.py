@@ -5,36 +5,34 @@ This module provides an MCP (Model Context Protocol) client that supports only
 the transports that are actually available in the MCP Python SDK.
 
 ONLY SUPPORTED TRANSPORTS:
-- stdio: Local subprocess communication 
+- stdio: Local subprocess communication
 - http: HTTP with Server-Sent Events for remote servers
 
 WebSocket support will be added when it becomes available in the MCP SDK.
 """
 
 import asyncio
-import inspect
 import logging
 import os
-from typing import Any, Dict, List, Optional, Callable, Awaitable
+from collections.abc import Awaitable, Callable
 from contextlib import AsyncExitStack
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC
+from typing import Any
 
 import httpx
 from mcp import ClientSession, StdioServerParameters
 from semantic_kernel.functions import kernel_function
-from semantic_kernel.kernel import Kernel
 from ska_utils import AppConfig
 
-from sk_agents.ska_types import BasePlugin
-from sk_agents.tealagents.v1alpha1.config import McpServerConfig
+from sk_agents.auth.oauth_error_handler import OAuthErrorHandler
 from sk_agents.auth_storage.auth_storage_factory import AuthStorageFactory
 from sk_agents.auth_storage.models import OAuth2AuthData
-from sk_agents.auth.oauth_error_handler import OAuthErrorHandler, parse_www_authenticate_header
-from sk_agents.plugin_catalog.models import Governance, GovernanceOverride, Oauth2PluginAuth, PluginTool
-from sk_agents.plugin_catalog.plugin_catalog_factory import PluginCatalogFactory
-
+from sk_agents.plugin_catalog.models import (
+    Governance,
+    GovernanceOverride,
+)
+from sk_agents.ska_types import BasePlugin
+from sk_agents.tealagents.v1alpha1.config import McpServerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +44,8 @@ class AuthRequiredError(Exception):
     This exception is raised during discovery when a server requires authentication
     (has auth_server + scopes configured) but the user has no valid token in AuthStorage.
     """
-    def __init__(self, server_name: str, auth_server: str, scopes: List[str], message: str = None):
+
+    def __init__(self, server_name: str, auth_server: str, scopes: list[str], message: str = None):
         self.server_name = server_name
         self.auth_server = auth_server
         self.scopes = scopes
@@ -54,9 +53,9 @@ class AuthRequiredError(Exception):
         super().__init__(self.message)
 
 
-def build_auth_storage_key(auth_server: str, scopes: List[str]) -> str:
+def build_auth_storage_key(auth_server: str, scopes: list[str]) -> str:
     """Create deterministic key for storing OAuth tokens in AuthStorage."""
-    normalized_scopes = '|'.join(sorted(scopes)) if scopes else ''
+    normalized_scopes = "|".join(sorted(scopes)) if scopes else ""
     return f"{auth_server}|{normalized_scopes}" if normalized_scopes else auth_server
 
 
@@ -108,26 +107,28 @@ def normalize_canonical_uri(uri: str) -> str:
     netloc = parsed.netloc.lower()
 
     # Remove default ports (80 for http, 443 for https)
-    if ':' in netloc:
-        host, port = netloc.rsplit(':', 1)
+    if ":" in netloc:
+        host, port = netloc.rsplit(":", 1)
         try:
             port_num = int(port)
             # Remove default ports
-            if (scheme == 'http' and port_num == 80) or (scheme == 'https' and port_num == 443):
+            if (scheme == "http" and port_num == 80) or (scheme == "https" and port_num == 443):
                 netloc = host
         except ValueError:
             # Not a valid port number, keep as is
             pass
 
     # Reconstruct canonical URI
-    canonical = urlunparse((
-        scheme,
-        netloc,
-        parsed.path or '',  # Include path if present
-        '',  # No params
-        '',  # No query
-        ''   # No fragment
-    ))
+    canonical = urlunparse(
+        (
+            scheme,
+            netloc,
+            parsed.path or "",  # Include path if present
+            "",  # No params
+            "",  # No query
+            "",  # No fragment
+        )
+    )
 
     logger.debug(f"Normalized canonical URI: {uri} -> {canonical}")
     return canonical
@@ -154,12 +155,12 @@ def validate_https_url(url: str, allow_localhost: bool = True) -> bool:
         hostname = parsed.hostname
 
         # HTTPS is always valid
-        if scheme == 'https':
+        if scheme == "https":
             return True
 
         # HTTP is only valid for localhost/127.0.0.1/::1 if allowed
-        if scheme == 'http' and allow_localhost:
-            if hostname in ('localhost', '127.0.0.1', '::1'):
+        if scheme == "http" and allow_localhost:
+            if hostname in ("localhost", "127.0.0.1", "::1"):
                 return True
 
         return False
@@ -171,9 +172,10 @@ def get_package_version() -> str:
     """Get package version for MCP client identification."""
     try:
         from importlib.metadata import version
-        return version('sk-agents')
+
+        return version("sk-agents")
     except Exception:
-        return '1.0.0'  # Fallback version
+        return "1.0.0"  # Fallback version
 
 
 def validate_mcp_sdk_version() -> None:
@@ -184,18 +186,20 @@ def validate_mcp_sdk_version() -> None:
     """
     try:
         import mcp
-        version_str = getattr(mcp, '__version__', '0.0.0')
+
+        version_str = getattr(mcp, "__version__", "0.0.0")
 
         # Parse version components
         try:
             from packaging import version as pkg_version
+
             installed_version = pkg_version.parse(version_str)
             required_version = pkg_version.parse("1.23.0")
 
             if installed_version < required_version:
                 logger.warning(
                     f"MCP SDK version {version_str} detected. "
-                    f"Required: >= 1.23.0 for MCP spec 2025-11-25 (initialized/shutdown, HTTP fixes). "
+                    f"Required: >= 1.23.0 for MCP spec 2025-11-25. "
                     f"Please upgrade the MCP SDK."
                 )
             else:
@@ -211,7 +215,7 @@ async def initialize_mcp_session(
     session: ClientSession,
     server_name: str,
     server_info_obj: Any = None,
-    protocol_version: str = "2025-11-25"
+    protocol_version: str = "2025-11-25",
 ) -> Any:
     """
     Initialize MCP session with proper protocol handshake.
@@ -237,16 +241,13 @@ async def initialize_mcp_session(
         try:
             init_result = await session.initialize(
                 protocol_version=protocol_version,
-                client_info={
-                    "name": "teal-agents",
-                    "version": get_package_version()
-                },
+                client_info={"name": "teal-agents", "version": get_package_version()},
                 capabilities={
                     # Per MCP spec 2025-11-25: advertise root change notifications if supported
                     "roots": {"listChanged": True},
                     "sampling": {},
-                    "experimental": {}
-                }
+                    "experimental": {},
+                },
             )
         except TypeError as e:
             # Older SDKs (<=1.22) don't accept keyword args; degrade gracefully.
@@ -270,10 +271,10 @@ async def initialize_mcp_session(
         # Per MCP spec: "After successful initialization, the client MUST send
         # an initialized notification to indicate it is ready to begin normal operations."
         # The spec requires an initialized notification; if SDK lacks it, warn and continue.
-        if hasattr(session, 'send_initialized'):
+        if hasattr(session, "send_initialized"):
             await session.send_initialized()
             logger.debug(f"Sent initialized notification to '{server_name}'")
-        elif hasattr(session, 'initialized'):
+        elif hasattr(session, "initialized"):
             await session.initialized()
             logger.debug(f"Sent initialized notification to '{server_name}'")
         else:
@@ -301,10 +302,10 @@ async def graceful_shutdown_session(session: ClientSession, server_name: str) ->
         server_name: Name of the server for logging purposes
     """
     try:
-        if hasattr(session, 'send_shutdown'):
+        if hasattr(session, "send_shutdown"):
             await session.send_shutdown()
             logger.debug(f"Sent graceful shutdown to MCP server: {server_name}")
-        elif hasattr(session, 'shutdown'):
+        elif hasattr(session, "shutdown"):
             await session.shutdown()
             logger.debug(f"Sent graceful shutdown to MCP server: {server_name}")
         else:
@@ -316,7 +317,9 @@ async def graceful_shutdown_session(session: ClientSession, server_name: str) ->
         logger.debug(f"Graceful shutdown failed for {server_name}: {e}")
 
 
-def map_mcp_annotations_to_governance(annotations: Dict[str, Any], tool_description: str = "") -> Governance:
+def map_mcp_annotations_to_governance(
+    annotations: dict[str, Any], tool_description: str = ""
+) -> Governance:
     """
     Map MCP tool annotations to Teal Agents governance policies using secure-by-default approach.
 
@@ -351,47 +354,76 @@ def map_mcp_annotations_to_governance(annotations: Dict[str, Any], tool_descript
         description_lower = tool_description.lower()
 
         # Network/external access indicators
-        if any(keyword in description_lower for keyword in [
-            "http", "https", "api", "network", "request", "fetch", "download", "upload",
-            "url", "web", "internet", "remote", "curl", "wget"
-        ]):
+        if any(
+            keyword in description_lower
+            for keyword in [
+                "http",
+                "https",
+                "api",
+                "network",
+                "request",
+                "fetch",
+                "download",
+                "upload",
+                "url",
+                "web",
+                "internet",
+                "remote",
+                "curl",
+                "wget",
+            ]
+        ):
             requires_hitl = True
             cost = "high"
             data_sensitivity = "sensitive"
 
         # File system access indicators
-        elif any(keyword in description_lower for keyword in [
-            "file", "directory", "write", "delete", "create", "modify", "save",
-            "remove", "mkdir", "rmdir", "chmod", "move", "copy"
-        ]):
+        elif any(
+            keyword in description_lower
+            for keyword in [
+                "file",
+                "directory",
+                "write",
+                "delete",
+                "create",
+                "modify",
+                "save",
+                "remove",
+                "mkdir",
+                "rmdir",
+                "chmod",
+                "move",
+                "copy",
+            ]
+        ):
             requires_hitl = True
             cost = "medium" if not destructive_hint else "high"
             data_sensitivity = "proprietary"
 
         # Code execution indicators
-        elif any(keyword in description_lower for keyword in [
-            "execute", "run", "command", "shell", "bash", "script", "eval", "exec"
-        ]):
+        elif any(
+            keyword in description_lower
+            for keyword in ["execute", "run", "command", "shell", "bash", "script", "eval", "exec"]
+        ):
             requires_hitl = True
             cost = "high"
             data_sensitivity = "sensitive"
 
         # Database/storage access
-        elif any(keyword in description_lower for keyword in [
-            "database", "sql", "query", "insert", "update", "delete", "drop"
-        ]):
+        elif any(
+            keyword in description_lower
+            for keyword in ["database", "sql", "query", "insert", "update", "delete", "drop"]
+        ):
             requires_hitl = True
             cost = "high"
             data_sensitivity = "sensitive"
 
-    return Governance(
-        requires_hitl=requires_hitl,
-        cost=cost,
-        data_sensitivity=data_sensitivity
-    )
+    return Governance(requires_hitl=requires_hitl, cost=cost, data_sensitivity=data_sensitivity)
 
 
-def apply_trust_level_governance(base_governance: Governance, trust_level: str, tool_description: str = "") -> Governance:
+def apply_trust_level_governance(
+    base_governance: Governance, trust_level: str, tool_description: str = ""
+) -> Governance:
     """
     Apply server trust level controls to governance settings.
 
@@ -411,20 +443,18 @@ def apply_trust_level_governance(base_governance: Governance, trust_level: str, 
     """
     if trust_level == "untrusted":
         # Force HITL for all tools from untrusted servers
-        logger.debug(f"Applying untrusted server governance: forcing HITL")
-        return Governance(
-            requires_hitl=True,
-            cost="high",
-            data_sensitivity="sensitive"
-        )
+        logger.debug("Applying untrusted server governance: forcing HITL")
+        return Governance(requires_hitl=True, cost="high", data_sensitivity="sensitive")
     elif trust_level == "sandboxed":
         # Require HITL unless explicitly marked as safe
         # Sandboxed servers get elevated restrictions
-        logger.debug(f"Applying sandboxed server governance: elevated restrictions")
+        logger.debug("Applying sandboxed server governance: elevated restrictions")
         return Governance(
             requires_hitl=True,  # Force HITL for sandboxed servers
-            cost=base_governance.cost if base_governance.cost != "low" else "medium",  # Elevate cost
-            data_sensitivity=base_governance.data_sensitivity
+            cost=base_governance.cost
+            if base_governance.cost != "low"
+            else "medium",  # Elevate cost
+            data_sensitivity=base_governance.data_sensitivity,
         )
     else:  # trusted
         # For trusted servers, use base governance but still enforce safety on high-risk operations
@@ -434,9 +464,21 @@ def apply_trust_level_governance(base_governance: Governance, trust_level: str, 
         # Even for trusted servers, certain operations should require HITL
         description_lower = tool_description.lower()
         high_risk_operations = [
-            'delete', 'remove', 'drop', 'truncate', 'destroy', 'kill',
-            'execute', 'exec', 'eval', 'run command', 'shell',
-            'system', 'sudo', 'admin', 'root'
+            "delete",
+            "remove",
+            "drop",
+            "truncate",
+            "destroy",
+            "kill",
+            "execute",
+            "exec",
+            "eval",
+            "run command",
+            "shell",
+            "system",
+            "sudo",
+            "admin",
+            "root",
         ]
 
         has_high_risk = any(keyword in description_lower for keyword in high_risk_operations)
@@ -444,21 +486,23 @@ def apply_trust_level_governance(base_governance: Governance, trust_level: str, 
         if has_high_risk and not base_governance.requires_hitl:
             # Override for high-risk operations even on trusted servers
             logger.debug(
-                f"Trusted server tool has high-risk indicators in description, "
-                f"enforcing HITL despite trust level"
+                "Trusted server tool has high-risk indicators in description, "
+                "enforcing HITL despite trust level"
             )
             return Governance(
                 requires_hitl=True,  # Override to require HITL
                 cost="high" if base_governance.cost != "high" else base_governance.cost,
-                data_sensitivity=base_governance.data_sensitivity
+                data_sensitivity=base_governance.data_sensitivity,
             )
 
         # For non-high-risk operations on trusted servers, use base governance
-        logger.debug(f"Applying trusted server governance: using base governance")
+        logger.debug("Applying trusted server governance: using base governance")
         return base_governance
 
 
-def apply_governance_overrides(base_governance: Governance, tool_name: str, overrides: Optional[Dict[str, GovernanceOverride]]) -> Governance:
+def apply_governance_overrides(
+    base_governance: Governance, tool_name: str, overrides: dict[str, GovernanceOverride] | None
+) -> Governance:
     """
     Apply tool-specific governance overrides to base governance settings.
 
@@ -477,9 +521,13 @@ def apply_governance_overrides(base_governance: Governance, tool_name: str, over
 
     # Apply selective overrides - only override specified fields
     return Governance(
-        requires_hitl=override.requires_hitl if override.requires_hitl is not None else base_governance.requires_hitl,
+        requires_hitl=override.requires_hitl
+        if override.requires_hitl is not None
+        else base_governance.requires_hitl,
         cost=override.cost if override.cost is not None else base_governance.cost,
-        data_sensitivity=override.data_sensitivity if override.data_sensitivity is not None else base_governance.data_sensitivity
+        data_sensitivity=override.data_sensitivity
+        if override.data_sensitivity is not None
+        else base_governance.data_sensitivity,
     )
 
 
@@ -487,7 +535,7 @@ async def resolve_server_auth_headers(
     server_config: McpServerConfig,
     user_id: str = "default",
     app_config: AppConfig | None = None,
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """
     Resolve authentication headers for MCP server connection.
 
@@ -532,11 +580,13 @@ async def resolve_server_auth_headers(
         # If OAuth is configured, filter out Authorization headers (OAuth takes precedence)
         # If OAuth is NOT configured, keep all headers including Authorization
         for header_key, header_value in server_config.headers.items():
-            if header_key.lower() == "authorization" and (server_config.auth_server and server_config.scopes):
+            if header_key.lower() == "authorization" and (
+                server_config.auth_server and server_config.scopes
+            ):
                 logger.warning(
                     "Ignoring static Authorization header for MCP server %s (OAuth configured). "
                     "OAuth token will be used instead.",
-                    server_config.name
+                    server_config.name,
                 )
                 continue
             headers[header_key] = header_value
@@ -561,31 +611,42 @@ async def resolve_server_auth_headers(
                 server_name=server_config.name,
                 auth_server=server_config.auth_server or "unknown",
                 scopes=server_config.scopes or [],
-                message=f"Missing or invalid canonical URI for HTTP MCP server '{server_config.name}'"
-            )
+                message=f"Missing or invalid canonical URI for HTTP MCP server "
+                f"'{server_config.name}'",
+            ) from e
 
     # If server has OAuth configuration, resolve tokens using OAuth flow
     if server_config.auth_server and server_config.scopes:
         try:
             # Use AuthStorageFactory directly - no wrapper needed
+            from datetime import datetime, timedelta
+
             from sk_agents.auth.oauth_client import OAuthClient
             from sk_agents.auth.oauth_models import RefreshTokenRequest
-            from sk_agents.configs import TA_MCP_OAUTH_ENABLE_TOKEN_REFRESH, TA_MCP_OAUTH_ENABLE_AUDIENCE_VALIDATION
-            from datetime import datetime, timedelta, timezone
+            from sk_agents.configs import (
+                TA_MCP_OAUTH_ENABLE_AUDIENCE_VALIDATION,
+                TA_MCP_OAUTH_ENABLE_TOKEN_REFRESH,
+            )
 
             if app_config is None:
                 from ska_utils import AppConfig as SkaAppConfig
+
                 app_config = SkaAppConfig()
             auth_storage_factory = AuthStorageFactory(app_config)
             auth_storage = auth_storage_factory.get_auth_storage_manager()
 
             # Check feature flags
-            enable_refresh = app_config.get(TA_MCP_OAUTH_ENABLE_TOKEN_REFRESH.env_name).lower() == "true"
+            enable_refresh = (
+                app_config.get(TA_MCP_OAUTH_ENABLE_TOKEN_REFRESH.env_name).lower() == "true"
+            )
             # Enforce audience/resource validation for HTTP servers regardless of flag
             if server_config.transport == "http":
                 enable_audience = True
             else:
-                enable_audience = app_config.get(TA_MCP_OAUTH_ENABLE_AUDIENCE_VALIDATION.env_name).lower() == "true"
+                enable_audience = (
+                    app_config.get(TA_MCP_OAUTH_ENABLE_AUDIENCE_VALIDATION.env_name).lower()
+                    == "true"
+                )
 
             # Generate composite key for OAuth2 token lookup
             composite_key = build_auth_storage_key(server_config.auth_server, server_config.scopes)
@@ -598,7 +659,7 @@ async def resolve_server_auth_headers(
                 raise AuthRequiredError(
                     server_name=server_config.name,
                     auth_server=server_config.auth_server,
-                    scopes=server_config.scopes
+                    scopes=server_config.scopes,
                 )
 
             # Validate token for this resource (expiry + audience + resource binding)
@@ -606,39 +667,48 @@ async def resolve_server_auth_headers(
                 is_valid = auth_data.is_valid_for_resource(resource_uri)
             else:
                 # Legacy behavior: only check expiry
-                is_valid = auth_data.expires_at > datetime.now(timezone.utc)
+                is_valid = auth_data.expires_at > datetime.now(UTC)
 
             # Token expired or invalid - try refresh
             if not is_valid:
                 if enable_refresh and auth_data.refresh_token and resource_uri:
-                    logger.info(f"Token expired/invalid for {server_config.name}, attempting refresh")
+                    logger.info(
+                        f"Token expired/invalid for {server_config.name}, attempting refresh"
+                    )
 
                     try:
                         # Initialize OAuth client
                         oauth_client = OAuthClient()
 
-                        # Discover Protected Resource Metadata (RFC 9728) if HTTP MCP server
+                        # Discover Protected Resource Metadata (RFC 9728) for HTTP MCP
                         has_prm = False
                         if server_config.url:  # Only for HTTP MCP servers
                             try:
-                                prm = await oauth_client.metadata_cache.fetch_protected_resource_metadata(server_config.url)
+                                cache = oauth_client.metadata_cache
+                                prm = await cache.fetch_protected_resource_metadata(
+                                    server_config.url
+                                )
                                 has_prm = prm is not None
                                 if prm:
-                                    logger.debug(f"Discovered PRM for {server_config.name} during token refresh")
+                                    logger.debug(
+                                        f"Discovered PRM for {server_config.name} "
+                                        "during token refresh"
+                                    )
                             except Exception as e:
                                 logger.debug(f"PRM discovery failed (optional): {e}")
                                 has_prm = False
 
-                        # Determine if resource parameter should be included (per MCP spec 2025-06-18)
+                        # Determine if resource param should be included (MCP spec 2025-06-18)
                         include_resource = oauth_client.should_include_resource_param(
-                            protocol_version=server_config.protocol_version,
-                            has_prm=has_prm
+                            protocol_version=server_config.protocol_version, has_prm=has_prm
                         )
 
                         # Discover token endpoint from authorization server metadata (RFC 8414)
                         token_endpoint = None
                         try:
-                            metadata = await oauth_client.metadata_cache.fetch_auth_server_metadata(server_config.auth_server)
+                            metadata = await oauth_client.metadata_cache.fetch_auth_server_metadata(
+                                server_config.auth_server
+                            )
                             token_endpoint = str(metadata.token_endpoint)
                             logger.debug(f"Discovered token endpoint for refresh: {token_endpoint}")
                         except Exception as e:
@@ -649,8 +719,11 @@ async def resolve_server_auth_headers(
                         refresh_request = RefreshTokenRequest(
                             token_endpoint=token_endpoint,
                             refresh_token=auth_data.refresh_token,
-                            resource=resource_uri if include_resource else None,  # Conditional per protocol version
-                            client_id=server_config.oauth_client_id or app_config.get("TA_OAUTH_CLIENT_NAME"),
+                            resource=resource_uri
+                            if include_resource
+                            else None,  # Conditional per protocol version
+                            client_id=server_config.oauth_client_id
+                            or app_config.get("TA_OAUTH_CLIENT_NAME"),
                             client_secret=server_config.oauth_client_secret,
                             requested_scopes=auth_data.scopes,  # For scope validation
                         )
@@ -660,8 +733,10 @@ async def resolve_server_auth_headers(
 
                         # Update auth data with new tokens
                         auth_data.access_token = token_response.access_token
-                        auth_data.expires_at = datetime.now(timezone.utc) + timedelta(seconds=token_response.expires_in)
-                        auth_data.issued_at = datetime.now(timezone.utc)
+                        auth_data.expires_at = datetime.now(UTC) + timedelta(
+                            seconds=token_response.expires_in
+                        )
+                        auth_data.issued_at = datetime.now(UTC)
 
                         # Handle refresh token rotation (OAuth 2.1)
                         if token_response.refresh_token:
@@ -686,45 +761,57 @@ async def resolve_server_auth_headers(
 
                             if challenge and OAuthErrorHandler.should_reauthorize(challenge):
                                 logger.info(
-                                    f"Received 401 with WWW-Authenticate challenge during token refresh for {server_config.name}. "
-                                    f"Error: {challenge.error}, Description: {challenge.error_description}"
+                                    f"Received 401 with WWW-Authenticate challenge "
+                                    f"during token refresh for {server_config.name}. "
+                                    f"Error: {challenge.error}, "
+                                    f"Description: {challenge.error_description}"
                                 )
-                                # Extract required scopes from challenge or use configured scopes
-                                required_scopes = challenge.scopes if challenge.scopes else server_config.scopes
-
+                                # Extract required scopes from challenge or use configured
+                                required_scopes = (
+                                    challenge.scopes if challenge.scopes else server_config.scopes
+                                )
+                                err_msg = challenge.error_description or challenge.error
                                 raise AuthRequiredError(
                                     server_name=server_config.name,
                                     auth_server=server_config.auth_server,
                                     scopes=required_scopes,
-                                    message=f"Token rejected by server: {challenge.error_description or challenge.error}"
-                                )
+                                    message=f"Token rejected by server: {err_msg}",
+                                ) from http_error
 
                         # Re-raise other HTTP errors
-                        logger.error(f"HTTP error during token refresh for {server_config.name}: {http_error}")
+                        logger.error(
+                            f"HTTP error during token refresh for "
+                            f"{server_config.name}: {http_error}"
+                        )
                         raise AuthRequiredError(
                             server_name=server_config.name,
                             auth_server=server_config.auth_server,
                             scopes=server_config.scopes,
-                            message=f"Token refresh HTTP error: {http_error}"
-                        )
+                            message=f"Token refresh HTTP error: {http_error}",
+                        ) from http_error
 
                     except Exception as refresh_error:
-                        logger.error(f"Token refresh failed for {server_config.name}: {refresh_error}")
+                        logger.error(
+                            f"Token refresh failed for {server_config.name}: {refresh_error}"
+                        )
                         # Refresh failed - require re-authentication
                         raise AuthRequiredError(
                             server_name=server_config.name,
                             auth_server=server_config.auth_server,
                             scopes=server_config.scopes,
-                            message=f"Token refresh failed for '{server_config.name}'. Re-authentication required."
-                        )
+                            message=f"Token refresh failed for '{server_config.name}'. "
+                            "Re-authentication required.",
+                        ) from refresh_error
                 else:
                     # Refresh not enabled or no refresh token
-                    logger.warning(f"Token expired for {server_config.name} and refresh not available")
+                    logger.warning(
+                        f"Token expired for {server_config.name} and refresh not available"
+                    )
                     raise AuthRequiredError(
                         server_name=server_config.name,
                         auth_server=server_config.auth_server,
                         scopes=server_config.scopes,
-                        message=f"Token expired for '{server_config.name}'"
+                        message=f"Token expired for '{server_config.name}'",
                     )
 
             # Token is valid (or was successfully refreshed)
@@ -740,8 +827,8 @@ async def resolve_server_auth_headers(
                 server_name=server_config.name,
                 auth_server=server_config.auth_server if server_config.auth_server else "unknown",
                 scopes=server_config.scopes if server_config.scopes else [],
-                message=f"Auth resolution failed: {e}"
-            )
+                message=f"Auth resolution failed: {e}",
+            ) from e
 
     # Debug logging: show what headers we're about to send
     safe_headers = {}
@@ -762,8 +849,7 @@ async def resolve_server_auth_headers(
 
 
 async def revoke_mcp_server_tokens(
-    server_config: McpServerConfig,
-    user_id: str = "default"
+    server_config: McpServerConfig, user_id: str = "default"
 ) -> None:
     """
     Revoke all tokens for an MCP server.
@@ -781,6 +867,7 @@ async def revoke_mcp_server_tokens(
         Exception: If revocation fails
     """
     from ska_utils import AppConfig
+
     from sk_agents.auth.oauth_client import OAuthClient
 
     if not server_config.auth_server or not server_config.scopes:
@@ -819,7 +906,7 @@ async def revoke_mcp_server_tokens(
             revocation_endpoint=str(metadata.revocation_endpoint),
             client_id=server_config.oauth_client_id or app_config.get("TA_OAUTH_CLIENT_NAME"),
             client_secret=server_config.oauth_client_secret,
-            token_type_hint="access_token"
+            token_type_hint="access_token",
         )
 
         # Revoke refresh token if present
@@ -829,7 +916,7 @@ async def revoke_mcp_server_tokens(
                 revocation_endpoint=str(metadata.revocation_endpoint),
                 client_id=server_config.oauth_client_id or app_config.get("TA_OAUTH_CLIENT_NAME"),
                 client_secret=server_config.oauth_client_secret,
-                token_type_hint="refresh_token"
+                token_type_hint="refresh_token",
             )
 
         # Remove from storage
@@ -904,10 +991,10 @@ async def create_mcp_session_with_retry(
 
             # Don't retry on the last attempt
             if attempt < max_retries - 1:
-                backoff_seconds = 2 ** attempt  # 1s, 2s, 4s
+                backoff_seconds = 2**attempt  # 1s, 2s, 4s
                 logger.warning(
-                    f"MCP connection attempt {attempt + 1}/{max_retries} failed for '{server_config.name}': {e}. "
-                    f"Retrying in {backoff_seconds}s..."
+                    f"MCP connection attempt {attempt + 1}/{max_retries} failed for "
+                    f"'{server_config.name}': {e}. Retrying in {backoff_seconds}s..."
                 )
                 await asyncio.sleep(backoff_seconds)
             else:
@@ -945,33 +1032,29 @@ async def create_mcp_session(
 ) -> tuple[ClientSession, Callable[[], str | None]]:
     """Create MCP session using SDK transport factories."""
     transport_type = server_config.transport
-    
+
     if transport_type == "stdio":
         from mcp.client.stdio import stdio_client
-        
+
         server_params = StdioServerParameters(
-            command=server_config.command,
-            args=server_config.args,
-            env=server_config.env or {}
-        )
-        
-        read, write = await connection_stack.enter_async_context(
-            stdio_client(server_params)
-        )
-        session = await connection_stack.enter_async_context(
-            ClientSession(read, write)
+            command=server_config.command, args=server_config.args, env=server_config.env or {}
         )
 
+        read, write = await connection_stack.enter_async_context(stdio_client(server_params))
+        session = await connection_stack.enter_async_context(ClientSession(read, write))
+
         await initialize_mcp_session(
-            session, 
-            server_config.name, 
-            protocol_version=server_config.protocol_version or "2025-11-25"
+            session,
+            server_config.name,
+            protocol_version=server_config.protocol_version or "2025-11-25",
         )
         return session, (lambda: None)
-        
+
     elif transport_type == "http":
         # Resolve auth headers for HTTP transport
-        resolved_headers = await resolve_server_auth_headers(server_config, user_id, app_config=app_config)
+        resolved_headers = await resolve_server_auth_headers(
+            server_config, user_id, app_config=app_config
+        )
 
         # Try streamable HTTP first (preferred), fall back to SSE
         try:
@@ -986,13 +1069,15 @@ async def create_mcp_session(
                 )
 
                 def create_insecure_http_client(
-                    headers: Dict[str, str] | None = None,
+                    headers: dict[str, str] | None = None,
                     timeout: httpx.Timeout | None = None,
                     auth: httpx.Auth | None = None,
                 ) -> httpx.AsyncClient:
                     """Create httpx client with SSL verification disabled."""
-                    logger.debug(f"Creating insecure httpx client for {server_config.name} with verify=False")
-                    kwargs: Dict[str, Any] = {
+                    logger.debug(
+                        f"Creating insecure httpx client for {server_config.name} with verify=False"
+                    )
+                    kwargs: dict[str, Any] = {
                         "follow_redirects": True,
                         "verify": False,  # Disable SSL verification
                     }
@@ -1023,34 +1108,37 @@ async def create_mcp_session(
             }
             if httpx_client_factory is not None:
                 client_kwargs["httpx_client_factory"] = httpx_client_factory
-                logger.info(f"Passing custom httpx_client_factory to streamablehttp_client for {server_config.name}")
+                logger.info(
+                    f"Passing custom httpx_client_factory to streamablehttp_client "
+                    f"for {server_config.name}"
+                )
             else:
-                logger.debug(f"No custom httpx_client_factory for {server_config.name}, using default SSL verification")
+                logger.debug(
+                    f"No custom httpx_client_factory for {server_config.name}, "
+                    "using default SSL verification"
+                )
 
             # Use streamable HTTP transport
             read, write, get_session_id = await connection_stack.enter_async_context(
                 streamablehttp_client(**client_kwargs)
             )
-            session = await connection_stack.enter_async_context(
-                ClientSession(read, write)
-            )
+            session = await connection_stack.enter_async_context(ClientSession(read, write))
 
             await initialize_mcp_session(
-                session, 
+                session,
                 server_config.name,
-                protocol_version=server_config.protocol_version or "2025-11-25"
+                protocol_version=server_config.protocol_version or "2025-11-25",
             )
             return session, get_session_id
-            
-        except ImportError:
+
+        except ImportError as err:
             raise NotImplementedError(
-                "HTTP transport is not available. "
-                "Please install the MCP SDK with HTTP support"
-            )
+                "HTTP transport is not available. Please install the MCP SDK with HTTP support"
+            ) from err
             # # Fall back to SSE transport if streamable HTTP not available
             # try:
             #     from mcp.client.sse import sse_client
-                
+
             #     read, write = await connection_stack.enter_async_context(
             #         sse_client(
             #             url=server_config.url,
@@ -1062,9 +1150,9 @@ async def create_mcp_session(
             #     session = await connection_stack.enter_async_context(
             #         ClientSession(read, write)
             #     )
-                
+
             #     return session
-                
+
             # except ImportError:
             #     raise NotImplementedError(
             #         "HTTP transport is not available. "
@@ -1081,16 +1169,18 @@ def get_transport_info(server_config: McpServerConfig) -> str:
         # Sanitize sensitive arguments
         safe_args = []
         for arg in server_config.args:
-            if any(keyword in arg.lower() for keyword in ['token', 'key', 'secret', 'password', 'auth']):
-                safe_args.append('[REDACTED]')
+            if any(
+                keyword in arg.lower() for keyword in ["token", "key", "secret", "password", "auth"]
+            ):
+                safe_args.append("[REDACTED]")
             else:
                 safe_args.append(arg)
         return f"stdio:{server_config.command} {' '.join(safe_args)}"
     elif server_config.transport == "http":
         # Sanitize URL for logging
         url = server_config.url or ""
-        if '?' in url:
-            url = url.split('?')[0]
+        if "?" in url:
+            url = url.split("?")[0]
         return f"http:{url}"
     else:
         return f"{server_config.transport}:unknown"
@@ -1120,7 +1210,7 @@ class McpConnectionManager:
 
     def __init__(
         self,
-        server_configs: Dict[str, McpServerConfig],
+        server_configs: dict[str, McpServerConfig],
         user_id: str,
         session_id: str,
         state_manager=None,  # McpStateManager for session ID persistence
@@ -1133,12 +1223,12 @@ class McpConnectionManager:
         self._app_config = app_config
 
         # Active connections (created lazily)
-        self._sessions: Dict[str, ClientSession] = {}
-        self._get_session_id_callbacks: Dict[str, Callable[[], str | None]] = {}
+        self._sessions: dict[str, ClientSession] = {}
+        self._get_session_id_callbacks: dict[str, Callable[[], str | None]] = {}
         self._connection_stack: AsyncExitStack | None = None
 
         # Stored session IDs from previous requests
-        self._stored_session_ids: Dict[str, str] = {}
+        self._stored_session_ids: dict[str, str] = {}
 
     async def __aenter__(self) -> "McpConnectionManager":
         """Enter context - initialize and load stored session IDs."""
@@ -1186,9 +1276,10 @@ class McpConnectionManager:
                     # recursive handler calls that change the async task context.
                     # The MCP SDK's streamablehttp_client uses anyio.create_task_group()
                     # which requires entering/exiting in the same async task.
-                    if "cancel scope" in str(e) and "different task" in str(e):
+                    err_str = str(e)
+                    if "cancel scope" in err_str and "different task" in err_str:
                         logger.warning(
-                            f"MCP connection cleanup encountered task affinity issue (non-fatal): {e}"
+                            f"MCP cleanup encountered task affinity issue (non-fatal): {e}"
                         )
                     else:
                         raise
@@ -1234,24 +1325,25 @@ class McpConnectionManager:
 
     def _create_stale_handler(self, server_name: str) -> Callable[[str], Awaitable[None]]:
         """Create callback to handle stale session ID."""
+
         async def handler(stale_id: str):
             logger.info(f"Clearing stale MCP session for {server_name}")
             if self._state_manager:
                 try:
                     await self._state_manager.clear_mcp_session(
-                        self._user_id, self._session_id, server_name,
-                        expected_session_id=stale_id
+                        self._user_id, self._session_id, server_name, expected_session_id=stale_id
                     )
                 except Exception as e:
                     logger.debug(f"Failed to clear stale session: {e}")
             self._stored_session_ids.pop(server_name, None)
+
         return handler
 
     def has_active_session(self, server_name: str) -> bool:
         """Check if server has an active session in this request."""
         return server_name in self._sessions
 
-    def get_active_servers(self) -> List[str]:
+    def get_active_servers(self) -> list[str]:
         """Get list of servers with active sessions."""
         return list(self._sessions.keys())
 
@@ -1268,8 +1360,8 @@ class McpTool:
         self,
         tool_name: str,
         description: str,
-        input_schema: Dict[str, Any],
-        output_schema: Dict[str, Any] | None,
+        input_schema: dict[str, Any],
+        output_schema: dict[str, Any] | None,
         server_config: "McpServerConfig",
         server_name: str,
     ):
@@ -1335,36 +1427,46 @@ class McpTool:
             logger.error(f"Error invoking MCP tool {self.tool_name}: {e}")
 
             error_msg = str(e).lower()
-            if 'timeout' in error_msg:
-                raise RuntimeError(f"MCP tool '{self.tool_name}' timed out. Check server responsiveness.") from e
-            elif 'connection' in error_msg:
-                raise RuntimeError(f"MCP tool '{self.tool_name}' connection failed. Check server availability.") from e
+            if "timeout" in error_msg:
+                raise RuntimeError(
+                    f"MCP tool '{self.tool_name}' timed out. Check server responsiveness."
+                ) from e
+            elif "connection" in error_msg:
+                raise RuntimeError(
+                    f"MCP tool '{self.tool_name}' connection failed. Check server availability."
+                ) from e
             else:
                 raise RuntimeError(f"MCP tool '{self.tool_name}' failed: {e}") from e
 
     def _parse_result(self, result: Any) -> str:
         """Parse MCP result into string format."""
-        if hasattr(result, 'content'):
+        if hasattr(result, "content"):
             if isinstance(result.content, list) and len(result.content) > 0:
-                return str(result.content[0].text) if hasattr(result.content[0], 'text') else str(result.content[0])
+                return (
+                    str(result.content[0].text)
+                    if hasattr(result.content[0], "text")
+                    else str(result.content[0])
+                )
             return str(result.content)
-        elif hasattr(result, 'text'):
+        elif hasattr(result, "text"):
             return result.text
         else:
             return str(result)
 
-    def _validate_inputs(self, kwargs: Dict[str, Any]) -> None:
+    def _validate_inputs(self, kwargs: dict[str, Any]) -> None:
         """Basic input validation against the tool's JSON schema."""
         if not isinstance(self.input_schema, dict):
             return
 
-        properties = self.input_schema.get('properties', {})
-        required = self.input_schema.get('required', [])
+        properties = self.input_schema.get("properties", {})
+        required = self.input_schema.get("required", [])
 
         # Check required parameters
         for req_param in required:
             if req_param not in kwargs:
-                raise ValueError(f"Missing required parameter '{req_param}' for tool '{self.tool_name}'")
+                raise ValueError(
+                    f"Missing required parameter '{req_param}' for tool '{self.tool_name}'"
+                )
 
         # Warn about unexpected parameters
         for param in kwargs:
@@ -1412,7 +1514,7 @@ class McpPlugin(BasePlugin):
 
     def __init__(
         self,
-        tools: List[McpTool],
+        tools: list[McpTool],
         server_name: str,
         user_id: str,
         connection_manager: "McpConnectionManager",
@@ -1480,7 +1582,7 @@ class McpPlugin(BasePlugin):
 
         setattr(self, attr_name, tool_function)
 
-    def _build_sk_parameters(self, input_schema: Dict[str, Any]) -> list[dict[str, Any]]:
+    def _build_sk_parameters(self, input_schema: dict[str, Any]) -> list[dict[str, Any]]:
         """
         Build Semantic Kernel parameter dictionaries from MCP JSON schema.
 
@@ -1500,8 +1602,8 @@ class McpPlugin(BasePlugin):
         if not input_schema or not isinstance(input_schema, dict):
             return []
 
-        properties = input_schema.get('properties', {})
-        required = input_schema.get('required', [])
+        properties = input_schema.get("properties", {})
+        required = input_schema.get("required", [])
         params = []
 
         for param_name, param_schema in properties.items():
@@ -1538,19 +1640,19 @@ class McpPlugin(BasePlugin):
             Corresponding Python type
         """
         type_map = {
-            'string': str,
-            'number': float,
-            'integer': int,
-            'boolean': bool,
-            'array': list,
-            'object': dict
+            "string": str,
+            "number": float,
+            "integer": int,
+            "boolean": bool,
+            "array": list,
+            "object": dict,
         }
         return type_map.get(json_type, str)
 
     @staticmethod
     def _sanitize_name(name: str) -> str:
         """Sanitize name for Python attribute."""
-        sanitized = ''.join(c if c.isalnum() or c == '_' else '_' for c in name)
-        if not sanitized[0].isalpha() and sanitized[0] != '_':
-            sanitized = f'tool_{sanitized}'
+        sanitized = "".join(c if c.isalnum() or c == "_" else "_" for c in name)
+        if not sanitized[0].isalpha() and sanitized[0] != "_":
+            sanitized = f"tool_{sanitized}"
         return sanitized

@@ -5,8 +5,8 @@ from sk_agents.mcp_discovery.in_memory_discovery_manager import (
     InMemoryStateManager,
 )
 from sk_agents.mcp_discovery.mcp_discovery_manager import (
-    McpStateManager,
     McpState,
+    McpStateManager,
 )
 from sk_agents.mcp_discovery.redis_discovery_manager import RedisStateManager
 

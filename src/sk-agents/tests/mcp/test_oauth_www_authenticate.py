@@ -4,12 +4,11 @@ Tests for WWW-Authenticate Header Parsing
 Verifies parsing of WWW-Authenticate challenges per RFC 6750 and RFC 9728.
 """
 
-import pytest
 from sk_agents.auth.oauth_error_handler import (
-    parse_www_authenticate_header,
-    extract_field_from_www_authenticate,
-    WWWAuthenticateChallenge,
     OAuthErrorHandler,
+    WWWAuthenticateChallenge,
+    extract_field_from_www_authenticate,
+    parse_www_authenticate_header,
 )
 
 
@@ -69,7 +68,7 @@ class TestWWWAuthenticateParsing:
 
     def test_parse_challenge_unquoted_values(self):
         """Parse challenge with unquoted parameter values."""
-        header = 'Bearer realm=example, error=invalid_token'
+        header = "Bearer realm=example, error=invalid_token"
         challenge = parse_www_authenticate_header(header)
 
         assert challenge is not None
@@ -168,7 +167,9 @@ class TestExtractField:
 
     def test_extract_resource_metadata_field(self):
         """Extract resource_metadata field."""
-        header = 'Bearer resource_metadata="https://example.com/.well-known/oauth-protected-resource"'
+        header = (
+            'Bearer resource_metadata="https://example.com/.well-known/oauth-protected-resource"'
+        )
         metadata = extract_field_from_www_authenticate(header, "resource_metadata")
         assert metadata == "https://example.com/.well-known/oauth-protected-resource"
 
@@ -226,9 +227,7 @@ class TestOAuthErrorHandler:
 
     def test_get_required_scopes(self):
         """get_required_scopes extracts scopes from challenge."""
-        challenge = WWWAuthenticateChallenge(
-            error="insufficient_scope", scope="read write admin"
-        )
+        challenge = WWWAuthenticateChallenge(error="insufficient_scope", scope="read write admin")
         scopes = OAuthErrorHandler.get_required_scopes(challenge)
         assert scopes == ["read", "write", "admin"]
 

@@ -6,22 +6,24 @@ Follows the same pattern as TaskPersistenceManager and SecureAuthStorageManager.
 """
 
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
-from typing import Dict, Optional
+from datetime import UTC, datetime
 
 
 class DiscoveryError(Exception):
     """Base exception for MCP state manager errors."""
+
     pass
 
 
 class DiscoveryCreateError(DiscoveryError):
     """Raised when state creation fails."""
+
     pass
 
 
 class DiscoveryUpdateError(DiscoveryError):
     """Raised when state update fails."""
+
     pass
 
 
@@ -52,10 +54,10 @@ class McpState:
         self,
         user_id: str,
         session_id: str,
-        discovered_servers: Dict[str, Dict],
+        discovered_servers: dict[str, dict],
         discovery_completed: bool,
-        created_at: Optional[datetime] = None,
-        failed_servers: Optional[Dict[str, str]] = None,
+        created_at: datetime | None = None,
+        failed_servers: dict[str, str] | None = None,
     ):
         """
         Initialize MCP state.
@@ -72,7 +74,7 @@ class McpState:
         self.session_id = session_id
         self.discovered_servers = discovered_servers
         self.discovery_completed = discovery_completed
-        self.created_at = created_at or datetime.now(timezone.utc)
+        self.created_at = created_at or datetime.now(UTC)
         self.failed_servers = failed_servers or {}
 
 
@@ -106,9 +108,7 @@ class McpStateManager(ABC):
         pass
 
     @abstractmethod
-    async def load_discovery(
-        self, user_id: str, session_id: str
-    ) -> Optional[McpState]:
+    async def load_discovery(self, user_id: str, session_id: str) -> McpState | None:
         """
         Load MCP state for (user_id, session_id).
 
@@ -179,11 +179,7 @@ class McpStateManager(ABC):
 
     @abstractmethod
     async def store_mcp_session(
-        self,
-        user_id: str,
-        session_id: str,
-        server_name: str,
-        mcp_session_id: str
+        self, user_id: str, session_id: str, server_name: str, mcp_session_id: str
     ) -> None:
         """
         Store MCP session ID for a server.
@@ -203,12 +199,7 @@ class McpStateManager(ABC):
         pass
 
     @abstractmethod
-    async def get_mcp_session(
-        self,
-        user_id: str,
-        session_id: str,
-        server_name: str
-    ) -> Optional[str]:
+    async def get_mcp_session(self, user_id: str, session_id: str, server_name: str) -> str | None:
         """
         Get MCP session ID for a server.
 
@@ -224,10 +215,7 @@ class McpStateManager(ABC):
 
     @abstractmethod
     async def update_session_last_used(
-        self,
-        user_id: str,
-        session_id: str,
-        server_name: str
+        self, user_id: str, session_id: str, server_name: str
     ) -> None:
         """
         Update last_used timestamp for an MCP session.

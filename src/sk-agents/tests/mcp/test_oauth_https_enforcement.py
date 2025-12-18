@@ -4,10 +4,12 @@ Tests for HTTPS Enforcement
 Verifies HTTPS validation per OAuth 2.1 and MCP specification.
 """
 
-import pytest
 from unittest.mock import patch
-from sk_agents.tealagents.v1alpha1.config import McpServerConfig
+
+import pytest
+
 from sk_agents.mcp_client import validate_https_url
+from sk_agents.tealagents.v1alpha1.config import McpServerConfig
 
 
 class TestValidateHttpsUrl:

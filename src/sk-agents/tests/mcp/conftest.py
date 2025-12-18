@@ -19,26 +19,27 @@ os.environ.setdefault("TA_MCP_OAUTH_ENABLE_TOKEN_REFRESH", "false")
 os.environ.setdefault("TA_MCP_OAUTH_ENABLE_SERVER_DISCOVERY", "false")
 os.environ.setdefault("TA_MCP_OAUTH_ENABLE_DYNAMIC_REGISTRATION", "false")
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 from mcp import ClientSession
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 
 # Initialize AppConfig with all configs BEFORE importing modules that use it
 from ska_utils import AppConfig
+
 from sk_agents.configs import configs as all_configs
+
 AppConfig.add_configs(all_configs)
 
-from sk_agents.auth_storage.models import OAuth2AuthData
-from sk_agents.tealagents.v1alpha1.config import McpServerConfig
-
+from sk_agents.auth_storage.models import OAuth2AuthData  # noqa: E402
+from sk_agents.tealagents.v1alpha1.config import McpServerConfig  # noqa: E402
 
 # ============================================================================
 # OAuth2 Mock Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def mock_oauth2_token():
@@ -46,7 +47,7 @@ def mock_oauth2_token():
     return OAuth2AuthData(
         access_token="mock_access_token_12345",
         token_type="Bearer",
-        expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+        expires_at=datetime.now(UTC) + timedelta(hours=1),
         refresh_token="mock_refresh_token_67890",
         scopes=["repo", "read:user"],
     )
@@ -58,7 +59,7 @@ def expired_oauth2_token():
     return OAuth2AuthData(
         access_token="expired_token",
         token_type="Bearer",
-        expires_at=datetime.now(timezone.utc) - timedelta(hours=1),  # Expired 1 hour ago
+        expires_at=datetime.now(UTC) - timedelta(hours=1),  # Expired 1 hour ago
         refresh_token="expired_refresh",
         scopes=["repo"],
     )
@@ -74,7 +75,7 @@ def mock_auth_storage(mock_oauth2_token):
     storage = MagicMock()
 
     # Mock storage dictionary
-    _storage: Dict[str, Dict[str, OAuth2AuthData]] = {
+    _storage: dict[str, dict[str, OAuth2AuthData]] = {
         "test_user": {
             "https://github.com/login/oauth|read:user|repo": mock_oauth2_token,
             "https://api.example.com/oauth2|read|write": mock_oauth2_token,
@@ -106,6 +107,7 @@ def mock_auth_storage_factory(mock_auth_storage):
 # ============================================================================
 # MCP Server Config Fixtures
 # ============================================================================
+
 
 @pytest.fixture
 def stdio_mcp_config():
@@ -158,6 +160,7 @@ def github_mcp_config():
 # ============================================================================
 # Mock MCP SDK Components
 # ============================================================================
+
 
 @pytest.fixture
 def mock_mcp_tool():
@@ -225,6 +228,7 @@ def mock_mcp_session(mock_mcp_tool):
 @pytest.fixture
 def mock_stdio_client(mock_mcp_session):
     """Mock the stdio_client context manager."""
+
     async def mock_context():
         # Return mock read/write streams
         read = AsyncMock()
@@ -237,6 +241,7 @@ def mock_stdio_client(mock_mcp_session):
 # ============================================================================
 # Test Utilities
 # ============================================================================
+
 
 @pytest.fixture
 def mock_connection_manager():
@@ -252,6 +257,7 @@ def mock_connection_manager():
 # App Config Mocks
 # ============================================================================
 
+
 @pytest.fixture
 def mock_app_config():
     """Create a mock AppConfig for testing."""
@@ -263,6 +269,7 @@ def mock_app_config():
 # ============================================================================
 # Kernel & Plugin Mocks
 # ============================================================================
+
 
 @pytest.fixture
 def mock_kernel():

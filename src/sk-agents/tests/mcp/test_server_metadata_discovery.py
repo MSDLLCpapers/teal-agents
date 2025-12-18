@@ -5,10 +5,14 @@ Verifies RFC 8414 (Authorization Server Metadata) and RFC 9728 (Protected Resour
 discovery implementation.
 """
 
-import pytest
 from unittest.mock import AsyncMock, Mock, patch
-from sk_agents.auth.server_metadata import ServerMetadataCache, AuthServerMetadata, ProtectedResourceMetadata
+
+import pytest
+
 from sk_agents.auth.oauth_client import OAuthClient
+from sk_agents.auth.server_metadata import (
+    ServerMetadataCache,
+)
 
 
 class TestAuthServerMetadataDiscovery:
@@ -39,25 +43,38 @@ class TestAuthServerMetadataDiscovery:
             metadata = await cache.fetch_auth_server_metadata("https://auth.example.com")
 
             assert str(metadata.issuer) == "https://auth.example.com/"
-            assert str(metadata.authorization_endpoint) == "https://auth.example.com/oauth/authorize"
+            assert (
+                str(metadata.authorization_endpoint) == "https://auth.example.com/oauth/authorize"
+            )
             assert str(metadata.token_endpoint) == "https://auth.example.com/oauth/token"
             assert "S256" in metadata.code_challenge_methods_supported
 
     @pytest.mark.asyncio
     async def test_fetch_auth_server_metadata_404(self):
         """Test handling of 404 response (server doesn't support discovery)."""
+        import httpx
+
+        # Create mock request and response for the HTTPStatusError
+        mock_request = Mock()
+        mock_request.url = "https://auth.example.com/.well-known/oauth-authorization-server"
         mock_response = Mock()
         mock_response.status_code = 404
-        mock_response.raise_for_status.side_effect = Exception("404 Not Found")
 
-        mock_client = Mock()
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock()
-        mock_client.get = AsyncMock(return_value=mock_response)
+        # Create the exception that raise_for_status should raise
+        http_error = httpx.HTTPStatusError(
+            "404 Not Found", request=mock_request, response=mock_response
+        )
 
-        with patch("httpx.AsyncClient", return_value=mock_client):
+        # Create async client mock that raises on get
+        mock_client = AsyncMock()
+        mock_client.get.side_effect = http_error
+
+        with patch("httpx.AsyncClient") as mock_client_class:
+            mock_client_class.return_value.__aenter__.return_value = mock_client
+            mock_client_class.return_value.__aexit__.return_value = None
+
             cache = ServerMetadataCache()
-            with pytest.raises(Exception):
+            with pytest.raises(httpx.HTTPStatusError):
                 await cache.fetch_auth_server_metadata("https://auth.example.com")
 
     @pytest.mark.asyncio

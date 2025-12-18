@@ -17,11 +17,15 @@ References:
 """
 
 import logging
-from typing import Any
+from datetime import UTC
+from typing import TYPE_CHECKING
 from urllib.parse import urlencode
 
 import httpx
 from ska_utils import AppConfig
+
+if TYPE_CHECKING:
+    from sk_agents.tealagents.v1alpha1.config import McpServerConfig
 
 from sk_agents.auth.oauth_models import (
     AuthorizationRequest,
@@ -60,7 +64,9 @@ class OAuthClient:
         self.auth_storage = self.auth_storage_factory.get_auth_storage_manager()
 
     @staticmethod
-    def should_include_resource_param(protocol_version: str | None = None, has_prm: bool = False) -> bool:
+    def should_include_resource_param(
+        protocol_version: str | None = None, has_prm: bool = False
+    ) -> bool:
         """
         Determine if resource parameter should be included in OAuth requests.
 
@@ -94,7 +100,9 @@ class OAuthClient:
             return True
 
     @staticmethod
-    def validate_token_scopes(requested_scopes: list[str] | None, token_response: "TokenResponse") -> None:
+    def validate_token_scopes(
+        requested_scopes: list[str] | None, token_response: "TokenResponse"
+    ) -> None:
         """
         Validate that returned scopes don't exceed requested scopes (prevents escalation attacks).
 
@@ -110,7 +118,6 @@ class OAuthClient:
         Raises:
             ValueError: If scope escalation detected (returned > requested)
         """
-        from sk_agents.auth.oauth_models import TokenResponse
 
         # If no scopes were requested, any returned scopes are acceptable
         if not requested_scopes:
@@ -119,7 +126,9 @@ class OAuthClient:
         # If server didn't return scope field, assume it granted all requested scopes
         # Per OAuth 2.1: "If omitted, authorization server defaults to all requested scopes"
         if not token_response.scope:
-            logger.debug("Token response contains no scope field - assuming all requested scopes granted")
+            logger.debug(
+                "Token response contains no scope field - assuming all requested scopes granted"
+            )
             return
 
         # Parse returned scopes (space-separated string)
@@ -228,7 +237,11 @@ class OAuthClient:
 
         # Add grant-specific parameters
         if token_request.grant_type == "authorization_code":
-            if not token_request.code or not token_request.redirect_uri or not token_request.code_verifier:
+            if (
+                not token_request.code
+                or not token_request.redirect_uri
+                or not token_request.code_verifier
+            ):
                 raise ValueError("Missing required parameters for authorization_code grant")
             body["code"] = token_request.code
             body["redirect_uri"] = str(token_request.redirect_uri)
@@ -242,7 +255,10 @@ class OAuthClient:
         if token_request.client_secret:
             body["client_secret"] = token_request.client_secret
 
-        logger.debug(f"Exchanging code for tokens: endpoint={token_request.token_endpoint}, grant_type={token_request.grant_type}")
+        logger.debug(
+            f"Exchanging code for tokens: endpoint={token_request.token_endpoint}, "
+            f"grant_type={token_request.grant_type}"
+        )
 
         # Make token request
         async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -253,7 +269,11 @@ class OAuthClient:
             )
 
             if response.status_code != 200:
-                error_data = response.json() if response.headers.get("content-type") == "application/json" else {}
+                error_data = (
+                    response.json()
+                    if response.headers.get("content-type") == "application/json"
+                    else {}
+                )
                 logger.error(
                     f"Token request failed: status={response.status_code}, error={error_data}"
                 )
@@ -264,10 +284,10 @@ class OAuthClient:
             # Parse response
             token_data = response.json()
             token_response = TokenResponse(**token_data)
-            
+
             # Validate scopes to prevent escalation attacks
             self.validate_token_scopes(token_request.requested_scopes, token_response)
-            
+
             logger.info(f"Successfully obtained access token for resource={token_request.resource}")
             return token_response
 
@@ -311,7 +331,7 @@ class OAuthClient:
         revocation_endpoint: str,
         client_id: str,
         client_secret: str | None = None,
-        token_type_hint: str = "access_token"
+        token_type_hint: str = "access_token",
     ) -> None:
         """
         Revoke an access or refresh token per RFC 7009.
@@ -384,9 +404,9 @@ class OAuthClient:
         Raises:
             ValueError: If server configuration is invalid
         """
-        from datetime import datetime, timezone
-        from sk_agents.configs import TA_OAUTH_CLIENT_NAME
         from ska_utils import AppConfig
+
+        from sk_agents.configs import TA_OAUTH_CLIENT_NAME
 
         # Discover Protected Resource Metadata (RFC 9728) if HTTP MCP server
         has_prm = False
@@ -395,15 +415,17 @@ class OAuthClient:
                 prm = await self.metadata_cache.fetch_protected_resource_metadata(server_config.url)
                 has_prm = prm is not None
                 if prm:
-                    logger.info(f"Discovered PRM for {server_config.name}: auth_servers={prm.authorization_servers}")
+                    logger.info(
+                        f"Discovered PRM for {server_config.name}: "
+                        f"auth_servers={prm.authorization_servers}"
+                    )
             except Exception as e:
                 logger.debug(f"PRM discovery failed (optional): {e}")
                 has_prm = False
 
         # Determine if resource parameter should be included (per MCP spec 2025-06-18)
         include_resource = self.should_include_resource_param(
-            protocol_version=server_config.protocol_version,
-            has_prm=has_prm
+            protocol_version=server_config.protocol_version, has_prm=has_prm
         )
 
         # Get canonical resource URI if needed
@@ -412,7 +434,10 @@ class OAuthClient:
             try:
                 resource = server_config.effective_canonical_uri
             except ValueError as e:
-                logger.warning(f"Cannot determine canonical URI for {server_config.name}: {e}. Proceeding without resource parameter.")
+                logger.warning(
+                    f"Cannot determine canonical URI for {server_config.name}: {e}. "
+                    "Proceeding without resource parameter."
+                )
                 resource = None
 
         # Generate PKCE pair
@@ -439,16 +464,19 @@ class OAuthClient:
         authorization_endpoint = None
         metadata = None
         try:
-            metadata = await self.metadata_cache.fetch_auth_server_metadata(server_config.auth_server)
+            metadata = await self.metadata_cache.fetch_auth_server_metadata(
+                server_config.auth_server
+            )
             authorization_endpoint = str(metadata.authorization_endpoint)
             logger.info(f"Discovered authorization endpoint: {authorization_endpoint}")
         except Exception as e:
-            logger.warning(f"Failed to discover authorization server metadata: {e}. Using fallback.")
+            logger.warning(
+                f"Failed to discover authorization server metadata: {e}. Using fallback."
+            )
             authorization_endpoint = None
 
         # Try dynamic client registration if no client_id configured (RFC 7591)
         client_id = server_config.oauth_client_id or client_name
-        client_secret = server_config.oauth_client_secret
 
         if not server_config.oauth_client_id and server_config.enable_dynamic_registration:
             try:
@@ -466,12 +494,12 @@ class OAuthClient:
                         registration_endpoint=str(metadata.registration_endpoint),
                         redirect_uris=[str(server_config.oauth_redirect_uri)],
                         client_name=client_name,
-                        scopes=server_config.scopes
+                        scopes=server_config.scopes,
                     )
 
                     # Use registered credentials
                     client_id = registration_response.client_id
-                    client_secret = registration_response.client_secret
+                    # Note: client_secret available in registration_response if needed
 
                     logger.info(
                         f"Successfully registered client for {server_config.name}: "
@@ -538,10 +566,12 @@ class OAuthClient:
             ValueError: If state invalid or user mismatch
             httpx.HTTPError: If token exchange fails
         """
-        from datetime import datetime, timedelta, timezone
-        from sk_agents.mcp_client import build_auth_storage_key
-        from sk_agents.configs import TA_OAUTH_CLIENT_NAME
+        from datetime import datetime, timedelta
+
         from ska_utils import AppConfig
+
+        from sk_agents.configs import TA_OAUTH_CLIENT_NAME
+        from sk_agents.mcp_client import build_auth_storage_key
 
         # Retrieve and validate flow state
         flow_state = self.state_manager.retrieve_flow_state(state, user_id)
@@ -560,15 +590,17 @@ class OAuthClient:
                 prm = await self.metadata_cache.fetch_protected_resource_metadata(server_config.url)
                 has_prm = prm is not None
                 if prm:
-                    logger.info(f"Discovered PRM for {server_config.name}: auth_servers={prm.authorization_servers}")
+                    logger.info(
+                        f"Discovered PRM for {server_config.name}: "
+                        f"auth_servers={prm.authorization_servers}"
+                    )
             except Exception as e:
                 logger.debug(f"PRM discovery failed (optional): {e}")
                 has_prm = False
 
         # Determine if resource parameter should be included (per MCP spec 2025-06-18)
         include_resource = self.should_include_resource_param(
-            protocol_version=server_config.protocol_version,
-            has_prm=has_prm
+            protocol_version=server_config.protocol_version, has_prm=has_prm
         )
 
         # Build token request
@@ -578,7 +610,9 @@ class OAuthClient:
             code=code,
             redirect_uri=server_config.oauth_redirect_uri,
             code_verifier=flow_state.verifier,
-            resource=flow_state.resource if include_resource else None,  # Conditional per protocol version
+            resource=flow_state.resource
+            if include_resource
+            else None,  # Conditional per protocol version
             client_id=server_config.oauth_client_id or client_name,
             client_secret=server_config.oauth_client_secret,
             requested_scopes=flow_state.scopes,  # For scope validation
@@ -591,12 +625,12 @@ class OAuthClient:
         oauth_data = OAuth2AuthData(
             access_token=token_response.access_token,
             refresh_token=token_response.refresh_token,
-            expires_at=datetime.now(timezone.utc) + timedelta(seconds=token_response.expires_in),
+            expires_at=datetime.now(UTC) + timedelta(seconds=token_response.expires_in),
             scopes=token_response.scope.split() if token_response.scope else flow_state.scopes,
             audience=token_response.aud,
             resource=flow_state.resource,
             token_type=token_response.token_type,
-            issued_at=datetime.now(timezone.utc),
+            issued_at=datetime.now(UTC),
         )
 
         # Store in AuthStorage

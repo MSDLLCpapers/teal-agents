@@ -4,7 +4,7 @@ Integration tests for MCP handler flows.
 Tests MCP discovery at session start, auth challenges, and resume flows.
 """
 
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -12,12 +12,14 @@ from sk_agents.mcp_plugin_registry import McpPluginRegistry
 from sk_agents.tealagents.v1alpha1.agent.handler import TealAgentsV1Alpha1Handler
 from sk_agents.tealagents.v1alpha1.config import AgentConfig, McpServerConfig
 
-
 # ============================================================================
 # Test MCP Discovery at Session Start
 # ============================================================================
 
-@pytest.mark.skip(reason="Handler integration tests need refactoring after McpConnectionManager changes. StateManagerFactory no longer in handler.")
+
+@pytest.mark.skip(
+    reason="Handler tests need refactoring after McpConnectionManager changes."
+)
 class TestSessionStartDiscovery:
     """Test MCP discovery when handler starts a new session."""
 
@@ -25,10 +27,7 @@ class TestSessionStartDiscovery:
     @patch("sk_agents.tealagents.v1alpha1.agent.handler.McpPluginRegistry.discover_and_materialize")
     @patch("sk_agents.tealagents.v1alpha1.agent.handler.StateManagerFactory")
     async def test_discovery_runs_on_first_request(
-        self,
-        mock_state_factory,
-        mock_discover,
-        http_mcp_config
+        self, mock_state_factory, mock_discover, http_mcp_config
     ):
         """Test that MCP discovery runs on the first request."""
         # Setup state manager mock
@@ -59,10 +58,7 @@ class TestSessionStartDiscovery:
     @patch("sk_agents.tealagents.v1alpha1.agent.handler.McpPluginRegistry.discover_and_materialize")
     @patch("sk_agents.tealagents.v1alpha1.agent.handler.StateManagerFactory")
     async def test_discovery_runs_only_once(
-        self,
-        mock_state_factory,
-        mock_discover,
-        http_mcp_config
+        self, mock_state_factory, mock_discover, http_mcp_config
     ):
         """Test that MCP discovery runs only once across multiple requests."""
         mock_state_manager = MagicMock()
@@ -91,11 +87,7 @@ class TestSessionStartDiscovery:
     @pytest.mark.asyncio
     @patch("sk_agents.tealagents.v1alpha1.agent.handler.McpPluginRegistry.discover_and_materialize")
     @patch("sk_agents.tealagents.v1alpha1.agent.handler.StateManagerFactory")
-    async def test_discovery_skipped_when_no_mcp_servers(
-        self,
-        mock_state_factory,
-        mock_discover
-    ):
+    async def test_discovery_skipped_when_no_mcp_servers(self, mock_state_factory, mock_discover):
         """Test that discovery is skipped when no MCP servers configured."""
         mock_state_manager = MagicMock()
         mock_state_factory.return_value.get_state_manager.return_value = mock_state_manager
@@ -122,7 +114,10 @@ class TestSessionStartDiscovery:
 # Test Auth Challenge Generation
 # ============================================================================
 
-@pytest.mark.skip(reason="Handler integration tests need refactoring after McpConnectionManager changes. StateManagerFactory no longer in handler.")
+
+@pytest.mark.skip(
+    reason="Handler tests need refactoring after McpConnectionManager changes."
+)
 class TestAuthChallenge:
     """Test OAuth2 auth challenge generation for missing tokens."""
 
@@ -148,7 +143,7 @@ class TestAuthChallenge:
             auth_server="https://github.com/login/oauth",
             scopes=["repo", "read:user"],
             request_id=request_id,
-            message="GitHub OAuth required"
+            message="GitHub OAuth required",
         )
 
         # Verify resume URL format
@@ -163,7 +158,10 @@ class TestAuthChallenge:
 # Test Resume Flow
 # ============================================================================
 
-@pytest.mark.skip(reason="Handler integration tests need refactoring after McpConnectionManager changes. StateManagerFactory no longer in handler.")
+
+@pytest.mark.skip(
+    reason="Handler tests need refactoring after McpConnectionManager changes."
+)
 class TestResumeFlow:
     """Test resuming agent execution after OAuth2 completion."""
 
@@ -171,10 +169,7 @@ class TestResumeFlow:
     @patch("sk_agents.tealagents.v1alpha1.agent.handler.McpPluginRegistry.get_plugin_class")
     @patch("sk_agents.tealagents.v1alpha1.agent.handler.StateManagerFactory")
     async def test_resume_loads_mcp_plugins(
-        self,
-        mock_state_factory,
-        mock_get_plugin_class,
-        http_mcp_config
+        self, mock_state_factory, mock_get_plugin_class, http_mcp_config
     ):
         """Test that resume flow loads MCP plugins with user_id."""
         # Setup state manager
@@ -227,6 +222,7 @@ class TestResumeFlow:
 # Test User ID Propagation
 # ============================================================================
 
+
 class TestUserIdPropagation:
     """Test that user_id is correctly propagated through MCP discovery.
 
@@ -242,10 +238,7 @@ class TestUserIdPropagation:
     @patch("sk_agents.mcp_plugin_registry.create_mcp_session_with_retry")
     @patch("sk_agents.mcp_plugin_registry.resolve_server_auth_headers")
     async def test_user_id_passed_to_discovery(
-        self,
-        mock_resolve_auth,
-        mock_create_session,
-        http_mcp_config
+        self, mock_resolve_auth, mock_create_session, http_mcp_config
     ):
         """Test that user_id and session_id are passed to MCP discovery."""
         from sk_agents.mcp_discovery.mcp_discovery_manager import McpState
@@ -312,6 +305,7 @@ class TestUserIdPropagation:
 
         # Mark discovery complete for user_A
         from sk_agents.mcp_discovery.mcp_discovery_manager import McpState
+
         state_1 = McpState(
             user_id=user_id_1,
             session_id=session_id,
@@ -330,6 +324,7 @@ class TestUserIdPropagation:
 # Test Error Handling
 # ============================================================================
 
+
 class TestErrorHandling:
     """Test error handling in MCP discovery flows.
 
@@ -344,10 +339,7 @@ class TestErrorHandling:
     @patch("sk_agents.mcp_plugin_registry.create_mcp_session_with_retry")
     @patch("sk_agents.mcp_plugin_registry.resolve_server_auth_headers")
     async def test_discovery_continues_on_server_failure(
-        self,
-        mock_resolve_auth,
-        mock_create_session,
-        http_mcp_config
+        self, mock_resolve_auth, mock_create_session, http_mcp_config
     ):
         """Test that discovery continues even if one server fails."""
         from sk_agents.mcp_discovery.mcp_discovery_manager import McpState

@@ -8,7 +8,6 @@ Follows the same pattern as PersistenceFactory and AuthStorageFactory.
 """
 
 import logging
-from typing import Optional
 
 from ska_utils import AppConfig, Singleton
 
@@ -38,7 +37,7 @@ class DiscoveryManagerFactory(metaclass=Singleton):
             app_config: Application configuration for env vars
         """
         self.app_config = app_config
-        self._manager: Optional["McpStateManager"] = None  # noqa: F821
+        self._manager: McpStateManager | None = None  # noqa: F821
 
     def get_discovery_manager(self) -> "McpStateManager":  # noqa: F821
         """

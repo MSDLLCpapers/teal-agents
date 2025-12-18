@@ -10,15 +10,17 @@ Key Principles:
 - These are orthogonal concerns and must not conflict
 """
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from datetime import UTC
+from unittest.mock import AsyncMock, patch
 
+import pytest
+from ska_utils import AppConfig
+
+from sk_agents.auth_storage.auth_storage_factory import AuthStorageFactory
+from sk_agents.auth_storage.models import OAuth2AuthData
 from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
 from sk_agents.authorization.request_authorizer import RequestAuthorizer
 from sk_agents.ska_types import BasePlugin
-from sk_agents.auth_storage.auth_storage_factory import AuthStorageFactory
-from sk_agents.auth_storage.models import OAuth2AuthData
-from ska_utils import AppConfig
 
 
 class TestPlatformAuthUnchanged:
@@ -51,16 +53,13 @@ class TestPlatformAuthUnchanged:
     def test_base_plugin_interface_unchanged(self):
         """Test that BasePlugin interface accepts authorization parameter."""
         # BasePlugin should still accept authorization string
-        plugin = BasePlugin(
-            authorization="Bearer test_token",
-            extra_data_collector=None
-        )
+        plugin = BasePlugin(authorization="Bearer test_token", extra_data_collector=None)
 
         assert plugin.authorization == "Bearer test_token"
         assert plugin.extra_data_collector is None
 
         # Should NOT require user_id (that's MCP-specific)
-        assert not hasattr(plugin, 'user_id')
+        assert not hasattr(plugin, "user_id")
 
 
 class TestAuthStorageSeparation:
@@ -71,10 +70,7 @@ class TestAuthStorageSeparation:
         from sk_agents.mcp_client import build_auth_storage_key
 
         # MCP uses composite keys like "auth_server|scope1|scope2"
-        mcp_key = build_auth_storage_key(
-            "https://github.com/login/oauth",
-            ["repo", "read:user"]
-        )
+        mcp_key = build_auth_storage_key("https://github.com/login/oauth", ["repo", "read:user"])
 
         # Key should be deterministic and include scopes
         assert "github.com/login/oauth" in mcp_key
@@ -96,11 +92,12 @@ class TestAuthStorageSeparation:
         storage = factory.get_auth_storage_manager()
 
         # Should be able to store OAuth2AuthData (MCP)
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
+
         oauth_data = OAuth2AuthData(
             access_token="test_token",
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
-            scopes=["read", "write"]
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+            scopes=["read", "write"],
         )
 
         # Store under MCP composite key
@@ -161,10 +158,10 @@ class TestNoMCPImportRequired:
     def test_non_mcp_code_doesnt_import_oauth_modules(self):
         """Test that non-MCP code doesn't need to import MCP OAuth modules."""
         # These imports should work without MCP OAuth
-        from sk_agents.authorization.request_authorizer import RequestAuthorizer
-        from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
-        from sk_agents.ska_types import BasePlugin
         from sk_agents.auth_storage.auth_storage_factory import AuthStorageFactory
+        from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
+        from sk_agents.authorization.request_authorizer import RequestAuthorizer
+        from sk_agents.ska_types import BasePlugin
 
         # Should all import successfully
         assert RequestAuthorizer is not None
@@ -178,11 +175,12 @@ class TestNoMCPImportRequired:
         import sk_agents.auth
 
         # Should have auth namespace
-        assert hasattr(sk_agents, 'auth')
+        assert hasattr(sk_agents, "auth")
 
         # But non-MCP authorization is separate
         import sk_agents.authorization
-        assert hasattr(sk_agents, 'authorization')
+
+        assert hasattr(sk_agents, "authorization")
 
         # These should be different modules
         assert sk_agents.auth != sk_agents.authorization
@@ -194,10 +192,7 @@ class TestBackwardCompatibility:
     def test_regular_plugin_instantiation_unchanged(self):
         """Test that regular (non-MCP) plugin instantiation works."""
         # Old pattern: plugin receives authorization string directly
-        plugin = BasePlugin(
-            authorization="Bearer platform_token",
-            extra_data_collector=None
-        )
+        plugin = BasePlugin(authorization="Bearer platform_token", extra_data_collector=None)
 
         assert plugin.authorization == "Bearer platform_token"
 
@@ -206,7 +201,7 @@ class TestBackwardCompatibility:
 
     def test_mcp_plugin_requires_user_id_and_connection_manager(self, mock_connection_manager):
         """Test that MCP plugins require user_id and connection_manager (new requirements)."""
-        from sk_agents.mcp_client import McpPlugin, McpTool
+        from sk_agents.mcp_client import McpPlugin
 
         # MCP plugin MUST have user_id
         with pytest.raises(ValueError, match="user_id"):
@@ -216,7 +211,7 @@ class TestBackwardCompatibility:
                 user_id=None,  # Invalid!
                 connection_manager=mock_connection_manager,
                 authorization=None,
-                extra_data_collector=None
+                extra_data_collector=None,
             )
 
         # MCP plugin MUST have connection_manager
@@ -227,7 +222,7 @@ class TestBackwardCompatibility:
                 user_id="test_user",
                 connection_manager=None,  # Invalid!
                 authorization=None,
-                extra_data_collector=None
+                extra_data_collector=None,
             )
 
         # Should work with both user_id and connection_manager
@@ -237,7 +232,7 @@ class TestBackwardCompatibility:
             user_id="test_user",  # Required!
             connection_manager=mock_connection_manager,  # Required!
             authorization=None,
-            extra_data_collector=None
+            extra_data_collector=None,
         )
         assert plugin.user_id == "test_user"
         assert plugin.connection_manager == mock_connection_manager
@@ -256,7 +251,8 @@ class TestEndToEndSeparation:
         assert user_id == "dummyuser"
 
         # 2. Service auth: User has OAuth tokens for MCP services
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
+
         from sk_agents.mcp_client import build_auth_storage_key
 
         app_config = AppConfig()
@@ -266,14 +262,11 @@ class TestEndToEndSeparation:
         # Store OAuth token for MCP server
         oauth_data = OAuth2AuthData(
             access_token="mcp_service_token",
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
-            scopes=["repo", "read:user"]
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+            scopes=["repo", "read:user"],
         )
 
-        mcp_key = build_auth_storage_key(
-            "https://github.com/login/oauth",
-            ["repo", "read:user"]
-        )
+        mcp_key = build_auth_storage_key("https://github.com/login/oauth", ["repo", "read:user"])
 
         storage.store(user_id, mcp_key, oauth_data)
 

@@ -8,14 +8,13 @@ Follows the same pattern as InMemoryPersistenceManager.
 import asyncio
 import copy
 import logging
-from datetime import datetime, timezone
-from typing import Dict, Optional, Tuple
+from datetime import UTC, datetime
 
 from sk_agents.mcp_discovery.mcp_discovery_manager import (
     DiscoveryCreateError,
     DiscoveryUpdateError,
-    McpStateManager,
     McpState,
+    McpStateManager,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,10 +42,10 @@ class InMemoryStateManager(McpStateManager):
         """
         self.app_config = app_config
         # Storage: {(user_id, session_id): McpState}
-        self._storage: Dict[Tuple[str, str], McpState] = {}
+        self._storage: dict[tuple[str, str], McpState] = {}
         self._lock = asyncio.Lock()
 
-    def _make_key(self, user_id: str, session_id: str) -> Tuple[str, str]:
+    def _make_key(self, user_id: str, session_id: str) -> tuple[str, str]:
         """
         Create composite key for storage.
 
@@ -73,17 +72,12 @@ class InMemoryStateManager(McpStateManager):
             key = self._make_key(state.user_id, state.session_id)
             if key in self._storage:
                 raise DiscoveryCreateError(
-                    f"MCP state already exists for user={state.user_id}, "
-                    f"session={state.session_id}"
+                    f"MCP state already exists for user={state.user_id}, session={state.session_id}"
                 )
             self._storage[key] = state
-            logger.debug(
-                f"Created MCP state for user={state.user_id}, session={state.session_id}"
-            )
+            logger.debug(f"Created MCP state for user={state.user_id}, session={state.session_id}")
 
-    async def load_discovery(
-        self, user_id: str, session_id: str
-    ) -> Optional[McpState]:
+    async def load_discovery(self, user_id: str, session_id: str) -> McpState | None:
         """
         Load MCP state.
 
@@ -117,13 +111,10 @@ class InMemoryStateManager(McpStateManager):
             key = self._make_key(state.user_id, state.session_id)
             if key not in self._storage:
                 raise DiscoveryUpdateError(
-                    f"MCP state not found for user={state.user_id}, "
-                    f"session={state.session_id}"
+                    f"MCP state not found for user={state.user_id}, session={state.session_id}"
                 )
             self._storage[key] = state
-            logger.debug(
-                f"Updated MCP state for user={state.user_id}, session={state.session_id}"
-            )
+            logger.debug(f"Updated MCP state for user={state.user_id}, session={state.session_id}")
 
     async def delete_discovery(self, user_id: str, session_id: str) -> None:
         """
@@ -137,9 +128,7 @@ class InMemoryStateManager(McpStateManager):
             key = self._make_key(user_id, session_id)
             if key in self._storage:
                 del self._storage[key]
-                logger.debug(
-                    f"Deleted MCP state for user={user_id}, session={session_id}"
-                )
+                logger.debug(f"Deleted MCP state for user={user_id}, session={session_id}")
 
     async def mark_completed(self, user_id: str, session_id: str) -> None:
         """
@@ -156,9 +145,7 @@ class InMemoryStateManager(McpStateManager):
             key = self._make_key(user_id, session_id)
             if key in self._storage:
                 self._storage[key].discovery_completed = True
-                logger.debug(
-                    f"Marked discovery completed for user={user_id}, session={session_id}"
-                )
+                logger.debug(f"Marked discovery completed for user={user_id}, session={session_id}")
             else:
                 # Auto-create state if it doesn't exist
                 logger.warning(
@@ -170,7 +157,7 @@ class InMemoryStateManager(McpStateManager):
                     session_id=session_id,
                     discovered_servers={},
                     discovery_completed=True,
-                    created_at=datetime.now(timezone.utc),
+                    created_at=datetime.now(UTC),
                 )
                 self._storage[key] = state
 
@@ -191,11 +178,7 @@ class InMemoryStateManager(McpStateManager):
             return state.discovery_completed if state else False
 
     async def store_mcp_session(
-        self,
-        user_id: str,
-        session_id: str,
-        server_name: str,
-        mcp_session_id: str
+        self, user_id: str, session_id: str, server_name: str, mcp_session_id: str
     ) -> None:
         """
         Store MCP session ID for a server.
@@ -221,7 +204,7 @@ class InMemoryStateManager(McpStateManager):
                     session_id=session_id,
                     discovered_servers={},
                     discovery_completed=False,
-                    created_at=datetime.now(timezone.utc),
+                    created_at=datetime.now(UTC),
                 )
                 self._storage[key] = state
 
@@ -230,12 +213,16 @@ class InMemoryStateManager(McpStateManager):
             plugin_data = existing_entry.get("plugin_data")
             state.discovered_servers[server_name] = {
                 "plugin_data": plugin_data,
-                **({"session": existing_entry.get("session")} if existing_entry.get("session") else {}),
+                **(
+                    {"session": existing_entry.get("session")}
+                    if existing_entry.get("session")
+                    else {}
+                ),
             }
 
             # Store session data
             session_bucket = state.discovered_servers[server_name].get("session", {})
-            now_iso = datetime.now(timezone.utc).isoformat()
+            now_iso = datetime.now(UTC).isoformat()
             session_bucket.update(
                 {
                     "mcp_session_id": mcp_session_id,
@@ -250,12 +237,7 @@ class InMemoryStateManager(McpStateManager):
                 f"user={user_id}, session={session_id}"
             )
 
-    async def get_mcp_session(
-        self,
-        user_id: str,
-        session_id: str,
-        server_name: str
-    ) -> Optional[str]:
+    async def get_mcp_session(self, user_id: str, session_id: str, server_name: str) -> str | None:
         """
         Get MCP session ID for a server.
 
@@ -284,10 +266,7 @@ class InMemoryStateManager(McpStateManager):
             return session_bucket.get("mcp_session_id")
 
     async def update_session_last_used(
-        self,
-        user_id: str,
-        session_id: str,
-        server_name: str
+        self, user_id: str, session_id: str, server_name: str
     ) -> None:
         """
         Update last_used timestamp for an MCP session.
@@ -311,18 +290,18 @@ class InMemoryStateManager(McpStateManager):
 
             if server_name not in state.discovered_servers:
                 raise DiscoveryUpdateError(
-                    f"Server {server_name} not found in state for user={user_id}, session={session_id}"
+                    f"Server {server_name} not found in state for "
+                    f"user={user_id}, session={session_id}"
                 )
 
             session_bucket = state.discovered_servers[server_name].get("session")
             if not session_bucket:
                 session_bucket = {}
-            session_bucket["last_used_at"] = datetime.now(timezone.utc).isoformat()
+            session_bucket["last_used_at"] = datetime.now(UTC).isoformat()
             state.discovered_servers[server_name]["session"] = session_bucket
 
             logger.debug(
-                f"Updated last_used for server={server_name}, "
-                f"user={user_id}, session={session_id}"
+                f"Updated last_used for server={server_name}, user={user_id}, session={session_id}"
             )
 
     async def clear_mcp_session(
@@ -350,5 +329,6 @@ class InMemoryStateManager(McpStateManager):
                 entry.pop("session", None)
                 state.discovered_servers[server_name] = entry
                 logger.debug(
-                    f"Cleared MCP session for server={server_name}, user={user_id}, session={session_id}"
+                    f"Cleared MCP session for server={server_name}, "
+                    f"user={user_id}, session={session_id}"
                 )

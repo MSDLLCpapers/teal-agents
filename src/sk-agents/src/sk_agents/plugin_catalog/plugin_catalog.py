@@ -14,11 +14,13 @@ class PluginCatalog(ABC):
     # Dynamic registration methods for MCP and other runtime-discovered tools
     def register_dynamic_plugin(self, plugin: Plugin) -> None:
         """Register a plugin discovered at runtime (e.g., from MCP servers)."""
-        pass  # Default implementation does nothing
+        # Default no-op implementation; subclasses may override
+        _ = plugin
 
-    def register_dynamic_tool(self, tool: PluginTool, plugin_id: str = None) -> None:
+    def register_dynamic_tool(self, tool: PluginTool, plugin_id: str | None = None) -> None:
         """Register a tool discovered at runtime."""
-        pass  # Default implementation does nothing
+        # Default no-op implementation; subclasses may override
+        _ = tool, plugin_id
 
     def unregister_dynamic_plugin(self, plugin_id: str) -> bool:
         """Unregister a dynamically registered plugin."""

@@ -28,7 +28,7 @@ def generate_code_verifier() -> str:
     # Generate 32 random bytes (provides 43 base64url characters)
     random_bytes = secrets.token_bytes(32)
     # Base64url encode (URL-safe, no padding)
-    verifier = base64.urlsafe_b64encode(random_bytes).decode('utf-8').rstrip('=')
+    verifier = base64.urlsafe_b64encode(random_bytes).decode("utf-8").rstrip("=")
     return verifier
 
 
@@ -46,9 +46,9 @@ def generate_code_challenge(verifier: str) -> str:
         str: Base64url-encoded SHA256 hash of verifier
     """
     # SHA256 hash
-    sha256_hash = hashlib.sha256(verifier.encode('utf-8')).digest()
+    sha256_hash = hashlib.sha256(verifier.encode("utf-8")).digest()
     # Base64url encode (URL-safe, no padding)
-    challenge = base64.urlsafe_b64encode(sha256_hash).decode('utf-8').rstrip('=')
+    challenge = base64.urlsafe_b64encode(sha256_hash).decode("utf-8").rstrip("=")
     return challenge
 
 
@@ -67,9 +67,7 @@ def validate_code_verifier(verifier: str) -> bool:
         return False
 
     # Check allowed characters
-    allowed_chars = set(
-        'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
-    )
+    allowed_chars = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
     if not all(c in allowed_chars for c in verifier):
         return False
 

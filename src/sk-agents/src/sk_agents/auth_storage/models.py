@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel
@@ -37,10 +37,10 @@ class OAuth2AuthData(BaseAuthData):
         Returns:
             bool: True if token is valid for this resource
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         # Check expiry
-        if self.expires_at <= datetime.now(timezone.utc):
+        if self.expires_at <= datetime.now(UTC):
             return False
 
         # Check resource binding (MCP-specific)

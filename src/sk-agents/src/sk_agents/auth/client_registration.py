@@ -11,7 +11,6 @@ References:
 import logging
 from typing import Literal
 
-import httpx
 from pydantic import BaseModel, HttpUrl
 
 logger = logging.getLogger(__name__)
@@ -28,7 +27,9 @@ class ClientRegistrationRequest(BaseModel):
         "authorization_code",
         "refresh_token",
     ]
-    token_endpoint_auth_method: Literal["none", "client_secret_basic", "client_secret_post"] = "none"
+    token_endpoint_auth_method: Literal["none", "client_secret_basic", "client_secret_post"] = (
+        "none"
+    )
     response_types: list[str] = ["code"]
     scope: str | None = None
 

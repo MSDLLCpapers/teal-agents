@@ -36,19 +36,24 @@ __all__ = [
     "TokenResponse",
 ]
 
+
 # Lazy imports to avoid circular dependencies
 def __getattr__(name: str):
     if name == "OAuthClient":
         from sk_agents.auth.oauth_client import OAuthClient
+
         return OAuthClient
     elif name == "PKCEManager":
         from sk_agents.auth.oauth_pkce import PKCEManager
+
         return PKCEManager
     elif name == "OAuthStateManager":
         from sk_agents.auth.oauth_state_manager import OAuthStateManager
+
         return OAuthStateManager
     elif name in ("AuthorizationRequest", "TokenRequest", "TokenResponse"):
         from sk_agents.auth import oauth_models
+
         return getattr(oauth_models, name)
 
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")

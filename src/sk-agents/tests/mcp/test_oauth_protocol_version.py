@@ -5,7 +5,6 @@ Verifies that resource parameter is conditionally included based on protocol ver
 per MCP specification 2025-06-18.
 """
 
-import pytest
 from sk_agents.auth.oauth_client import OAuthClient
 from sk_agents.auth.oauth_models import AuthorizationRequest, TokenRequest
 
@@ -35,9 +34,7 @@ class TestProtocolVersionDetection:
 
     def test_should_include_resource_param_with_prm(self):
         """Resource param should be included when PRM is discovered, regardless of version."""
-        result = OAuthClient.should_include_resource_param(
-            protocol_version=None, has_prm=True
-        )
+        result = OAuthClient.should_include_resource_param(protocol_version=None, has_prm=True)
         assert result is True
 
     def test_should_include_resource_param_with_prm_and_old_version(self):

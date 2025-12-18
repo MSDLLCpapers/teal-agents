@@ -45,6 +45,7 @@ from sk_agents.tealagents.v1alpha1.utils import get_token_usage_for_response, it
 
 logger = logging.getLogger(__name__)
 
+
 class TealAgentsV1Alpha1Handler(BaseHandler):
     def __init__(
         self,
@@ -104,7 +105,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 app_config=self.app_config,
             )
         except Exception as e:
-            logger.warning(f"Failed to create MCP connection manager: {e}. Falling back to per-tool connections.")
+            logger.warning(
+                f"Failed to create MCP connection manager: {e}. "
+                "Falling back to per-tool connections."
+            )
             return None
 
     async def _ensure_session_discovery(
@@ -132,9 +136,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         # Check if discovery already completed for this session
         is_completed = await self.discovery_manager.is_completed(user_id, session_id)
         if is_completed:
-            logger.debug(
-                f"MCP discovery already completed for session: {session_id}"
-            )
+            logger.debug(f"MCP discovery already completed for session: {session_id}")
             return None
 
         # Load or create discovery state
@@ -182,9 +184,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
             try:
                 # Find server config
-                server_config = next(
-                    (s for s in mcp_servers if s.name == e.server_name), None
-                )
+                server_config = next((s for s in mcp_servers if s.name == e.server_name), None)
                 if not server_config:
                     raise ValueError(f"Server config not found for '{e.server_name}'")
 
@@ -213,7 +213,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                             "auth_url": auth_url,
                         }
                     ],
-                    resume_url=f"/tealagents/v1alpha1/invoke",
+                    resume_url="/tealagents/v1alpha1/invoke",
                 )
 
             except Exception as oauth_error:
@@ -231,7 +231,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                             "auth_url": f"{e.auth_server}/authorize?error=oauth_client_failed",
                         }
                     ],
-                    resume_url=f"/tealagents/v1alpha1/invoke",
+                    resume_url="/tealagents/v1alpha1/invoke",
                 )
 
         except Exception as e:
@@ -300,11 +300,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 message=(f"Unable to authenticate user, exception message: {e}")
             ) from e
 
-    async def authenticate_mcp_servers(self, user_id: str, session_id: str, task_id: str, request_id: str) -> AuthChallengeResponse | None:
+    async def authenticate_mcp_servers(
+        self, user_id: str, session_id: str, task_id: str, request_id: str
+    ) -> AuthChallengeResponse | None:
         """
         Authenticate MCP servers before agent construction.
 
-        Returns AuthChallengeResponse if authentication is needed, None if all servers are authenticated.
+        Returns AuthChallengeResponse if authentication is needed,
+        None if all servers are authenticated.
         """
         mcp_servers = self.config.get_agent().mcp_servers
         if not mcp_servers:
@@ -323,29 +326,33 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 if server_config.auth_server and server_config.scopes:
                     # Check if we have valid auth for this server
                     composite_key = build_auth_storage_key(
-                        server_config.auth_server,
-                        server_config.scopes
+                        server_config.auth_server, server_config.scopes
                     )
                     auth_data = auth_storage.retrieve(user_id, composite_key)
 
                     if not auth_data:
                         # Missing authentication for this server
+                        scope_param = '%20'.join(server_config.scopes)
                         auth_challenge = {
                             "server_name": server_config.name,
                             "auth_server": server_config.auth_server,
                             "scopes": server_config.scopes,
-                            "auth_url": f"{server_config.auth_server}/authorize?client_id=teal_agents&scope={'%20'.join(server_config.scopes)}&response_type=code"
+                            "auth_url": (
+                                f"{server_config.auth_server}/authorize?"
+                                f"client_id=teal_agents&scope={scope_param}&response_type=code"
+                            ),
                         }
                         missing_auth_servers.append(auth_challenge)
 
             if missing_auth_servers:
+                num_servers = len(missing_auth_servers)
                 return AuthChallengeResponse(
                     task_id=task_id,
                     session_id=session_id,
                     request_id=request_id,
-                    message=f"Authentication required for {len(missing_auth_servers)} MCP server(s).",
+                    message=f"Authentication required for {num_servers} MCP server(s).",
                     auth_challenges=missing_auth_servers,
-                    resume_url=f"/tealagents/v1alpha1/resume/{request_id}"
+                    resume_url=f"/tealagents/v1alpha1/resume/{request_id}",
                 )
 
             return None
@@ -645,17 +652,15 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             # Execute the tool calls using asyncio.gather(),
             # just as the agent would have.
             extra_data_collector = ExtraDataCollector()
-            agent = self.agent_builder.build_agent(self.config.get_agent(), extra_data_collector, user_id=user_id)
+            agent = await self.agent_builder.build_agent(
+                self.config.get_agent(), extra_data_collector, user_id=user_id
+            )
 
             # Load MCP plugins after agent construction (per-session isolation)
             # connection_manager is required for MCP plugin loading
             if self.config.get_agent().mcp_servers and self.discovery_manager and conn_mgr:
                 await self.agent_builder.kernel_builder.load_mcp_plugins(
-                    agent.agent.kernel,
-                    user_id,
-                    session_id,
-                    self.discovery_manager,
-                    conn_mgr
+                    agent.agent.kernel, user_id, session_id, self.discovery_manager, conn_mgr
                 )
 
             kernel = agent.agent.kernel
@@ -670,14 +675,16 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
             if stream:
                 final_response_stream = self.recursion_invoke_stream(
-                    chat_history, session_id, task_id, request_id,
-                    connection_manager=conn_mgr
+                    chat_history, session_id, task_id, request_id, connection_manager=conn_mgr
                 )
                 return final_response_stream
             else:
                 final_response_invoke = await self.recursion_invoke(
-                    inputs=chat_history, session_id=session_id, request_id=request_id, task_id=task_id,
-                    connection_manager=conn_mgr
+                    inputs=chat_history,
+                    session_id=session_id,
+                    request_id=request_id,
+                    task_id=task_id,
+                    connection_manager=conn_mgr,
                 )
                 return final_response_invoke
 
@@ -719,9 +726,13 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         TealAgentsV1Alpha1Handler._validate_user_id(user_id, task_id, agent_task)
 
         # Check MCP server authentication before agent construction
-        auth_challenge = await self.authenticate_mcp_servers(user_id, session_id, task_id, request_id)
+        auth_challenge = await self.authenticate_mcp_servers(
+            user_id, session_id, task_id, request_id
+        )
         if auth_challenge:
-            logger.info(f"MCP authentication required for {len(auth_challenge.auth_challenges)} server(s)")
+            logger.info(
+                f"MCP authentication required for {len(auth_challenge.auth_challenges)} server(s)"
+            )
             return auth_challenge
 
         chat_history = ChatHistory()
@@ -736,8 +747,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         if connection_manager:
             async with connection_manager:
                 final_response_invoke = await self.recursion_invoke(
-                    inputs=chat_history, session_id=session_id, request_id=request_id,
-                    task_id=task_id, connection_manager=connection_manager
+                    inputs=chat_history,
+                    session_id=session_id,
+                    request_id=request_id,
+                    task_id=task_id,
+                    connection_manager=connection_manager,
                 )
         else:
             final_response_invoke = await self.recursion_invoke(
@@ -749,7 +763,9 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
     async def invoke_stream(
         self, auth_token: str, inputs: UserMessage
-    ) -> AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse | AuthChallengeResponse]:
+    ) -> AsyncIterable[
+        TealAgentsResponse | TealAgentsPartialResponse | HitlResponse | AuthChallengeResponse
+    ]:
         # Initial setup
         logger.info("Beginning processing invoke")
         user_id = await self.authenticate_user(token=auth_token)
@@ -785,26 +801,26 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
             all_server_names = [server.name for server in mcp_servers]
             successful_servers = [s for s in all_server_names if s not in failed_servers]
-            
+
             messages = []
             if successful_servers:
                 messages.append(f"✅ MCP connected: {', '.join(successful_servers)}")
-            
+
             if failed_servers:
                 failed_list = []
                 for name, error in failed_servers.items():
                     # Truncate error if too long
-                    short_error = (error[:50] + '...') if len(error) > 50 else error
+                    short_error = (error[:50] + "...") if len(error) > 50 else error
                     failed_list.append(f"{name} ({short_error})")
                 messages.append(f"⚠️ MCP connection failed: {', '.join(failed_list)}")
-                
+
             status_msg = "\n".join(messages) + "\n\n"
 
             yield TealAgentsPartialResponse(
                 task_id=task_id,
                 session_id=session_id,
                 request_id=request_id,
-                output_partial=status_msg
+                output_partial=status_msg,
             )
             # Mark this session as having seen the status message
             self._mcp_status_shown_per_session.add(session_id)
@@ -818,9 +834,13 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         TealAgentsV1Alpha1Handler._validate_user_id(user_id, task_id, agent_task)
 
         # Check MCP server authentication before agent construction
-        auth_challenge = await self.authenticate_mcp_servers(user_id, session_id, task_id, request_id)
+        auth_challenge = await self.authenticate_mcp_servers(
+            user_id, session_id, task_id, request_id
+        )
         if auth_challenge:
-            logger.info(f"MCP authentication required for {len(auth_challenge.auth_challenges)} server(s)")
+            logger.info(
+                f"MCP authentication required for {len(auth_challenge.auth_challenges)} server(s)"
+            )
             yield auth_challenge
             return
 
@@ -836,8 +856,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         if connection_manager:
             async with connection_manager:
                 async for response_chunk in self.recursion_invoke_stream(
-                    chat_history, session_id, task_id, request_id,
-                    connection_manager=connection_manager
+                    chat_history,
+                    session_id,
+                    task_id,
+                    request_id,
+                    connection_manager=connection_manager,
                 ):
                     yield response_chunk
         else:
@@ -849,8 +872,12 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         logger.info("Final response complete")
 
     async def recursion_invoke(
-        self, inputs: ChatHistory, session_id: str, task_id: str, request_id: str,
-        connection_manager=None
+        self,
+        inputs: ChatHistory,
+        session_id: str,
+        task_id: str,
+        request_id: str,
+        connection_manager=None,
     ) -> TealAgentsResponse | HitlResponse:
         # Initial setup
 
@@ -862,20 +889,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         user_id = agent_task.user_id
         extra_data_collector = ExtraDataCollector()
         agent = await self.agent_builder.build_agent(
-            self.config.get_agent(),
-            extra_data_collector,
-            user_id=user_id
+            self.config.get_agent(), extra_data_collector, user_id=user_id
         )
 
         # Load MCP plugins after agent construction (per-session isolation)
         # connection_manager is required for MCP plugin loading
         if self.config.get_agent().mcp_servers and self.discovery_manager and connection_manager:
             await self.agent_builder.kernel_builder.load_mcp_plugins(
-                agent.agent.kernel,
-                user_id,
-                session_id,
-                self.discovery_manager,
-                connection_manager
+                agent.agent.kernel, user_id, session_id, self.discovery_manager, connection_manager
             )
 
         # Prepare metadata
@@ -981,8 +1002,12 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
 
     async def recursion_invoke_stream(
-        self, inputs: ChatHistory, session_id: str, task_id: str, request_id: str,
-        connection_manager=None
+        self,
+        inputs: ChatHistory,
+        session_id: str,
+        task_id: str,
+        request_id: str,
+        connection_manager=None,
     ) -> AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse]:
         chat_history = inputs
         agent_task = await self.state.load_by_request_id(request_id)
@@ -992,20 +1017,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         user_id = agent_task.user_id
         extra_data_collector = ExtraDataCollector()
         agent = await self.agent_builder.build_agent(
-            self.config.get_agent(),
-            extra_data_collector,
-            user_id=user_id
+            self.config.get_agent(), extra_data_collector, user_id=user_id
         )
 
         # Load MCP plugins after agent construction (per-session isolation)
         # connection_manager is required for MCP plugin loading
         if self.config.get_agent().mcp_servers and self.discovery_manager and connection_manager:
             await self.agent_builder.kernel_builder.load_mcp_plugins(
-                agent.agent.kernel,
-                user_id,
-                session_id,
-                self.discovery_manager,
-                connection_manager
+                agent.agent.kernel, user_id, session_id, self.discovery_manager, connection_manager
             )
 
         # Prepare metadata
@@ -1082,8 +1101,11 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 await self._manage_function_calls(function_calls, chat_history, kernel)
                 # Make a recursive call to get the final streamed response
                 async for final_response_chunk in self.recursion_invoke_stream(
-                    chat_history, session_id, task_id, request_id,
-                    connection_manager=connection_manager
+                    chat_history,
+                    session_id,
+                    task_id,
+                    request_id,
+                    connection_manager=connection_manager,
                 ):
                     yield final_response_chunk
                 return

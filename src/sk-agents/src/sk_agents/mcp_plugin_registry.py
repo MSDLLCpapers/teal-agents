@@ -8,11 +8,10 @@ McpPlugin directly in kernel_builder.
 
 import logging
 from contextlib import AsyncExitStack
-from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any
 
 from sk_agents.mcp_client import (
-    McpPlugin,
+    AuthRequiredError,
     McpTool,
     apply_trust_level_governance,
     create_mcp_session_with_retry,
@@ -46,9 +45,7 @@ class McpPluginRegistry:
 
     @staticmethod
     def _apply_governance_overrides(
-        base_governance: Governance,
-        tool_name: str,
-        overrides: Dict[str, GovernanceOverride] | None
+        base_governance: Governance, tool_name: str, overrides: dict[str, GovernanceOverride] | None
     ) -> Governance:
         """Apply manual governance overrides from config."""
         if not overrides or tool_name not in overrides:
@@ -57,9 +54,13 @@ class McpPluginRegistry:
         override = overrides[tool_name]
 
         return Governance(
-            requires_hitl=override.requires_hitl if override.requires_hitl is not None else base_governance.requires_hitl,
+            requires_hitl=override.requires_hitl
+            if override.requires_hitl is not None
+            else base_governance.requires_hitl,
             cost=override.cost if override.cost is not None else base_governance.cost,
-            data_sensitivity=override.data_sensitivity if override.data_sensitivity is not None else base_governance.data_sensitivity
+            data_sensitivity=override.data_sensitivity
+            if override.data_sensitivity is not None
+            else base_governance.data_sensitivity,
         )
 
     @staticmethod
@@ -67,15 +68,14 @@ class McpPluginRegistry:
         """Create auth config if server requires OAuth2."""
         if server_config.auth_server and server_config.scopes:
             return Oauth2PluginAuth(
-                auth_server=server_config.auth_server,
-                scopes=server_config.scopes
+                auth_server=server_config.auth_server, scopes=server_config.scopes
             )
         return None
 
     @classmethod
     async def discover_and_materialize(
         cls,
-        mcp_servers: List[McpServerConfig],
+        mcp_servers: list[McpServerConfig],
         user_id: str,
         session_id: str,
         discovery_manager,  # McpStateManager
@@ -144,46 +144,55 @@ class McpPluginRegistry:
 
             except AuthRequiredError as e:
                 # Auth error - collect and surface to user
-                logger.warning(f"Auth required for MCP server {server_config.name} (session: {session_id})")
+                logger.warning(
+                    f"Auth required for MCP server {server_config.name} (session: {session_id})"
+                )
                 auth_errors.append(e)
             except Exception as e:
                 # Other errors - log and continue with remaining servers
                 # Extract underlying exception from TaskGroup if needed
                 import traceback
+
                 error_details = "".join(traceback.format_exception(type(e), e, e.__traceback__))
 
                 # If it's a TaskGroup exception, try to extract the underlying exception
                 underlying_error = str(e)
-                if hasattr(e, '__cause__') and e.__cause__:
+                if hasattr(e, "__cause__") and e.__cause__:
                     underlying_error = f"{e} (caused by: {e.__cause__})"
-                elif hasattr(e, 'exceptions'):
+                elif hasattr(e, "exceptions"):
                     # ExceptionGroup-style
                     underlying_error = f"{e} (sub-exceptions: {e.exceptions})"
 
                 logger.error(
-                    f"Failed to discover MCP server {server_config.name} for session {session_id}:\n"
+                    f"Failed to discover MCP server {server_config.name} "
+                    f"for session {session_id}:\n"
                     f"Error: {underlying_error}\n"
                     f"Full traceback:\n{error_details}"
                 )
-                
+
                 # Capture failure in state
                 state.failed_servers[server_config.name] = underlying_error
                 try:
                     await discovery_manager.update_discovery(state)
                 except Exception as update_err:
-                    logger.error(f"Failed to persist discovery error for {server_config.name}: {update_err}")
-                    
+                    logger.error(
+                        f"Failed to persist discovery error for {server_config.name}: {update_err}"
+                    )
+
                 continue
 
         # If any servers require auth, raise the first one to trigger auth challenge
         if auth_errors:
             logger.info(
-                f"MCP discovery requires authentication for {len(auth_errors)} server(s) (session: {session_id}): "
-                f"{[e.server_name for e in auth_errors]}"
+                f"MCP discovery requires auth for {len(auth_errors)} server(s) "
+                f"(session: {session_id}): {[e.server_name for e in auth_errors]}"
             )
             raise auth_errors[0]  # Raise first auth error to trigger challenge
 
-        logger.info(f"MCP discovery complete for session {session_id}. Discovered {len(state.discovered_servers)} servers")
+        logger.info(
+            f"MCP discovery complete for session {session_id}. "
+            f"Discovered {len(state.discovered_servers)} servers"
+        )
 
     @classmethod
     async def _discover_server(
@@ -193,7 +202,7 @@ class McpPluginRegistry:
         session_id: str,
         discovery_manager,
         app_config,
-    ) -> tuple[Dict, str | None]:
+    ) -> tuple[dict, str | None]:
         """
         Discover tools from a single MCP server.
 
@@ -254,7 +263,7 @@ class McpPluginRegistry:
                     tool_name=tool_info.name,
                     description=tool_info.description,
                     input_schema=tool_info.inputSchema,
-                    output_schema=getattr(tool_info, 'outputSchema', None),
+                    output_schema=getattr(tool_info, "outputSchema", None),
                     server_config=server_config,
                     server_name=server_config.name,
                 )
@@ -300,16 +309,12 @@ class McpPluginRegistry:
 
             base_governance = map_mcp_annotations_to_governance(annotations)
             governance_with_trust = apply_trust_level_governance(
-                base_governance,
-                server_config.trust_level,
-                tool_info.description or ""
+                base_governance, server_config.trust_level, tool_info.description or ""
             )
 
             # Apply manual overrides from config
             governance = cls._apply_governance_overrides(
-                governance_with_trust,
-                tool_info.name,
-                server_config.tool_governance_overrides
+                governance_with_trust, tool_info.name, server_config.tool_governance_overrides
             )
 
             # Create auth config if needed
@@ -321,21 +326,23 @@ class McpPluginRegistry:
                 name=tool_info.name,
                 description=tool_info.description,
                 governance=governance,
-                auth=auth
+                auth=auth,
             )
 
             # Register in catalog
             plugin_id = f"mcp_{server_config.name}"
             catalog.register_dynamic_tool(plugin_tool, plugin_id=plugin_id)
 
-            logger.debug(f"Registered tool in catalog: {tool_id} (requires_hitl={governance.requires_hitl})")
+            logger.debug(
+                f"Registered tool in catalog: {tool_id} (requires_hitl={governance.requires_hitl})"
+            )
 
         except Exception as e:
             logger.error(f"Failed to register tool {tool_info.name} in catalog: {e}")
             # Don't fail the whole discovery if catalog registration fails
 
     @classmethod
-    def _serialize_plugin_data(cls, tools: List[McpTool], server_name: str) -> Dict:
+    def _serialize_plugin_data(cls, tools: list[McpTool], server_name: str) -> dict:
         """
         Serialize plugin tools to storable format.
 
@@ -356,9 +363,7 @@ class McpPluginRegistry:
 
             # Strip Authorization headers to avoid token leakage
             headers = cfg.get("headers") or {}
-            cfg["headers"] = {
-                k: v for k, v in headers.items() if k.lower() != "authorization"
-            }
+            cfg["headers"] = {k: v for k, v in headers.items() if k.lower() != "authorization"}
 
             # Drop env entries that look sensitive (best‑effort)
             env = cfg.get("env")
@@ -386,7 +391,7 @@ class McpPluginRegistry:
         return {"server_name": server_name, "tools": tools_data}
 
     @classmethod
-    def _deserialize_tools(cls, plugin_data: Dict) -> List[McpTool]:
+    def _deserialize_tools(cls, plugin_data: dict) -> list[McpTool]:
         """
         Deserialize plugin data to McpTool list.
 
@@ -415,8 +420,11 @@ class McpPluginRegistry:
 
     @classmethod
     async def get_tools_for_session(
-        cls, user_id: str, session_id: str, discovery_manager  # McpStateManager
-    ) -> Dict[str, List[McpTool]]:
+        cls,
+        user_id: str,
+        session_id: str,
+        discovery_manager,  # McpStateManager
+    ) -> dict[str, list[McpTool]]:
         """
         Load MCP tools from external storage for this session.
 
@@ -441,7 +449,5 @@ class McpPluginRegistry:
             tools = cls._deserialize_tools(plugin_data)
             server_tools[server_name] = tools
 
-        logger.debug(
-            f"Loaded tools for {len(server_tools)} MCP servers for session {session_id}"
-        )
+        logger.debug(f"Loaded tools for {len(server_tools)} MCP servers for session {session_id}")
         return server_tools

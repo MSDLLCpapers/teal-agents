@@ -151,7 +151,9 @@ class Routes:
         mcp_discovery_manager=None,  # McpStateManager - Optional
     ) -> TealAgentsV1Alpha1Handler:
         agent_builder = Routes._create_agent_builder(app_config, authorization)
-        return TealAgentsV1Alpha1Handler(config, app_config, agent_builder, state_manager, mcp_discovery_manager)
+        return TealAgentsV1Alpha1Handler(
+            config, app_config, agent_builder, state_manager, mcp_discovery_manager
+        )
 
     @staticmethod
     def get_a2a_routes(
@@ -362,7 +364,9 @@ class Routes:
         )
         async def chat(message: input_class, user_id: str = Depends(get_user_id)) -> StateResponse:
             # Handle new task creation or task retrieval
-            teal_handler = Routes.get_task_handler(config, app_config, user_id, state_manager, mcp_discovery_manager)
+            teal_handler = Routes.get_task_handler(
+                config, app_config, user_id, state_manager, mcp_discovery_manager
+            )
             response_content = await teal_handler.invoke(user_id, message)
             # Return response with state identifiers
             status = TaskStatus.COMPLETED.value
@@ -380,14 +384,19 @@ class Routes:
 
     @staticmethod
     def get_resume_routes(
-        config: BaseConfig, app_config: AppConfig, state_manager: TaskPersistenceManager, mcp_discovery_manager=None
+        config: BaseConfig,
+        app_config: AppConfig,
+        state_manager: TaskPersistenceManager,
+        mcp_discovery_manager=None,
     ) -> APIRouter:
         router = APIRouter()
 
         @router.post("/tealagents/v1alpha1/resume/{request_id}")
         async def resume(request_id: str, request: Request, body: ResumeRequest):
             authorization = request.headers.get("authorization", None)
-            teal_handler = Routes.get_task_handler(config, app_config, authorization, state_manager, mcp_discovery_manager)
+            teal_handler = Routes.get_task_handler(
+                config, app_config, authorization, state_manager, mcp_discovery_manager
+            )
             try:
                 return await teal_handler.resume_task(authorization, request_id, body, stream=False)
             except Exception as e:
@@ -397,7 +406,9 @@ class Routes:
         @router.post("/tealagents/v1alpha1/resume/{request_id}/sse")
         async def resume_sse(request_id: str, request: Request, body: ResumeRequest):
             authorization = request.headers.get("authorization", None)
-            teal_handler = Routes.get_task_handler(config, app_config, authorization, state_manager, mcp_discovery_manager)
+            teal_handler = Routes.get_task_handler(
+                config, app_config, authorization, state_manager, mcp_discovery_manager
+            )
 
             async def event_generator():
                 try:
@@ -458,18 +469,22 @@ class Routes:
                     logger.warning(f"Invalid OAuth state in callback: {e}")
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="Invalid or expired state parameter"
-                    )
+                        detail="Invalid or expired state parameter",
+                    ) from e
 
                 user_id = flow_state.user_id
                 server_name = flow_state.server_name
 
                 # Look up server config from agent configuration
-                mcp_servers = getattr(config.spec.agent, 'mcp_servers', None) if hasattr(config, 'spec') else None
+                mcp_servers = (
+                    getattr(config.spec.agent, "mcp_servers", None)
+                    if hasattr(config, "spec")
+                    else None
+                )
                 if not mcp_servers:
                     raise HTTPException(
                         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                        detail="No MCP servers configured"
+                        detail="No MCP servers configured",
                     )
 
                 server_config = None
@@ -481,20 +496,15 @@ class Routes:
                 if not server_config:
                     raise HTTPException(
                         status_code=status.HTTP_404_NOT_FOUND,
-                        detail=f"MCP server '{server_name}' not found in configuration"
+                        detail=f"MCP server '{server_name}' not found in configuration",
                     )
 
                 # Handle callback (validate state, exchange code, store tokens)
                 oauth_data = await oauth_client.handle_callback(
-                    code=code,
-                    state=state,
-                    user_id=user_id,
-                    server_config=server_config
+                    code=code, state=state, user_id=user_id, server_config=server_config
                 )
 
-                logger.info(
-                    f"OAuth callback successful for user={user_id}, server={server_name}"
-                )
+                logger.info(f"OAuth callback successful for user={user_id}, server={server_name}")
 
                 # Return success response
                 return {
@@ -502,7 +512,7 @@ class Routes:
                     "message": f"Successfully authenticated to {server_name}",
                     "server_name": server_name,
                     "scopes": oauth_data.scopes,
-                    "expires_at": oauth_data.expires_at.isoformat()
+                    "expires_at": oauth_data.expires_at.isoformat(),
                 }
 
             except HTTPException:
@@ -511,7 +521,7 @@ class Routes:
                 logger.exception(f"Error in OAuth callback: {e}")
                 raise HTTPException(
                     status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"OAuth callback failed: {str(e)}"
+                    detail=f"OAuth callback failed: {str(e)}",
                 ) from e
 
         return router

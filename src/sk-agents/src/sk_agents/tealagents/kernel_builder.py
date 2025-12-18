@@ -1,6 +1,4 @@
-import asyncio
 import logging
-from typing import TYPE_CHECKING
 
 from semantic_kernel.kernel import Kernel
 from ska_utils import AppConfig
@@ -19,7 +17,7 @@ from sk_agents.tealagents.v1alpha1.config import McpServerConfig
 
 class KernelBuilder:
     def __init__(
-        self, 
+        self,
         chat_completion_builder: ChatCompletionBuilder,
         remote_plugin_loader: RemotePluginLoader,
         app_config: AppConfig,
@@ -52,10 +50,10 @@ class KernelBuilder:
             kernel = self._create_base_kernel(model_name, service_id)
             kernel = self._parse_plugins(plugins, kernel, authorization, extra_data_collector)
             kernel = self._load_remote_plugins(remote_plugins, kernel)
-            
+
             # MCP plugins will be loaded separately in async context by handler
             # Remove sync MCP loading to avoid event loop conflicts
-            
+
             return kernel
         except Exception as e:
             self.logger.exception(f"Could build kernel with service ID {service_id}. - {e}")
@@ -159,18 +157,22 @@ class KernelBuilder:
 
                 # Register with kernel
                 # Sanitize server name: SK requires plugin names to match ^[0-9A-Za-z_]+
-                sanitized_server_name = server_name.replace('-', '_').replace('.', '_')
+                sanitized_server_name = server_name.replace("-", "_").replace(".", "_")
                 kernel.add_plugin(plugin_instance, f"mcp_{sanitized_server_name}")
                 self.logger.info(
                     f"Loaded MCP plugin for {server_name} as mcp_{sanitized_server_name} "
                     f"(user: {user_id}, session: {session_id})"
                 )
 
-            self.logger.info(f"Loaded {len(server_tools)} MCP plugins for user {user_id}, session {session_id}")
+            self.logger.info(
+                f"Loaded {len(server_tools)} MCP plugins for user {user_id}, session {session_id}"
+            )
             return kernel
 
         except Exception as e:
-            self.logger.exception(f"Could not load MCP plugins for user {user_id}, session {session_id}. - {e}")
+            self.logger.exception(
+                f"Could not load MCP plugins for user {user_id}, session {session_id}. - {e}"
+            )
             raise
 
     def _parse_plugins(

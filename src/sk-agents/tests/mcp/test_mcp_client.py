@@ -4,38 +4,33 @@ Unit tests for MCP client components.
 Tests authentication, configuration, and tool execution without real OAuth2 or MCP servers.
 """
 
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sk_agents.auth_storage.models import OAuth2AuthData
 from sk_agents.mcp_client import (
     McpPlugin,
     McpTool,
+    apply_governance_overrides,
+    apply_trust_level_governance,
     build_auth_storage_key,
     map_mcp_annotations_to_governance,
-    apply_trust_level_governance,
-    apply_governance_overrides,
     resolve_server_auth_headers,
 )
 from sk_agents.plugin_catalog.models import Governance, GovernanceOverride
 from sk_agents.tealagents.v1alpha1.config import McpServerConfig
 
-
 # ============================================================================
 # Test Auth Storage Key Builder
 # ============================================================================
+
 
 class TestAuthStorageKeyBuilder:
     """Test the build_auth_storage_key utility function."""
 
     def test_build_key_with_scopes(self):
         """Test key building with multiple scopes."""
-        key = build_auth_storage_key(
-            "https://github.com/login/oauth",
-            ["repo", "read:user"]
-        )
+        key = build_auth_storage_key("https://github.com/login/oauth", ["repo", "read:user"])
         assert key == "https://github.com/login/oauth|read:user|repo"
 
     def test_build_key_scopes_sorted(self):
@@ -58,6 +53,7 @@ class TestAuthStorageKeyBuilder:
 # ============================================================================
 # Test Governance Mapping
 # ============================================================================
+
 
 class TestGovernanceMapping:
     """Test mapping MCP annotations to governance policies."""
@@ -112,21 +108,16 @@ class TestGovernanceMapping:
 # Test Trust Level Governance
 # ============================================================================
 
+
 class TestTrustLevelGovernance:
     """Test trust level governance application."""
 
     def test_untrusted_server_forces_hitl(self):
         """Test that untrusted servers force HITL for all tools."""
-        base_governance = Governance(
-            requires_hitl=False,
-            cost="low",
-            data_sensitivity="public"
-        )
+        base_governance = Governance(requires_hitl=False, cost="low", data_sensitivity="public")
 
         final_governance = apply_trust_level_governance(
-            base_governance,
-            "untrusted",
-            "Read file from filesystem"
+            base_governance, "untrusted", "Read file from filesystem"
         )
 
         assert final_governance.requires_hitl is True  # Forced!
@@ -134,32 +125,18 @@ class TestTrustLevelGovernance:
 
     def test_sandboxed_server_requires_hitl(self):
         """Test that sandboxed servers require HITL."""
-        base_governance = Governance(
-            requires_hitl=False,
-            cost="low",
-            data_sensitivity="public"
-        )
+        base_governance = Governance(requires_hitl=False, cost="low", data_sensitivity="public")
 
-        final_governance = apply_trust_level_governance(
-            base_governance,
-            "sandboxed",
-            "List files"
-        )
+        final_governance = apply_trust_level_governance(base_governance, "sandboxed", "List files")
 
         assert final_governance.requires_hitl is True  # Sandboxed = HITL required
 
     def test_trusted_server_with_safe_operation(self):
         """Test that trusted servers allow safe operations without HITL."""
-        base_governance = Governance(
-            requires_hitl=False,
-            cost="low",
-            data_sensitivity="public"
-        )
+        base_governance = Governance(requires_hitl=False, cost="low", data_sensitivity="public")
 
         final_governance = apply_trust_level_governance(
-            base_governance,
-            "trusted",
-            "Read configuration value"
+            base_governance, "trusted", "Read configuration value"
         )
 
         assert final_governance.requires_hitl is False  # Allowed!
@@ -167,16 +144,12 @@ class TestTrustLevelGovernance:
 
     def test_trusted_server_with_risky_operation(self):
         """Test that even trusted servers enforce HITL for risky operations."""
-        base_governance = Governance(
-            requires_hitl=False,
-            cost="low",
-            data_sensitivity="public"
-        )
+        base_governance = Governance(requires_hitl=False, cost="low", data_sensitivity="public")
 
         final_governance = apply_trust_level_governance(
             base_governance,
             "trusted",
-            "Delete all files from directory"  # Risky!
+            "Delete all files from directory",  # Risky!
         )
 
         assert final_governance.requires_hitl is True  # Defense in depth!
@@ -187,30 +160,23 @@ class TestTrustLevelGovernance:
 # Test Governance Overrides
 # ============================================================================
 
+
 class TestGovernanceOverrides:
     """Test manual governance override application."""
 
     def test_override_hitl_requirement(self):
         """Test overriding HITL requirement."""
-        base_governance = Governance(
-            requires_hitl=True,
-            cost="high",
-            data_sensitivity="sensitive"
-        )
+        base_governance = Governance(requires_hitl=True, cost="high", data_sensitivity="sensitive")
 
         overrides = {
             "test_tool": GovernanceOverride(
                 requires_hitl=False,  # Override!
                 cost=None,  # Keep base
-                data_sensitivity=None  # Keep base
+                data_sensitivity=None,  # Keep base
             )
         }
 
-        final_governance = apply_governance_overrides(
-            base_governance,
-            "test_tool",
-            overrides
-        )
+        final_governance = apply_governance_overrides(base_governance, "test_tool", overrides)
 
         assert final_governance.requires_hitl is False  # Overridden
         assert final_governance.cost == "high"  # Kept from base
@@ -218,25 +184,15 @@ class TestGovernanceOverrides:
 
     def test_override_all_fields(self):
         """Test overriding all governance fields."""
-        base_governance = Governance(
-            requires_hitl=True,
-            cost="high",
-            data_sensitivity="sensitive"
-        )
+        base_governance = Governance(requires_hitl=True, cost="high", data_sensitivity="sensitive")
 
         overrides = {
             "test_tool": GovernanceOverride(
-                requires_hitl=False,
-                cost="low",
-                data_sensitivity="public"
+                requires_hitl=False, cost="low", data_sensitivity="public"
             )
         }
 
-        final_governance = apply_governance_overrides(
-            base_governance,
-            "test_tool",
-            overrides
-        )
+        final_governance = apply_governance_overrides(base_governance, "test_tool", overrides)
 
         assert final_governance.requires_hitl is False
         assert final_governance.cost == "low"
@@ -244,37 +200,27 @@ class TestGovernanceOverrides:
 
     def test_no_override_for_tool(self):
         """Test that missing override returns base governance."""
-        base_governance = Governance(
-            requires_hitl=True,
-            cost="high",
-            data_sensitivity="sensitive"
-        )
+        base_governance = Governance(requires_hitl=True, cost="high", data_sensitivity="sensitive")
 
         overrides = {
-            "other_tool": GovernanceOverride(requires_hitl=False, cost="low", data_sensitivity="public")
+            "other_tool": GovernanceOverride(
+                requires_hitl=False, cost="low", data_sensitivity="public"
+            )
         }
 
         final_governance = apply_governance_overrides(
             base_governance,
             "test_tool",  # Not in overrides!
-            overrides
+            overrides,
         )
 
         assert final_governance == base_governance  # Unchanged
 
     def test_no_overrides_dict(self):
         """Test that None overrides returns base governance."""
-        base_governance = Governance(
-            requires_hitl=True,
-            cost="high",
-            data_sensitivity="sensitive"
-        )
+        base_governance = Governance(requires_hitl=True, cost="high", data_sensitivity="sensitive")
 
-        final_governance = apply_governance_overrides(
-            base_governance,
-            "test_tool",
-            None
-        )
+        final_governance = apply_governance_overrides(base_governance, "test_tool", None)
 
         assert final_governance == base_governance
 
@@ -282,6 +228,7 @@ class TestGovernanceOverrides:
 # ============================================================================
 # Test Auth Header Resolution
 # ============================================================================
+
 
 class TestAuthHeaderResolution:
     """Test OAuth2 token resolution for MCP servers."""
@@ -303,7 +250,7 @@ class TestAuthHeaderResolution:
             transport="http",
             url="https://api.github.com/mcp",
             auth_server="https://github.com/login/oauth",
-            scopes=["repo", "read:user"]
+            scopes=["repo", "read:user"],
         )
 
         # Resolve headers
@@ -331,7 +278,7 @@ class TestAuthHeaderResolution:
             transport="http",
             url="https://api.example.com/mcp",
             auth_server="https://example.com/oauth",
-            scopes=["read"]
+            scopes=["read"],
         )
 
         # Should raise AuthRequiredError for expired token
@@ -356,7 +303,7 @@ class TestAuthHeaderResolution:
             transport="http",
             url="https://api.example.com/mcp",
             auth_server="https://example.com/oauth",
-            scopes=["read"]
+            scopes=["read"],
         )
 
         # Should raise AuthRequiredError when no token
@@ -365,7 +312,9 @@ class TestAuthHeaderResolution:
 
     @pytest.mark.asyncio
     @patch("sk_agents.mcp_client.AuthStorageFactory")
-    async def test_resolve_forwards_non_sensitive_headers(self, mock_factory_class, mock_oauth2_token):
+    async def test_resolve_forwards_non_sensitive_headers(
+        self, mock_factory_class, mock_oauth2_token
+    ):
         """Test that non-sensitive custom headers are forwarded."""
         # Setup mocks
         mock_storage = MagicMock()
@@ -380,10 +329,7 @@ class TestAuthHeaderResolution:
             url="https://api.example.com/mcp",
             auth_server="https://example.com/oauth",
             scopes=["read"],
-            headers={
-                "X-Client-Version": "1.0",
-                "X-Request-ID": "12345"
-            }
+            headers={"X-Client-Version": "1.0", "X-Request-ID": "12345"},
         )
 
         headers = await resolve_server_auth_headers(config, "test_user")
@@ -395,8 +341,10 @@ class TestAuthHeaderResolution:
 
     @pytest.mark.asyncio
     @patch("sk_agents.mcp_client.AuthStorageFactory")
-    async def test_resolve_oauth_takes_precedence_over_static_auth(self, mock_factory_class, mock_oauth2_token):
-        """Test that OAuth takes precedence when both OAuth and static Authorization are configured."""
+    async def test_resolve_oauth_takes_precedence_over_static_auth(
+        self, mock_factory_class, mock_oauth2_token
+    ):
+        """Test OAuth takes precedence when both OAuth and static auth are configured."""
         # Setup mocks
         mock_storage = MagicMock()
         mock_storage.retrieve.return_value = mock_oauth2_token
@@ -414,8 +362,8 @@ class TestAuthHeaderResolution:
             scopes=["read"],
             headers={
                 "Authorization": "Bearer static_token",  # Should be overridden by OAuth
-                "X-Client": "test"
-            }
+                "X-Client": "test",
+            },
         )
 
         headers = await resolve_server_auth_headers(config, "test_user")
@@ -429,6 +377,7 @@ class TestAuthHeaderResolution:
 # ============================================================================
 # Test McpTool
 # ============================================================================
+
 
 class TestMcpTool:
     """Test stateless MCP tool wrapper."""
@@ -457,10 +406,8 @@ class TestMcpTool:
             description="A test tool",
             input_schema={
                 "type": "object",
-                "properties": {
-                    "required_param": {"type": "string"}
-                },
-                "required": ["required_param"]
+                "properties": {"required_param": {"type": "string"}},
+                "required": ["required_param"],
             },
             output_schema=None,
             server_config=http_mcp_config,
@@ -475,6 +422,7 @@ class TestMcpTool:
 # ============================================================================
 # Test McpPlugin
 # ============================================================================
+
 
 class TestMcpPlugin:
     """Test MCP plugin wrapper."""
@@ -498,7 +446,7 @@ class TestMcpPlugin:
                 user_id="",  # Empty user_id!
                 connection_manager=mock_connection_manager,
                 authorization=None,
-                extra_data_collector=None
+                extra_data_collector=None,
             )
 
     def test_plugin_requires_connection_manager(self, http_mcp_config):
@@ -520,7 +468,7 @@ class TestMcpPlugin:
                 user_id="test_user",
                 connection_manager=None,  # Missing connection_manager!
                 authorization=None,
-                extra_data_collector=None
+                extra_data_collector=None,
             )
 
     def test_plugin_initialization_with_user_id(self, http_mcp_config, mock_connection_manager):
@@ -540,7 +488,7 @@ class TestMcpPlugin:
             user_id="test_user",
             connection_manager=mock_connection_manager,
             authorization="Bearer token",
-            extra_data_collector=None
+            extra_data_collector=None,
         )
 
         assert plugin.user_id == "test_user"

@@ -304,7 +304,10 @@ class TestAppV3Run:
         assert stateful_call_args.kwargs["auth_storage_manager"] == mock_auth_storage_manager
 
         mock_routes.get_resume_routes.assert_called_once_with(
-            config=mock_base_config, app_config=mock_app_config, state_manager=mock_state_manager
+            config=mock_base_config,
+            app_config=mock_app_config,
+            state_manager=mock_state_manager,
+            mcp_discovery_manager=None,
         )
 
         # Verify utility routes setup

@@ -1044,7 +1044,12 @@ async def test_resume_task_approval_stream(teal_agents_handler, mocker, agent_ta
     # Mock agent building and function execution
     mock_agent = MagicMock()
     mock_agent.agent.kernel = MagicMock()
-    mocker.patch.object(teal_agents_handler.agent_builder, "build_agent", return_value=mock_agent)
+    mocker.patch.object(
+        teal_agents_handler.agent_builder,
+        "build_agent",
+        new_callable=mocker.AsyncMock,
+        return_value=mock_agent,
+    )
 
     # Create a proper function result mock
     mock_function_result = MagicMock()
@@ -1243,7 +1248,12 @@ async def test_resume_task_non_streaming(teal_agents_handler, mocker, agent_task
     # Mock agent building and function execution
     mock_agent = MagicMock()
     mock_agent.agent.kernel = MagicMock()
-    mocker.patch.object(teal_agents_handler.agent_builder, "build_agent", return_value=mock_agent)
+    mocker.patch.object(
+        teal_agents_handler.agent_builder,
+        "build_agent",
+        new_callable=mocker.AsyncMock,
+        return_value=mock_agent,
+    )
 
     # Create a proper function result mock
     mock_function_result = MagicMock()
@@ -1280,9 +1290,14 @@ async def test_invoke_agent_task_none_exception(
     mocker.patch.object(teal_agents_handler, "_manage_incoming_task", return_value=None)
 
     # Should raise AgentInvokeException
+    method = getattr(teal_agents_handler, method_name)
     with pytest.raises(AgentInvokeException, match="Agent task not created"):
-        method = getattr(teal_agents_handler, method_name)
-        await method(auth_token, user_message)
+        if method_name == "invoke":
+            await method(auth_token, user_message)
+        else:
+            # invoke_stream is an async generator - need to iterate to trigger exception
+            async for _ in method(auth_token, user_message):
+                pass
 
 
 @pytest.mark.asyncio
@@ -1311,8 +1326,8 @@ async def test_invoke_stream_method(teal_agents_handler, mocker, user_message, a
 
     mocker.patch.object(teal_agents_handler, "recursion_invoke_stream", return_value=mock_stream())
 
-    # Call invoke_stream
-    result_stream = await teal_agents_handler.invoke_stream(auth_token, user_message)
+    # Call invoke_stream (async generator - don't await, just call)
+    result_stream = teal_agents_handler.invoke_stream(auth_token, user_message)
 
     # Should return an async iterable
     assert hasattr(result_stream, "__aiter__")

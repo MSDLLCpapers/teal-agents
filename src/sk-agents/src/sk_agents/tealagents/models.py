@@ -74,6 +74,7 @@ class RejectedToolResponse(BaseModel):
 
 class AuthChallengeResponse(BaseModel):
     """Response when MCP server authentication is required before agent construction."""
+
     task_id: str
     session_id: str
     request_id: str

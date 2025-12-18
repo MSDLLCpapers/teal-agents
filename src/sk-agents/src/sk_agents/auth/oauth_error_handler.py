@@ -15,7 +15,6 @@ Key functionality:
 
 import logging
 import re
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -34,12 +33,12 @@ class WWWAuthenticateChallenge:
 
     def __init__(
         self,
-        realm: Optional[str] = None,
-        error: Optional[str] = None,
-        error_description: Optional[str] = None,
-        error_uri: Optional[str] = None,
-        scope: Optional[str] = None,
-        resource_metadata: Optional[str] = None,
+        realm: str | None = None,
+        error: str | None = None,
+        error_description: str | None = None,
+        error_uri: str | None = None,
+        scope: str | None = None,
+        resource_metadata: str | None = None,
     ):
         self.realm = realm
         self.error = error
@@ -49,7 +48,7 @@ class WWWAuthenticateChallenge:
         self.resource_metadata = resource_metadata
 
     @property
-    def scopes(self) -> List[str]:
+    def scopes(self) -> list[str]:
         """Get scopes as list."""
         return self.scope.split() if self.scope else []
 
@@ -67,12 +66,11 @@ class WWWAuthenticateChallenge:
 
     def __repr__(self) -> str:
         return (
-            f"WWWAuthenticateChallenge(error={self.error}, "
-            f"scope={self.scope}, realm={self.realm})"
+            f"WWWAuthenticateChallenge(error={self.error}, scope={self.scope}, realm={self.realm})"
         )
 
 
-def parse_www_authenticate_header(header_value: str) -> Optional[WWWAuthenticateChallenge]:
+def parse_www_authenticate_header(header_value: str) -> WWWAuthenticateChallenge | None:
     """
     Parse WWW-Authenticate header per RFC 6750 + RFC 9728.
 
@@ -108,7 +106,7 @@ def parse_www_authenticate_header(header_value: str) -> Optional[WWWAuthenticate
     pattern = r'(\w+)=(?:"([^"]*)"|([^\s,]+))'
     matches = re.findall(pattern, params_str)
 
-    params: Dict[str, str] = {}
+    params: dict[str, str] = {}
     for match in matches:
         param_name = match[0]
         # Use quoted value if present, otherwise unquoted
@@ -129,9 +127,7 @@ def parse_www_authenticate_header(header_value: str) -> Optional[WWWAuthenticate
     return challenge
 
 
-def extract_field_from_www_authenticate(
-    header_value: str, field_name: str
-) -> Optional[str]:
+def extract_field_from_www_authenticate(header_value: str, field_name: str) -> str | None:
     """
     Extract a specific field from WWW-Authenticate header.
 
@@ -162,9 +158,7 @@ class OAuthErrorHandler:
     """
 
     @staticmethod
-    def handle_401_response(
-        response_headers: Dict[str, str]
-    ) -> Optional[WWWAuthenticateChallenge]:
+    def handle_401_response(response_headers: dict[str, str]) -> WWWAuthenticateChallenge | None:
         """
         Handle 401 Unauthorized response.
 
@@ -186,7 +180,7 @@ class OAuthErrorHandler:
         return parse_www_authenticate_header(www_auth)
 
     @staticmethod
-    def should_refresh_token(challenge: Optional[WWWAuthenticateChallenge]) -> bool:
+    def should_refresh_token(challenge: WWWAuthenticateChallenge | None) -> bool:
         """
         Determine if token should be refreshed based on error.
 
@@ -203,7 +197,7 @@ class OAuthErrorHandler:
         return challenge.is_token_expired()
 
     @staticmethod
-    def should_reauthorize(challenge: Optional[WWWAuthenticateChallenge]) -> bool:
+    def should_reauthorize(challenge: WWWAuthenticateChallenge | None) -> bool:
         """
         Determine if re-authorization is required.
 
@@ -222,7 +216,7 @@ class OAuthErrorHandler:
         )
 
     @staticmethod
-    def get_required_scopes(challenge: Optional[WWWAuthenticateChallenge]) -> List[str]:
+    def get_required_scopes(challenge: WWWAuthenticateChallenge | None) -> list[str]:
         """
         Extract required scopes from challenge.
 
@@ -245,7 +239,7 @@ def build_www_authenticate_header(
     error_description: str | None = None,
     scope: str | None = None,
     realm: str | None = None,
-    resource_metadata: str | None = None
+    resource_metadata: str | None = None,
 ) -> str:
     """
     Build WWW-Authenticate header per RFC 6750 + RFC 9728.
@@ -268,8 +262,8 @@ def build_www_authenticate_header(
         ...     error_description="Token lacks required scopes",
         ...     scope="read write",
         ...     resource_metadata="https://api.example.com/.well-known/oauth-protected-resource"
-        ... )
-        'Bearer error="insufficient_scope", error_description="Token lacks required scopes", scope="read write", resource_metadata="https://api.example.com/.well-known/oauth-protected-resource"'
+        ... )  # doctest: +SKIP
+        'Bearer error="insufficient_scope", ...'
     """
     parts = ["Bearer"]
 

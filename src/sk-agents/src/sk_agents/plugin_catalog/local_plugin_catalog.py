@@ -45,14 +45,15 @@ class FileBasedPluginCatalog(PluginCatalog):
             if plugin_id not in self._plugins:
                 # Create a minimal plugin for this tool
                 from sk_agents.plugin_catalog.models import McpPluginType
+
                 plugin = Plugin(
                     plugin_id=plugin_id,
                     name=f"Dynamic Plugin: {plugin_id}",
-                    description=f"Dynamically created plugin for runtime tools",
+                    description="Dynamically created plugin for runtime tools",
                     version="1.0.0",
                     owner="dynamic-registration",
                     plugin_type=McpPluginType(),
-                    tools=[tool]
+                    tools=[tool],
                 )
                 self._plugins[plugin_id] = plugin
             else:

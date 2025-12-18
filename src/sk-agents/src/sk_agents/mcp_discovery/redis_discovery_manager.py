@@ -7,8 +7,7 @@ Follows the same pattern as Redis persistence and auth storage.
 
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from redis.asyncio import Redis
 from ska_utils import AppConfig, strtobool
@@ -16,8 +15,8 @@ from ska_utils import AppConfig, strtobool
 from sk_agents.mcp_discovery.mcp_discovery_manager import (
     DiscoveryCreateError,
     DiscoveryUpdateError,
-    McpStateManager,
     McpState,
+    McpStateManager,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,7 +35,7 @@ class RedisStateManager(McpStateManager):
     Uses the same Redis configuration as other components (TA_REDIS_*).
     """
 
-    def __init__(self, app_config: AppConfig, redis_client: Optional[Redis] = None):
+    def __init__(self, app_config: AppConfig, redis_client: Redis | None = None):
         """
         Initialize Redis state manager.
 
@@ -50,6 +49,7 @@ class RedisStateManager(McpStateManager):
 
         # TTL support: Default to 24 hours (86400 seconds)
         from sk_agents.configs import TA_REDIS_TTL
+
         ttl_str = self.app_config.get(TA_REDIS_TTL.env_name)
         if ttl_str:
             self.ttl = int(ttl_str)
@@ -144,8 +144,7 @@ class RedisStateManager(McpStateManager):
         exists = await self.redis.exists(key)
         if exists:
             raise DiscoveryCreateError(
-                f"MCP state already exists for user={state.user_id}, "
-                f"session={state.session_id}"
+                f"MCP state already exists for user={state.user_id}, session={state.session_id}"
             )
 
         data = self._serialize(state)
@@ -156,9 +155,7 @@ class RedisStateManager(McpStateManager):
             f"TTL={self.ttl}s"
         )
 
-    async def load_discovery(
-        self, user_id: str, session_id: str
-    ) -> Optional[McpState]:
+    async def load_discovery(self, user_id: str, session_id: str) -> McpState | None:
         """
         Load MCP state from Redis.
 
@@ -190,16 +187,13 @@ class RedisStateManager(McpStateManager):
         exists = await self.redis.exists(key)
         if not exists:
             raise DiscoveryUpdateError(
-                f"MCP state not found for user={state.user_id}, "
-                f"session={state.session_id}"
+                f"MCP state not found for user={state.user_id}, session={state.session_id}"
             )
 
         data = self._serialize(state)
         # Update with TTL to extend expiration
         await self.redis.set(key, data, ex=self.ttl)
-        logger.debug(
-            f"Updated Redis MCP state: user={state.user_id}, session={state.session_id}"
-        )
+        logger.debug(f"Updated Redis MCP state: user={state.user_id}, session={state.session_id}")
 
     async def delete_discovery(self, user_id: str, session_id: str) -> None:
         """
@@ -251,9 +245,7 @@ class RedisStateManager(McpStateManager):
         result = await self.redis.eval(lua_script, 1, key, self.ttl)
 
         if result == 1:
-            logger.debug(
-                f"Marked discovery completed: user={user_id}, session={session_id}"
-            )
+            logger.debug(f"Marked discovery completed: user={user_id}, session={session_id}")
         else:
             # Auto-create state if it doesn't exist
             logger.warning(
@@ -265,13 +257,11 @@ class RedisStateManager(McpStateManager):
                 session_id=session_id,
                 discovered_servers={},
                 discovery_completed=True,
-                created_at=datetime.now(timezone.utc),
+                created_at=datetime.now(UTC),
             )
             data = self._serialize(state)
             await self.redis.set(key, data, ex=self.ttl)
-            logger.debug(
-                f"Auto-created discovery state: user={user_id}, session={session_id}"
-            )
+            logger.debug(f"Auto-created discovery state: user={user_id}, session={session_id}")
 
     async def is_completed(self, user_id: str, session_id: str) -> bool:
         """
@@ -288,11 +278,7 @@ class RedisStateManager(McpStateManager):
         return state.discovery_completed if state else False
 
     async def store_mcp_session(
-        self,
-        user_id: str,
-        session_id: str,
-        server_name: str,
-        mcp_session_id: str
+        self, user_id: str, session_id: str, server_name: str, mcp_session_id: str
     ) -> None:
         """
         Store MCP session ID for a server using atomic Lua script.
@@ -341,17 +327,26 @@ class RedisStateManager(McpStateManager):
         end
 
         obj.discovered_servers[server_name].session.mcp_session_id = mcp_session_id
-        obj.discovered_servers[server_name].session.created_at = obj.discovered_servers[server_name].session.created_at or timestamp
-        obj.discovered_servers[server_name].session.last_used_at = timestamp
+        local sess = obj.discovered_servers[server_name].session
+        sess.created_at = sess.created_at or timestamp
+        sess.last_used_at = timestamp
 
         local updated_data = cjson.encode(obj)
         redis.call('SET', key, updated_data, 'EX', ttl)
         return 1
         """
 
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
         await self.redis.eval(
-            lua_script, 1, key, self.ttl, server_name, mcp_session_id, timestamp, user_id, session_id
+            lua_script,
+            1,
+            key,
+            self.ttl,
+            server_name,
+            mcp_session_id,
+            timestamp,
+            user_id,
+            session_id,
         )
 
         logger.debug(
@@ -359,12 +354,7 @@ class RedisStateManager(McpStateManager):
             f"user={user_id}, session={session_id}"
         )
 
-    async def get_mcp_session(
-        self,
-        user_id: str,
-        session_id: str,
-        server_name: str
-    ) -> Optional[str]:
+    async def get_mcp_session(self, user_id: str, session_id: str, server_name: str) -> str | None:
         """
         Get MCP session ID for a server.
 
@@ -392,10 +382,7 @@ class RedisStateManager(McpStateManager):
         return session_bucket.get("mcp_session_id")
 
     async def update_session_last_used(
-        self,
-        user_id: str,
-        session_id: str,
-        server_name: str
+        self, user_id: str, session_id: str, server_name: str
     ) -> None:
         """
         Update last_used timestamp using atomic Lua script.
@@ -438,7 +425,7 @@ class RedisStateManager(McpStateManager):
         return 1
         """
 
-        timestamp = datetime.now(timezone.utc).isoformat()
+        timestamp = datetime.now(UTC).isoformat()
         result = await self.redis.eval(lua_script, 1, key, self.ttl, server_name, timestamp)
 
         if result == 0:
@@ -451,8 +438,7 @@ class RedisStateManager(McpStateManager):
             )
 
         logger.debug(
-            f"Updated last_used for server={server_name}, "
-            f"user={user_id}, session={session_id}"
+            f"Updated last_used for server={server_name}, user={user_id}, session={session_id}"
         )
 
     async def clear_mcp_session(
@@ -506,15 +492,18 @@ class RedisStateManager(McpStateManager):
             )
         elif result == -1:
             logger.debug(
-                f"clear_mcp_session: server missing for user={user_id}, session={session_id}, server={server_name}"
+                f"clear_mcp_session: server missing for user={user_id}, "
+                f"session={session_id}, server={server_name}"
             )
         elif result == -2:
             logger.debug(
-                f"clear_mcp_session: session changed for user={user_id}, session={session_id}, server={server_name}"
+                f"clear_mcp_session: session changed for user={user_id}, "
+                f"session={session_id}, server={server_name}"
             )
         else:
             logger.debug(
-                f"Cleared MCP session for server={server_name}, user={user_id}, session={session_id}"
+                f"Cleared MCP session for server={server_name}, "
+                f"user={user_id}, session={session_id}"
             )
 
     def _serialize(self, state: McpState) -> str:
@@ -538,9 +527,7 @@ class RedisStateManager(McpStateManager):
             }
         )
 
-    def _deserialize(
-        self, data: str | bytes, user_id: str, session_id: str
-    ) -> McpState:
+    def _deserialize(self, data: str | bytes, user_id: str, session_id: str) -> McpState:
         """
         Deserialize JSON to MCP state object.
 

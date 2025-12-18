@@ -5,6 +5,7 @@ Verifies scope validation prevents escalation attacks per OAuth 2.1 Section 3.3.
 """
 
 import pytest
+
 from sk_agents.auth.oauth_client import OAuthClient
 from sk_agents.auth.oauth_models import TokenResponse
 
@@ -78,7 +79,7 @@ class TestScopeValidation:
         OAuthClient.validate_token_scopes(requested, token_response)
 
     def test_validate_scopes_with_no_returned(self):
-        """Validation passes when server omits scope field (OAuth 2.1: defaults to all requested)."""
+        """Validation passes when server omits scope (OAuth 2.1: defaults to all requested)."""
         requested = ["read", "write"]
         token_response = TokenResponse(
             access_token="token",
@@ -150,7 +151,8 @@ class TestScopeValidationInTokenExchange:
     @pytest.mark.asyncio
     async def test_token_exchange_validates_scopes(self):
         """Token exchange calls scope validation."""
-        from unittest.mock import Mock, AsyncMock, patch
+        from unittest.mock import AsyncMock, Mock, patch
+
         from sk_agents.auth.oauth_models import TokenRequest
 
         # Mock the HTTP client

@@ -353,26 +353,23 @@ class TestLoadRemotePlugins:
 class TestParsePlugins:
     """Test _parse_plugins method."""
 
-    @pytest.mark.asyncio
-    async def test_parse_plugins_none(self, kernel_builder):
+    def test_parse_plugins_none(self, kernel_builder):
         """Test parsing plugins when list is None."""
         kernel = Kernel()
 
-        result = await kernel_builder._parse_plugins(None, kernel)
+        result = kernel_builder._parse_plugins(None, kernel)
 
         assert result is kernel
 
-    @pytest.mark.asyncio
-    async def test_parse_plugins_empty_list(self, kernel_builder):
+    def test_parse_plugins_empty_list(self, kernel_builder):
         """Test parsing plugins when list is empty."""
         kernel = Kernel()
 
-        result = await kernel_builder._parse_plugins([], kernel)
+        result = kernel_builder._parse_plugins([], kernel)
 
         assert result is kernel
 
-    @pytest.mark.asyncio
-    async def test_parse_plugins_with_plugins(self, kernel_builder):
+    def test_parse_plugins_with_plugins(self, kernel_builder):
         """Test parsing plugins successfully."""
         kernel = Kernel()
         mock_plugin_loader = MagicMock()
@@ -386,7 +383,7 @@ class TestParsePlugins:
             "sk_agents.tealagents.kernel_builder.get_plugin_loader",
             return_value=mock_plugin_loader,
         ):
-            result = await kernel_builder._parse_plugins(
+            result = kernel_builder._parse_plugins(
                 ["test_plugin"], kernel, authorization="Bearer token"
             )
 
@@ -394,8 +391,7 @@ class TestParsePlugins:
         mock_plugin_loader.get_plugins.assert_called_once_with(["test_plugin"])
         mock_plugin_class.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_parse_plugins_with_extra_data_collector(self, kernel_builder):
+    def test_parse_plugins_with_extra_data_collector(self, kernel_builder):
         """Test parsing plugins with extra data collector."""
         kernel = Kernel()
         mock_extra_data_collector = MagicMock()
@@ -410,7 +406,7 @@ class TestParsePlugins:
             "sk_agents.tealagents.kernel_builder.get_plugin_loader",
             return_value=mock_plugin_loader,
         ):
-            result = await kernel_builder._parse_plugins(
+            result = kernel_builder._parse_plugins(
                 ["test_plugin"], kernel, extra_data_collector=mock_extra_data_collector
             )
 
@@ -418,8 +414,7 @@ class TestParsePlugins:
         call_args = mock_plugin_class.call_args
         assert call_args[0][1] is mock_extra_data_collector
 
-    @pytest.mark.asyncio
-    async def test_parse_plugins_multiple_plugins(self, kernel_builder):
+    def test_parse_plugins_multiple_plugins(self, kernel_builder):
         """Test parsing multiple plugins."""
         kernel = Kernel()
         mock_plugin_loader = MagicMock()
@@ -440,7 +435,7 @@ class TestParsePlugins:
             "sk_agents.tealagents.kernel_builder.get_plugin_loader",
             return_value=mock_plugin_loader,
         ):
-            result = await kernel_builder._parse_plugins(["plugin1", "plugin2"], kernel)
+            result = kernel_builder._parse_plugins(["plugin1", "plugin2"], kernel)
 
         assert result is kernel
         mock_plugin_class1.assert_called_once()

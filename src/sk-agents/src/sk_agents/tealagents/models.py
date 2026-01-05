@@ -72,6 +72,17 @@ class RejectedToolResponse(BaseModel):
     message: str = "Tool excecution rejected."
 
 
+class AuthChallengeResponse(BaseModel):
+    """Response when MCP server authentication is required before agent construction."""
+
+    task_id: str
+    session_id: str
+    request_id: str
+    message: str = "Authentication required for MCP servers."
+    auth_challenges: list[dict]  # List of auth challenge details per server
+    resume_url: str  # URL to resume agent flow after auth completion
+
+
 class StateResponse(BaseModel):
     session_id: str
     task_id: str

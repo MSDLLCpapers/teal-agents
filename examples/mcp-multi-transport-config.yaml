@@ -1,0 +1,107 @@
+apiVersion: tealagents/v1alpha1
+name: multi-transport-mcp-agent
+version: 1.0
+description: "Agent demonstrating stdio and HTTP MCP transport types"
+
+metadata:
+  description: "Agent that showcases local stdio and remote HTTP MCP server integrations"
+  skills:
+    - id: "mcp-tools-multi"
+      name: "Multi-Transport MCP Tools"
+      description: "Tools from MCP servers using different transport protocols"
+      tags: ["mcp", "stdio", "http", "multi-transport"]
+      examples:
+        - "Read files using local stdio filesystem server"
+        - "Query databases via local stdio server" 
+        - "Call remote APIs through HTTP MCP servers"
+
+spec:
+  name: multi-transport-mcp-agent
+  model: gpt-4
+  system_prompt: |
+    You are a helpful assistant with access to tools from multiple MCP servers 
+    using different transport protocols.
+    
+    Available transports:
+    - Stdio: Local filesystem and database operations (subprocess execution)
+    - HTTP: Remote API integrations (streamable HTTP and SSE)
+    
+    Always describe which transport/server you're using for each operation.
+  
+  temperature: 0.1
+  
+  mcp_servers:
+    # Stdio Transport (local subprocess execution)
+    - name: filesystem
+      transport: stdio
+      command: npx
+      args:
+        - "@modelcontextprotocol/server-filesystem"
+        - "/tmp/mcp-demo"
+      env:
+        NODE_ENV: production
+        
+    - name: sqlite-local
+      transport: stdio  
+      command: python
+      args:
+        - "-m"
+        - "mcp_server_sqlite"
+        - "--db-path"
+        - "/tmp/demo.db"
+      env:
+        PYTHONPATH: "/opt/mcp-servers"
+    
+    # HTTP Transport (remote server connections with OAuth2)
+    - name: remote-database
+      transport: http
+      url: "https://mcp-api.example.com/database/mcp"
+      auth_server: "https://api.example.com/oauth2"
+      scopes: ["database:read", "database:write"]
+      timeout: 45.0
+      headers:
+        X-Client-Version: "1.0"
+      tool_governance_overrides:
+        drop_table:
+          requires_hitl: true
+          cost: "high"
+          data_sensitivity: "sensitive"
+
+    - name: github-integration
+      transport: http
+      url: "https://api.github.com/mcp"
+      auth_server: "https://github.com/login/oauth"
+      scopes: ["repo", "read:user"]
+      timeout: 30.0
+      tool_governance_overrides:
+        create_repository:
+          requires_hitl: false
+          cost: "medium"
+        delete_repository:
+          requires_hitl: true
+          cost: "high"
+
+    # HTTP Transport (legacy manual auth for compatibility)
+    - name: live-data-feed
+      transport: http
+      url: "https://data-stream.example.com/mcp"
+      timeout: 30.0
+      auth_server: "https://data-stream.example.com/oauth2"
+      scopes: ["stream.read"]
+      headers:
+        X-Client-Type: "mcp-agent"
+
+    - name: analytics-api
+      transport: http
+      url: "https://analytics.example.com/api/v2/mcp"
+      auth_server: "https://analytics.example.com/oauth"
+      scopes: ["analytics:read", "analytics:export"]
+      timeout: 60.0
+      headers:
+        Content-Type: "application/json"
+        X-Client-ID: "multi-transport-agent"
+      tool_governance_overrides:
+        export_sensitive_data:
+          requires_hitl: true
+          cost: "high"
+          data_sensitivity: "sensitive"

@@ -148,9 +148,12 @@ class Routes:
         app_config: AppConfig,
         authorization: str,
         state_manager: TaskPersistenceManager,
+        mcp_discovery_manager=None,  # McpStateManager - Optional
     ) -> TealAgentsV1Alpha1Handler:
         agent_builder = Routes._create_agent_builder(app_config, authorization)
-        return TealAgentsV1Alpha1Handler(config, app_config, agent_builder, state_manager)
+        return TealAgentsV1Alpha1Handler(
+            config, app_config, agent_builder, state_manager, mcp_discovery_manager
+        )
 
     @staticmethod
     def get_a2a_routes(
@@ -336,7 +339,8 @@ class Routes:
         state_manager: TaskPersistenceManager,
         authorizer: RequestAuthorizer,
         auth_storage_manager: SecureAuthStorageManager,
-        input_class: type[UserMessage],
+        mcp_discovery_manager=None,  # McpStateManager - Optional
+        input_class: type[UserMessage] = UserMessage,
     ) -> APIRouter:
         """
         Get the stateful API routes for the given configuration.
@@ -360,7 +364,9 @@ class Routes:
         )
         async def chat(message: input_class, user_id: str = Depends(get_user_id)) -> StateResponse:
             # Handle new task creation or task retrieval
-            teal_handler = Routes.get_task_handler(config, app_config, user_id, state_manager)
+            teal_handler = Routes.get_task_handler(
+                config, app_config, user_id, state_manager, mcp_discovery_manager
+            )
             response_content = await teal_handler.invoke(user_id, message)
             # Return response with state identifiers
             status = TaskStatus.COMPLETED.value
@@ -378,14 +384,19 @@ class Routes:
 
     @staticmethod
     def get_resume_routes(
-        config: BaseConfig, app_config: AppConfig, state_manager: TaskPersistenceManager
+        config: BaseConfig,
+        app_config: AppConfig,
+        state_manager: TaskPersistenceManager,
+        mcp_discovery_manager=None,
     ) -> APIRouter:
         router = APIRouter()
 
         @router.post("/tealagents/v1alpha1/resume/{request_id}")
         async def resume(request_id: str, request: Request, body: ResumeRequest):
             authorization = request.headers.get("authorization", None)
-            teal_handler = Routes.get_task_handler(config, app_config, authorization, state_manager)
+            teal_handler = Routes.get_task_handler(
+                config, app_config, authorization, state_manager, mcp_discovery_manager
+            )
             try:
                 return await teal_handler.resume_task(authorization, request_id, body, stream=False)
             except Exception as e:
@@ -395,7 +406,9 @@ class Routes:
         @router.post("/tealagents/v1alpha1/resume/{request_id}/sse")
         async def resume_sse(request_id: str, request: Request, body: ResumeRequest):
             authorization = request.headers.get("authorization", None)
-            teal_handler = Routes.get_task_handler(config, app_config, authorization, state_manager)
+            teal_handler = Routes.get_task_handler(
+                config, app_config, authorization, state_manager, mcp_discovery_manager
+            )
 
             async def event_generator():
                 try:
@@ -408,5 +421,107 @@ class Routes:
                     raise HTTPException(status_code=500, detail="Internal Server Error") from e
 
             return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+        return router
+
+    @staticmethod
+    def get_oauth_callback_routes(
+        config: BaseConfig,
+        app_config: AppConfig,
+    ) -> APIRouter:
+        """
+        Get OAuth 2.1 callback routes for MCP server authentication.
+
+        This route handles the OAuth redirect callback after user authorization.
+        """
+        router = APIRouter()
+
+        @router.get("/oauth/callback")
+        async def oauth_callback(
+            code: str,
+            state: str,
+        ):
+            """
+            Handle OAuth 2.1 callback from authorization server.
+
+            Validates state, exchanges code for tokens, and stores in AuthStorage.
+
+            Args:
+                code: Authorization code from auth server
+                state: CSRF state parameter
+
+            Returns:
+                Success response with server name and token metadata
+            """
+            from sk_agents.auth.oauth_client import OAuthClient
+            from sk_agents.auth.oauth_state_manager import OAuthStateManager
+
+            try:
+                # Initialize OAuth components
+                oauth_client = OAuthClient()
+                state_manager = OAuthStateManager()
+
+                # Retrieve flow state using state parameter only
+                # This extracts user_id without requiring it upfront
+                try:
+                    flow_state = state_manager.retrieve_flow_state_by_state_only(state)
+                except ValueError as e:
+                    logger.warning(f"Invalid OAuth state in callback: {e}")
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Invalid or expired state parameter",
+                    ) from e
+
+                user_id = flow_state.user_id
+                server_name = flow_state.server_name
+
+                # Look up server config from agent configuration
+                mcp_servers = (
+                    getattr(config.spec.agent, "mcp_servers", None)
+                    if hasattr(config, "spec")
+                    else None
+                )
+                if not mcp_servers:
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="No MCP servers configured",
+                    )
+
+                server_config = None
+                for server in mcp_servers:
+                    if server.name == server_name:
+                        server_config = server
+                        break
+
+                if not server_config:
+                    raise HTTPException(
+                        status_code=status.HTTP_404_NOT_FOUND,
+                        detail=f"MCP server '{server_name}' not found in configuration",
+                    )
+
+                # Handle callback (validate state, exchange code, store tokens)
+                oauth_data = await oauth_client.handle_callback(
+                    code=code, state=state, user_id=user_id, server_config=server_config
+                )
+
+                logger.info(f"OAuth callback successful for user={user_id}, server={server_name}")
+
+                # Return success response
+                return {
+                    "status": "success",
+                    "message": f"Successfully authenticated to {server_name}",
+                    "server_name": server_name,
+                    "scopes": oauth_data.scopes,
+                    "expires_at": oauth_data.expires_at.isoformat(),
+                }
+
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.exception(f"Error in OAuth callback: {e}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"OAuth callback failed: {str(e)}",
+                ) from e
 
         return router

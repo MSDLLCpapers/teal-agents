@@ -110,8 +110,10 @@ class TestBuildAgent:
             agent_config.name,
             agent_config.plugins,
             agent_config.remote_plugins,
+            agent_config.mcp_servers,
             "Bearer token",
             mock_extra_data_collector,
+            None,  # user_id
         )
 
         # Verify settings were configured
@@ -175,8 +177,10 @@ class TestBuildAgent:
             minimal_agent_config.name,
             minimal_agent_config.plugins,
             minimal_agent_config.remote_plugins,
-            None,
-            None,
+            minimal_agent_config.mcp_servers,
+            None,  # authorization
+            None,  # extra_data_collector
+            None,  # user_id
         )
 
         # Verify extension_data was not set (since no temperature or max_tokens)

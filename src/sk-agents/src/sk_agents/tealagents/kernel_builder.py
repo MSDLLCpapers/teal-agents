@@ -12,6 +12,7 @@ from sk_agents.plugin_loader import get_plugin_loader
 from sk_agents.ska_types import ModelType
 from sk_agents.tealagents.chat_completion_builder import ChatCompletionBuilder
 from sk_agents.tealagents.remote_plugin_loader import RemotePluginLoader
+from sk_agents.tealagents.v1alpha1.config import McpServerConfig
 
 
 class KernelBuilder:
@@ -40,13 +41,20 @@ class KernelBuilder:
         service_id: str,
         plugins: list[str],
         remote_plugins: list[str],
+        mcp_servers: list[McpServerConfig] | None = None,
         authorization: str | None = None,
         extra_data_collector: ExtraDataCollector | None = None,
+        user_id: str | None = None,
     ) -> Kernel:
         try:
             kernel = self._create_base_kernel(model_name, service_id)
-            kernel = await self._parse_plugins(plugins, kernel, authorization, extra_data_collector)
-            return self._load_remote_plugins(remote_plugins, kernel)
+            kernel = self._parse_plugins(plugins, kernel, authorization, extra_data_collector)
+            kernel = self._load_remote_plugins(remote_plugins, kernel)
+
+            # MCP plugins will be loaded separately in async context by handler
+            # Remove sync MCP loading to avoid event loop conflicts
+
+            return kernel
         except Exception as e:
             self.logger.exception(f"Could build kernel with service ID {service_id}. - {e}")
             raise
@@ -86,7 +94,88 @@ class KernelBuilder:
             self.logger.exception(f"Could not load remote plugings. -{e}")
             raise
 
-    async def _parse_plugins(
+    async def load_mcp_plugins(
+        self,
+        kernel: Kernel,
+        user_id: str,
+        session_id: str,
+        mcp_discovery_manager,
+        connection_manager,
+    ) -> Kernel:
+        """
+        Load MCP plugins by instantiating McpPlugin directly with tools from storage.
+
+        This loads tools discovered at session start and creates McpPlugin instances
+        for each MCP server. Only tools that the user has authenticated to access
+        will be loaded, ensuring proper multi-tenant isolation at the session level.
+
+        Args:
+            kernel: The kernel to add plugins to
+            user_id: User ID to get plugins for (required)
+            session_id: Session ID for plugin isolation (required)
+            mcp_discovery_manager: Discovery manager for loading tool state (required)
+            connection_manager: Request-scoped connection manager for connection reuse (required)
+
+        Returns:
+            The kernel with session's MCP plugins loaded
+
+        Note: MCP tools must be discovered first via McpPluginRegistry.discover_and_materialize()
+        before calling this method.
+        """
+        if not user_id:
+            raise ValueError("user_id is required when loading MCP plugins")
+        if not session_id:
+            raise ValueError("session_id is required when loading MCP plugins")
+        if not mcp_discovery_manager:
+            raise ValueError("mcp_discovery_manager is required when loading MCP plugins")
+        if not connection_manager:
+            raise ValueError("connection_manager is required when loading MCP plugins")
+
+        try:
+            from sk_agents.mcp_client import McpPlugin
+            from sk_agents.mcp_plugin_registry import McpPluginRegistry
+
+            # Get tools for THIS session (session-level isolation)
+            server_tools = await McpPluginRegistry.get_tools_for_session(
+                user_id, session_id, mcp_discovery_manager
+            )
+
+            if not server_tools:
+                self.logger.debug(f"No MCP tools found for user {user_id}, session {session_id}")
+                return kernel
+
+            # Instantiate McpPlugin directly for each server
+            for server_name, tools in server_tools.items():
+                plugin_instance = McpPlugin(
+                    tools=tools,
+                    server_name=server_name,
+                    user_id=user_id,
+                    connection_manager=connection_manager,
+                    authorization=self.authorization,
+                    extra_data_collector=None,
+                )
+
+                # Register with kernel
+                # Sanitize server name: SK requires plugin names to match ^[0-9A-Za-z_]+
+                sanitized_server_name = server_name.replace("-", "_").replace(".", "_")
+                kernel.add_plugin(plugin_instance, f"mcp_{sanitized_server_name}")
+                self.logger.info(
+                    f"Loaded MCP plugin for {server_name} as mcp_{sanitized_server_name} "
+                    f"(user: {user_id}, session: {session_id})"
+                )
+
+            self.logger.info(
+                f"Loaded {len(server_tools)} MCP plugins for user {user_id}, session {session_id}"
+            )
+            return kernel
+
+        except Exception as e:
+            self.logger.exception(
+                f"Could not load MCP plugins for user {user_id}, session {session_id}. - {e}"
+            )
+            raise
+
+    def _parse_plugins(
         self,
         plugin_names: list[str],
         kernel: Kernel,
@@ -100,8 +189,9 @@ class KernelBuilder:
         plugins = plugin_loader.get_plugins(plugin_names)
 
         for plugin_name, plugin_class in plugins.items():
-            # Get plugin-specific authorization (with token cache if available)
-            plugin_authorization = await self._get_plugin_authorization(plugin_name, authorization)
+            # For non-MCP plugins, use original authorization directly
+            # (MCP plugins handle auth differently via user_id)
+            plugin_authorization = authorization
 
             # Create and add the plugin to the kernel
             kernel.add_plugin(plugin_class(plugin_authorization, extra_data_collector), plugin_name)

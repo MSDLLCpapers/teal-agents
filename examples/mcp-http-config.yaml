@@ -1,0 +1,101 @@
+apiVersion: tealagents/v1alpha1
+name: http-mcp-agent
+version: 1.0
+description: "Agent using HTTP REST MCP servers"
+
+metadata:
+  description: "Agent specialized for HTTP/REST MCP server integrations"
+  skills:
+    - id: "http-mcp-tools"
+      name: "HTTP MCP Tools" 
+      description: "REST API tools from HTTP MCP servers"
+      tags: ["mcp", "http", "rest", "api"]
+
+spec:
+  name: http-mcp-agent
+  model: gpt-4
+  system_prompt: |
+    You are an assistant with access to various REST APIs through HTTP MCP servers.
+    
+    Available services:
+    - User management and authentication services
+    - Content management systems
+    - Analytics and reporting APIs  
+    - Third-party service integrations
+    
+    Always mention which service/API you're calling for transparency.
+  
+  temperature: 0.1
+  
+  mcp_servers:
+    # User management service with OAuth2
+    - name: user-management
+      transport: http
+      url: "https://auth.example.com/api/v2/mcp"
+      auth_server: "https://auth.example.com/oauth2"
+      scopes: ["user:read", "user:write"]
+      timeout: 30
+      headers:
+        X-Service: "mcp-agent"
+        Accept: "application/json"
+      tool_governance_overrides:
+        delete_user:
+          requires_hitl: true
+          cost: "high"
+          data_sensitivity: "sensitive"
+
+    # Content management system with OAuth2
+    - name: cms-api
+      transport: http
+      url: "https://cms.example.com/api/v1/mcp"
+      auth_server: "https://cms.example.com/oauth"
+      scopes: ["content:read", "content:write"]
+      timeout: 45
+      headers:
+        Content-Type: "application/json"
+        X-Client-ID: "mcp-integration"
+      tool_governance_overrides:
+        publish_content:
+          requires_hitl: true
+          cost: "medium"
+
+    # Analytics service - legacy manual auth
+    - name: analytics
+      transport: http
+      url: "https://analytics-api.example.com/v3/mcp"
+      timeout: 60
+      auth_server: "https://analytics-api.example.com/oauth2"
+      scopes: ["analytics.read", "analytics.write"]
+      headers:
+        X-Analytics-Version: "v3.2"
+        Accept: "application/json"
+      tool_governance_overrides:
+        export_data:
+          requires_hitl: true
+          data_sensitivity: "sensitive"
+
+    # GitHub integration
+    - name: github
+      transport: http
+      url: "https://api.github.com/mcp"
+      auth_server: "https://github.com/login/oauth"
+      scopes: ["repo", "read:org"]
+      tool_governance_overrides:
+        create_repository:
+          requires_hitl: false
+          cost: "medium"
+        delete_repository:
+          requires_hitl: true
+          cost: "high"
+          data_sensitivity: "sensitive"
+
+    # Internal microservice with OAuth2
+    - name: internal-service
+      transport: http
+      url: "https://internal.example.com/mcp-api/v1"
+      auth_server: "https://internal.example.com/oauth2"
+      scopes: ["internal:api"]
+      timeout: 15  # Fast internal network
+      headers:
+        X-Internal-Client: "mcp-agent"
+        X-Request-Priority: "high"

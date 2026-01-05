@@ -108,6 +108,75 @@ TA_AUTH_STORAGE_MANAGER_MODULE = Config(
     default_value=None,
 )
 
+# MCP OAuth 2.1 Configuration
+# Platform-level OAuth settings for MCP server authentication
+TA_OAUTH_REDIRECT_URI = Config(
+    env_name="TA_OAUTH_REDIRECT_URI",
+    is_required=False,
+    default_value="http://localhost:8000/oauth/callback",
+)
+TA_OAUTH_CLIENT_NAME = Config(
+    env_name="TA_OAUTH_CLIENT_NAME",
+    is_required=False,
+    default_value="teal-agents",
+)
+TA_OAUTH_BASE_URL = Config(
+    env_name="TA_OAUTH_BASE_URL",
+    is_required=False,
+    default_value="http://localhost:8000",
+)
+
+# MCP OAuth 2.1 Feature Flags
+# Control which MCP OAuth features are enabled (gradual rollout)
+TA_MCP_OAUTH_ENABLE_PKCE = Config(
+    env_name="TA_MCP_OAUTH_ENABLE_PKCE",
+    is_required=False,
+    default_value="true",
+)
+TA_MCP_OAUTH_ENABLE_RESOURCE_PARAMETER = Config(
+    env_name="TA_MCP_OAUTH_ENABLE_RESOURCE_PARAMETER",
+    is_required=False,
+    default_value="true",
+)
+TA_MCP_OAUTH_ENABLE_AUDIENCE_VALIDATION = Config(
+    env_name="TA_MCP_OAUTH_ENABLE_AUDIENCE_VALIDATION",
+    is_required=False,
+    default_value="true",
+)
+TA_MCP_OAUTH_ENABLE_TOKEN_REFRESH = Config(
+    env_name="TA_MCP_OAUTH_ENABLE_TOKEN_REFRESH",
+    is_required=False,
+    default_value="true",
+)
+TA_MCP_OAUTH_ENABLE_SERVER_DISCOVERY = Config(
+    env_name="TA_MCP_OAUTH_ENABLE_SERVER_DISCOVERY",
+    is_required=False,
+    default_value="false",  # Phase 3 - Optional
+)
+TA_MCP_OAUTH_ENABLE_DYNAMIC_REGISTRATION = Config(
+    env_name="TA_MCP_OAUTH_ENABLE_DYNAMIC_REGISTRATION",
+    is_required=False,
+    default_value="false",  # Phase 3 - Optional
+)
+TA_MCP_OAUTH_STRICT_HTTPS_VALIDATION = Config(
+    env_name="TA_MCP_OAUTH_STRICT_HTTPS_VALIDATION",
+    is_required=False,
+    default_value="true",
+)
+
+# MCP Discovery Manager Configuration
+# Configures storage backend for MCP tool discovery state
+TA_MCP_DISCOVERY_MODULE = Config(
+    env_name="TA_MCP_DISCOVERY_MODULE",
+    is_required=False,
+    default_value="sk_agents.mcp_discovery.in_memory_discovery_manager",
+)
+TA_MCP_DISCOVERY_CLASS = Config(
+    env_name="TA_MCP_DISCOVERY_CLASS",
+    is_required=False,
+    default_value="InMemoryStateManager",
+)
+
 configs: list[Config] = [
     TA_API_KEY,
     TA_SERVICE_CONFIG,
@@ -138,4 +207,16 @@ configs: list[Config] = [
     TA_PLUGIN_CATALOG_FILE,
     TA_AUTH_STORAGE_MANAGER_CLASS,
     TA_AUTH_STORAGE_MANAGER_MODULE,
+    TA_OAUTH_REDIRECT_URI,
+    TA_OAUTH_CLIENT_NAME,
+    TA_OAUTH_BASE_URL,
+    TA_MCP_OAUTH_ENABLE_PKCE,
+    TA_MCP_OAUTH_ENABLE_RESOURCE_PARAMETER,
+    TA_MCP_OAUTH_ENABLE_AUDIENCE_VALIDATION,
+    TA_MCP_OAUTH_ENABLE_TOKEN_REFRESH,
+    TA_MCP_OAUTH_ENABLE_SERVER_DISCOVERY,
+    TA_MCP_OAUTH_ENABLE_DYNAMIC_REGISTRATION,
+    TA_MCP_OAUTH_STRICT_HTTPS_VALIDATION,
+    TA_MCP_DISCOVERY_MODULE,
+    TA_MCP_DISCOVERY_CLASS,
 ]

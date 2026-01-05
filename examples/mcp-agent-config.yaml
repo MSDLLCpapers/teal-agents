@@ -1,0 +1,105 @@
+apiVersion: tealagents/v1alpha1
+name: mcp-demo-agent
+version: 1.0
+description: "Demo agent with MCP server integration"
+
+metadata:
+  description: "A demonstration agent that showcases MCP server integration"
+  skills:
+    - id: "mcp-tools"
+      name: "MCP Tools"
+      description: "Tools from connected MCP servers"
+      tags: ["mcp", "external-tools"]
+      examples:
+        - "Read a file from the filesystem"
+        - "Query a SQLite database" 
+        - "Execute git commands"
+
+spec:
+  name: mcp-demo-agent
+  model: gpt-4
+  system_prompt: |
+    You are a helpful assistant with access to external tools through MCP servers.
+    
+    You have access to:
+    - Filesystem operations for reading and writing files
+    - SQLite database operations for data queries
+    - Git operations for version control tasks
+    
+    Always confirm the specific action you plan to take before executing potentially destructive operations.
+  
+  temperature: 0.1
+  
+  # Example MCP server configurations showing both stdio and HTTP transports
+  mcp_servers:
+    # Local stdio servers
+    # Filesystem server - allows file operations in a safe directory
+    - name: filesystem
+      transport: stdio  # Local server via stdio (default)
+      command: npx
+      args:
+        - "@modelcontextprotocol/server-filesystem"
+        - "/tmp/mcp-demo"  # Safe directory for demo
+      env:
+        NODE_ENV: production
+    
+    # SQLite server - provides database access
+    - name: sqlite
+      transport: stdio
+      command: python
+      args:
+        - "-m"
+        - "mcp_server_sqlite"
+        - "--db-path"
+        - "/tmp/demo.db"
+      env:
+        PYTHONPATH: "/opt/mcp-servers"
+    
+    # Remote HTTP servers with OAuth2 authentication
+    # GitHub API - OAuth2 integrated server with governance
+    - name: github
+      transport: http
+      url: "https://api.github.com/mcp"
+      auth_server: "https://github.com/login/oauth"
+      scopes: ["repo", "read:user"]
+      tool_governance_overrides:
+        create_repository:
+          requires_hitl: false
+          cost: "medium"
+          data_sensitivity: "proprietary"
+        delete_repository:
+          requires_hitl: true
+          cost: "high"
+          data_sensitivity: "sensitive"
+
+    # Weather service - manual header authentication
+    - name: weather-service
+      transport: http
+      url: "https://weather-mcp.example.com/mcp"
+      timeout: 30
+      auth_server: "https://auth.weather.example.com/oauth2"
+      scopes: ["forecast.read"]
+      headers:
+        User-Agent: "TealAgents-MCP/1.0"
+
+    # Analytics API - remote service with custom governance
+    - name: analytics-api
+      transport: http
+      url: "https://analytics.example.com/mcp"
+      timeout: 45
+      auth_server: "https://analytics.example.com/oauth2"
+      scopes: ["read", "write"]
+      tool_governance_overrides:
+        export_data:
+          requires_hitl: true
+          cost: "high"
+          data_sensitivity: "sensitive"
+    
+    # Git server - provides git operations (commented out for safety)
+    # - name: git
+    #   transport: stdio
+    #   command: npx
+    #   args:
+    #     - "@modelcontextprotocol/server-git"
+    #     - "--repository"
+    #     - "/path/to/safe/repo"

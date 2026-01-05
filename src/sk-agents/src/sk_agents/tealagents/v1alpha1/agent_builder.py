@@ -24,14 +24,17 @@ class AgentBuilder:
         agent_config: AgentConfig,
         extra_data_collector: ExtraDataCollector | None = None,
         output_type: str | None = None,
+        user_id: str | None = None,
     ) -> SKAgent:
         kernel = await self.kernel_builder.build_kernel(
             agent_config.model,
             agent_config.name,
             agent_config.plugins,
             agent_config.remote_plugins,
+            agent_config.mcp_servers,
             self.authorization,
             extra_data_collector,
+            user_id,
         )
 
         so_supported: bool = self.kernel_builder.model_supports_structured_output(

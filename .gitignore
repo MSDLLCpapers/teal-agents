@@ -11,7 +11,10 @@
 test.pptx
 .DS_Store
 .vscode
+*/.claude/
+.gemini/
 customization/
+ray_tests/test_env/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -137,6 +140,7 @@ celerybeat.pid
 # Environments
 .env
 .venv
+.venv-test
 env/
 venv/
 ENV/

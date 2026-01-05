@@ -582,7 +582,7 @@ def test_create_agent_builder(mock_kernel_builder, mock_agent_builder_class):
 @patch("sk_agents.routes.TealAgentsV1Alpha1Handler")
 @patch.object(Routes, "_create_agent_builder")
 def test_get_task_handler(mock_agent_builder, mock_handler_class):
-    """Test get_task_handler method."""
+    """Test get_task_handler method without optional MCP discovery manager."""
     config = MagicMock()
     app_config = MagicMock()
     authorization = "test_auth"
@@ -594,11 +594,12 @@ def test_get_task_handler(mock_agent_builder, mock_handler_class):
     mock_agent_builder.return_value = mock_agent_builder_instance
     mock_handler_class.return_value = mock_handler
 
+    # Test without optional mcp_discovery_manager parameter (non-MCP agent)
     result = Routes.get_task_handler(config, app_config, authorization, state_manager)
 
     mock_agent_builder.assert_called_once_with(app_config, authorization)
     mock_handler_class.assert_called_once_with(
-        config, app_config, mock_agent_builder_instance, state_manager
+        config, app_config, mock_agent_builder_instance, state_manager, None
     )
     assert result == mock_handler
 
@@ -888,7 +889,7 @@ def test_get_stateful_routes_success(mock_get_task_handler):
 
     from sk_agents.tealagents.models import UserMessage
 
-    # Get the router
+    # Get the router (without optional mcp_discovery_manager for non-MCP test)
     router = Routes.get_stateful_routes(
         name="test-agent",
         version="v1",
@@ -954,7 +955,7 @@ def test_get_stateful_routes_hitl_response(mock_get_task_handler):
 
     from sk_agents.tealagents.models import UserMessage
 
-    # Get the router
+    # Get the router (without optional mcp_discovery_manager for non-MCP test)
     router = Routes.get_stateful_routes(
         name="test-agent",
         version="v1",
@@ -1000,7 +1001,7 @@ def test_get_stateful_routes_unauthorized():
 
     from sk_agents.tealagents.models import UserMessage
 
-    # Get the router
+    # Get the router (without optional mcp_discovery_manager for non-MCP test)
     router = Routes.get_stateful_routes(
         name="test-agent",
         version="v1",
@@ -1045,7 +1046,7 @@ def test_get_resume_routes_success(mock_get_task_handler):
     app_config = MagicMock()
     state_manager = MagicMock()
 
-    # Get the router
+    # Get the router (without optional mcp_discovery_manager for non-MCP test)
     router = Routes.get_resume_routes(config, app_config, state_manager)
 
     # Mount router in FastAPI app and test
@@ -1106,7 +1107,7 @@ def test_get_resume_routes_sse_success(mock_sse_event, mock_get_task_handler):
     app_config = MagicMock()
     state_manager = MagicMock()
 
-    # Get the router
+    # Get the router (without optional mcp_discovery_manager for non-MCP test)
     router = Routes.get_resume_routes(config, app_config, state_manager)
 
     # Mount router in FastAPI app and test
@@ -1136,7 +1137,7 @@ def test_get_resume_routes_exception(mock_get_task_handler):
     app_config = MagicMock()
     state_manager = MagicMock()
 
-    # Get the router
+    # Get the router (without optional mcp_discovery_manager for non-MCP test)
     router = Routes.get_resume_routes(config, app_config, state_manager)
 
     # Mount router in FastAPI app and test
@@ -1191,7 +1192,7 @@ def test_get_resume_routes_sse_exception(mock_sse_event, mock_get_task_handler):
     app_config = MagicMock()
     state_manager = MagicMock()
 
-    # Get the router
+    # Get the router (without optional mcp_discovery_manager for non-MCP test)
     router = Routes.get_resume_routes(config, app_config, state_manager)
 
     # Mount router in FastAPI app and test

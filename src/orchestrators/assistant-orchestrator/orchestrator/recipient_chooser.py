@@ -55,7 +55,7 @@ class RecipientChooser:
                 raise Exception("Invalid response")
         return output
 
-    async def choose_recipient(self, message: str, conv: Conversation) -> SelectedAgent:
+    async def choose_recipient(self, message: str, conv: Conversation,authorization: str | None = None) -> SelectedAgent:
         """Chooses the recipient
 
         Args:
@@ -74,6 +74,7 @@ class RecipientChooser:
 
         headers = {
             "taAgwKey": self.agent.api_key,
+            "Authorization": authorization
         }
         inject(headers)
         response = requests.post(

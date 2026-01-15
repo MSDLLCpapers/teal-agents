@@ -117,6 +117,13 @@ class BaseInputWithUserContext(KernelBaseModel):
     chat_history: list[HistoryMessage] | None = None
     user_context: dict[str, str] | None = None
 
+class BaseMultiModalInputWithUserContext(KernelBaseModel):
+    """The history of a chat interaction between an automated assistant and a
+    human, along with context about the user and a multi-modal input."""
+
+    session_id: str | None = None
+    chat_history: list[HistoryMultiModalMessage] | None = None
+    user_context: dict[str, str] | None = None
 
 class TokenUsage(BaseModel):
     completion_tokens: int

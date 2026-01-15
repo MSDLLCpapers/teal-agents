@@ -37,6 +37,7 @@ class ChatAgents(BaseHandler):
                 "BaseInput",
                 "BaseInputWithUserContext",
                 "BaseMultiModalInput",
+                "BaseMultiModalInputWithUserContext"
             ]:
                 raise ValueError("Invalid input type")
         else:

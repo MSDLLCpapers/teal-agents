@@ -212,7 +212,7 @@ def test_add_conversation_message_by_id_endpoint(client: TestClient):
 
     mock_conv_manager_instance.get_conversation.assert_called_with(user_id, conversation_id)
     mock_rec_chooser.choose_recipient.assert_called_once_with(
-        test_message, mock_conversation_object
+        test_message, mock_conversation_object,"Bearer dummy_token"
     )
     mock_agent_instance.invoke_api.assert_called_once()
     mock_conv_manager_instance.add_user_message.assert_called_once_with(

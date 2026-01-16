@@ -75,7 +75,9 @@ async def sse_event_response(
             else nullcontext()
         ):
             try:
-                selected_agent = await rec_chooser.choose_recipient(request.message, conv)
+                selected_agent = await rec_chooser.choose_recipient(
+                    request.message, conv, authorization
+                )
             except Exception as e:
                 sse_error = SseError(
                     error=f"Error retrieving agent: {e}",

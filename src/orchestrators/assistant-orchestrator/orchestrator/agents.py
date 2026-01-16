@@ -12,6 +12,7 @@ from model import Conversation
 
 logger = logging.getLogger(__name__)
 
+
 class MultiModalItem(BaseModel):
     content_type: str
     content: str

@@ -93,6 +93,15 @@ class BaseMultiModalInput(KernelBaseModel):
     chat_history: list[HistoryMultiModalMessage] | None = None
 
 
+class BaseMultiModalInputWithUserContext(KernelBaseModel):
+    """The history of a chat interaction between an automated assistant and a
+    human with multimodal input (text and images), along with context about the user."""
+
+    session_id: str | None = None
+    chat_history: list[HistoryMultiModalMessage] | None = None
+    user_context: dict[str, str] | None = None
+
+
 class HistoryMessage(BaseModel):
     """A single interaction in a chat history.<br/>
     'role' - Either 'user' (requestor) or 'assistant' (responder) indicating

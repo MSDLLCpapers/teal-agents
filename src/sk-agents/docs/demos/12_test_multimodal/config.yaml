@@ -1,0 +1,33 @@
+apiVersion: skagents/v1
+kind: Sequential
+description: >
+  A test agent for BaseMultiModalInputWithUserContext
+service_name: TestMultimodalUserContextAgent
+version: 0.1
+input_type: BaseMultiModalInputWithUserContext
+spec:
+  agents:
+    - name: default
+      role: Test Assistant
+      model: gpt-4o
+      system_prompt: >
+        You are a helpful assistant that uses user context and can analyze images.
+  tasks:
+    - name: action_task
+      task_no: 1
+      description: Assist user with multimodal requests using their context
+      instructions: >
+        You are assisting a user with their request. Use the following information
+        about the user to provide personalized responses:
+        
+        User Context:
+        {% for key, value in user_context.items() %}
+          {{key}}: {{value}}
+        {% endfor %}
+        
+        When analyzing images, consider the user's preferences and context when
+        providing descriptions or insights.
+        
+        Respond naturally to the user's messages and images, incorporating their
+        context seamlessly into your responses.
+      agent: default

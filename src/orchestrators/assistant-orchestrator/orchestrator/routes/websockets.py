@@ -61,7 +61,9 @@ async def invoke_stream(
                     if jt.telemetry_enabled()
                     else nullcontext()
                 ):
-                    selected_agent = await rec_chooser.choose_recipient(message, conv ,authorization)
+                    selected_agent = await rec_chooser.choose_recipient(
+                        message, conv, authorization
+                    )
                     if selected_agent.agent_name not in agent_catalog.agents:
                         agent = fallback_agent
                         sel_agent_name = fallback_agent.name

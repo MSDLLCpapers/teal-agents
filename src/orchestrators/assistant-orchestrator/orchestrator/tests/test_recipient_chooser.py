@@ -53,6 +53,31 @@ async def test_choose_recipient(
     assert sel_agent == selected_agent
 
 
+async def test_choose_recipient_with_auth(
+    recipient_chooser_agent_fixture, choose_recipient_fixture, mocker_response_fixture
+):
+    # Expected selected agent
+    expected = SelectedAgent(agent_name="TestAgent:0.1", confidence="High", is_followup=True)
+
+    # Mocked backend response
+    mock_post_response = {
+        "token_usage": {"completion_tokens": 35, "prompt_tokens": 782, "total_tokens": 817},
+        "extra_data": None,
+        "output_raw": '```json\n{\n  "agent_name": "TestAgent:0.1",\n  "confidence": "High",\n '
+        '            "is_followup": true\n}\n```',
+        "output_pydantic": None,
+    }
+    message, conversation = choose_recipient_fixture
+    mocker_response_fixture.json.return_value = mock_post_response
+    rec_chooser = RecipientChooser(recipient_chooser_agent_fixture)
+    # Provide authorization string (e.g., bearer token)
+    authorization = "Bearer test-token-123"
+    sel_agent = await rec_chooser.choose_recipient(
+        message=message, conv=conversation, authorization=authorization
+    )
+    assert sel_agent == expected
+
+
 async def test_choose_recipient_error(
     recipient_chooser_agent_fixture, choose_recipient_fixture, mocker_response_fixture
 ):

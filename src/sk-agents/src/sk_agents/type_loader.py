@@ -8,7 +8,7 @@ from sk_agents.ska_types import (
     BaseInput,
     BaseInputWithUserContext,
     BaseMultiModalInput,
-    BaseMultiModalInputWithUserContext
+    BaseMultiModalInputWithUserContext,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")

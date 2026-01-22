@@ -17,9 +17,7 @@ from sk_agents.tealagents.v1alpha1.config import AgentConfig, McpServerConfig
 # ============================================================================
 
 
-@pytest.mark.skip(
-    reason="Handler tests need refactoring after McpConnectionManager changes."
-)
+@pytest.mark.skip(reason="Handler tests need refactoring after McpConnectionManager changes.")
 class TestSessionStartDiscovery:
     """Test MCP discovery when handler starts a new session."""
 
@@ -115,9 +113,7 @@ class TestSessionStartDiscovery:
 # ============================================================================
 
 
-@pytest.mark.skip(
-    reason="Handler tests need refactoring after McpConnectionManager changes."
-)
+@pytest.mark.skip(reason="Handler tests need refactoring after McpConnectionManager changes.")
 class TestAuthChallenge:
     """Test OAuth2 auth challenge generation for missing tokens."""
 
@@ -159,9 +155,7 @@ class TestAuthChallenge:
 # ============================================================================
 
 
-@pytest.mark.skip(
-    reason="Handler tests need refactoring after McpConnectionManager changes."
-)
+@pytest.mark.skip(reason="Handler tests need refactoring after McpConnectionManager changes.")
 class TestResumeFlow:
     """Test resuming agent execution after OAuth2 completion."""
 

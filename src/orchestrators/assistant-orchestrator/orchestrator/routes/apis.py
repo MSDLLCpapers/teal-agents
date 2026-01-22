@@ -89,7 +89,9 @@ async def add_conversation_message_by_id(
         ):
             # Select an agent
             try:
-                selected_agent = await rec_chooser.choose_recipient(request.message, conv)
+                selected_agent = await rec_chooser.choose_recipient(
+                    request.message, conv, authorization
+                )
             except Exception as e:
                 raise HTTPException(
                     status_code=500,

@@ -8,6 +8,7 @@ from sk_agents.ska_types import (
     BaseInput,
     BaseInputWithUserContext,
     BaseMultiModalInput,
+    BaseMultiModalInputWithUserContext,
 )
 from sk_agents.type_loader import TypeLoader, get_type_loader
 
@@ -18,6 +19,7 @@ from sk_agents.type_loader import TypeLoader, get_type_loader
         ("BaseInput", BaseInput),
         ("BaseInputWithUserContext", BaseInputWithUserContext),
         ("BaseMultiModalInput", BaseMultiModalInput),
+        ("BaseMultiModalInputWithUserContext", BaseMultiModalInputWithUserContext),
         ("BaseEmbeddedImage", BaseEmbeddedImage),
     ],
 )

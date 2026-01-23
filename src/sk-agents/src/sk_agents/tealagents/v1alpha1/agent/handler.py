@@ -332,7 +332,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
                     if not auth_data:
                         # Missing authentication for this server
-                        scope_param = '%20'.join(server_config.scopes)
+                        scope_param = "%20".join(server_config.scopes)
                         auth_challenge = {
                             "server_name": server_config.name,
                             "auth_server": server_config.auth_server,

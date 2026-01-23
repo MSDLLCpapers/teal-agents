@@ -8,6 +8,7 @@ from sk_agents.ska_types import (
     BaseInput,
     BaseInputWithUserContext,
     BaseMultiModalInput,
+    BaseMultiModalInputWithUserContext,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -54,6 +55,8 @@ class TypeLoader:
                 return BaseInputWithUserContext
             case "BaseMultiModalInput":
                 return BaseMultiModalInput
+            case "BaseMultiModalInputWithUserContext":
+                return BaseMultiModalInputWithUserContext
             case "BaseEmbeddedImage":
                 return BaseEmbeddedImage
             case _:

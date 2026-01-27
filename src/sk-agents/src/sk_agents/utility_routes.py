@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 from ska_utils import AppConfig
 

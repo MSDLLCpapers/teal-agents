@@ -208,7 +208,8 @@ class OpenApiPost(BaseModel):
 
 class OpenApiPath(BaseModel):
     model_config = ConfigDict(extra="allow")
-    post: OpenApiPost
+    post: OpenApiPost | None = None
+    get: OpenApiPost | None = None
 
 
 class OpenApiResponse(BaseModel):

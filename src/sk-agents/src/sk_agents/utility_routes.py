@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 from ska_utils import AppConfig
 
@@ -66,7 +66,7 @@ class UtilityRoutes:
             description="Returns the health status of the application",
             tags=["Health"],
         )
-        async def health_check(request: Request) -> HealthStatus:
+        async def health_check() -> HealthStatus:
             """
             Basic health check endpoint that returns the application status.
             """
@@ -93,7 +93,7 @@ class UtilityRoutes:
             description="Kubernetes liveness probe endpoint",
             tags=["Health"],
         )
-        async def liveness_check(request: Request) -> LivenessStatus:
+        async def liveness_check() -> LivenessStatus:
             """
             Liveness probe for Kubernetes deployments.
             This endpoint should return 200 if the application is running.

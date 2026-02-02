@@ -9,14 +9,15 @@ teal-agents :
 orchestrator :
 	@echo "Building Orchestrators..."
 	@docker build ${DOCKER_FLAGS} -t ao:latest -f ao.Dockerfile --progress=plain .
+	@docker build ${DOCKER_FLAGS} -t ao-hybrid:latest -f ao-hybrid.Dockerfile --progress=plain .
 	@docker build ${DOCKER_FLAGS} -t co:latest -f co.Dockerfile --progress=plain .
 
 services :
 	@echo "Building Services..."
 	@docker build ${DOCKER_FLAGS} -t ao-services:latest -f ao-services.Dockerfile --progress=plain .
-
 clean:
 	@echo "Cleaning up..."
 	@docker rmi teal-agents:latest || true
 	@docker rmi ao:latest || true
+	@docker rmi ao-hybrid:latest || true
 	@docker rmi ao-services:latest || true

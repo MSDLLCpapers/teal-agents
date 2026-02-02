@@ -1,0 +1,26 @@
+apiVersion: skagents/v1
+kind: Sequential
+description: >
+  An agent great for retrieving temperature for a given location
+service_name: WeatherAgent
+version: 0.1
+input_type: BaseInputWithUserContext
+spec:
+  agents:
+    - name: default
+      role: Default Agent
+      model: gpt-4o
+      system_prompt: >
+        You are a helpful assistant.
+      plugins:
+      - WeatherPlugin
+  tasks:
+    - name: action_task
+      task_no: 1
+      description: Chat with user
+      instructions: >
+        Work with the user to assist them in whatever they need.
+
+        The following user context was provided:
+          User Location: {{user_context["User Location"]}}
+      agent: default

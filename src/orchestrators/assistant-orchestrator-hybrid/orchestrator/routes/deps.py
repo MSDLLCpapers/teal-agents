@@ -1,6 +1,8 @@
 from pydantic_yaml import parse_yaml_file_as
 from ska_utils import AppConfig, initialize_telemetry
 
+import logging
+
 from agents import Agent, AgentBuilder, AgentCatalog
 from configs import (
     CONFIGS,
@@ -13,6 +15,13 @@ from configs import (
     TA_REDIS_SESSION_TTL,
     TA_SERVICE_CONFIG,
     TA_SESSION_TYPE,
+    # Semantic Search and ChromaDB configs
+    TA_ENABLE_SEMANTIC_SEARCH,
+    CHROMA_PERSIST_DIR,
+    CHROMA_COLLECTION_NAME,
+    AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
+    BM25_WEIGHT,
+    SEMANTIC_WEIGHT,
 )
 from connection_manager import ConnectionManager
 from conversation_manager import ConversationManager
@@ -20,6 +29,14 @@ from jose_types import Config
 from recipient_chooser import RecipientChooser
 from session import AbstractSessionManager, InMemorySessionManager, RedisSessionManager
 from user_context import CustomUserContextHelper, UserContextCache
+
+# Import new services and clients
+from integration.chroma_client import ChromaClient
+from integration.openai_client import AzureOpenAIClient
+from services.hybrid_search_service import HybridSearchService
+from services.agent_orchestration_service import AgentOrchestrationService, create_orchestration_service
+from services.tfidf_service import TfidfLearningService
+logger = logging.getLogger(__name__)
 
 AppConfig.add_configs(CONFIGS)
 
@@ -36,6 +53,13 @@ _user_context_helper: CustomUserContextHelper = CustomUserContextHelper(app_conf
 _user_context: UserContextCache | None = None
 
 
+# New service instances
+_chroma_client: ChromaClient | None = None
+_openai_client: AzureOpenAIClient | None = None
+_hybrid_search_service: HybridSearchService | None = None
+_orchestration_service: AgentOrchestrationService | None = None
+_tfidf_service: TfidfLearningService | None = None
+
 def initialize() -> None:
     global \
         _conv_manager, \
@@ -45,7 +69,12 @@ def initialize() -> None:
         _config, \
         _agent_catalog, \
         _fallback_agent, \
-        _user_context
+        _user_context, \
+        _chroma_client, \
+        _openai_client, \
+        _hybrid_search_service, \
+        _orchestration_service,\
+        _tfidf_service
 
     config_file = app_config.get(TA_SERVICE_CONFIG.env_name)
     _config = parse_yaml_file_as(Config, config_file)
@@ -86,8 +115,38 @@ def initialize() -> None:
         )
     else:
         _session_manager = InMemorySessionManager()
-    _rec_chooser = RecipientChooser(recipient_chooser_agent)
     _user_context = _user_context_helper.get_user_context()
+    
+    # Initialize OpenAI client (always needed for orchestration)
+    _openai_client = AzureOpenAIClient()
+    
+    # Initialize orchestration service
+    _orchestration_service = create_orchestration_service(_openai_client)
+    
+    # Conditionally initialize ChromaClient and HybridSearchService based on TA_ENABLE_SEMANTIC_SEARCH
+    enable_semantic_search = app_config.get(TA_ENABLE_SEMANTIC_SEARCH.env_name).lower() == "true"
+    
+    if enable_semantic_search:
+        logger.info("Semantic search ENABLED - initializing ChromaDB and HybridSearchService")
+        _chroma_client = ChromaClient(
+            persist_directory=app_config.get(CHROMA_PERSIST_DIR.env_name),
+            collection_name=app_config.get(CHROMA_COLLECTION_NAME.env_name),
+            embedding_model=app_config.get(AZURE_OPENAI_EMBEDDING_DEPLOYMENT.env_name)
+        )
+        
+        _hybrid_search_service = HybridSearchService(
+            chroma_client=_chroma_client,
+            openai_client=_openai_client,
+            bm25_weight=float(app_config.get(BM25_WEIGHT.env_name)),
+            semantic_weight=float(app_config.get(SEMANTIC_WEIGHT.env_name))
+        )
+    else:
+        logger.info("Semantic search DISABLED - skipping ChromaDB and HybridSearchService initialization")
+        _chroma_client = None
+        _hybrid_search_service = None
+    
+    # RecipientChooser can work with or without HybridSearchService and ChromaClient
+    _rec_chooser = RecipientChooser(recipient_chooser_agent, _hybrid_search_service, _chroma_client)
 
 
 def get_conv_manager() -> ConversationManager:
@@ -150,3 +209,50 @@ def get_user_context_cache() -> UserContextCache | None:
     if _user_context is None:
         initialize()
     return _user_context
+
+
+def get_chroma_client() -> ChromaClient | None:
+    """
+    Get ChromaDB client instance.
+    
+    Returns None if semantic search is disabled (TA_ENABLE_SEMANTIC_SEARCH=false).
+    """
+    if _chroma_client is None:
+        initialize()
+    return _chroma_client
+
+
+def get_openai_client() -> AzureOpenAIClient:
+    """Get Azure OpenAI client instance."""
+    if _openai_client is None:
+        initialize()
+        if _openai_client is None:
+            raise TypeError("_openai_client is None")
+    return _openai_client
+
+
+def get_hybrid_search_service() -> HybridSearchService | None:
+    """
+    Get HybridSearchService instance.
+    
+    Returns None if semantic search is disabled (TA_ENABLE_SEMANTIC_SEARCH=false).
+    """
+    if _hybrid_search_service is None:
+        initialize()
+    return _hybrid_search_service
+
+
+def get_orchestration_service() -> AgentOrchestrationService:
+    """Get AgentOrchestrationService instance."""
+    if _orchestration_service is None:
+        initialize()
+        if _orchestration_service is None:
+            raise TypeError("_orchestration_service is None")
+    return _orchestration_service
+
+def get_tfidf_learning_service() -> TfidfLearningService:
+    """"TFIDF learning service"""
+    global _tfidf_service
+    if _tfidf_service is None:
+        _tfidf_service = TfidfLearningService()
+    return _tfidf_service

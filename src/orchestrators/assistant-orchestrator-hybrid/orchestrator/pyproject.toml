@@ -21,7 +21,8 @@ dependencies = [
     "openai>=1.0.0",
     "rank-bm25",
     "langchain-openai",
-    "langchain-community"
+    "langchain-community",
+    "scikit-learn"
 ]
 
 [tool.uv.sources]

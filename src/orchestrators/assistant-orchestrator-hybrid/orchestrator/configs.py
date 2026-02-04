@@ -34,6 +34,70 @@ TA_CUSTOM_USER_CONTEXT_CLASS_NAME = Config(
     env_name="TA_CUSTOM_USER_CONTEXT_CLASS_NAME", is_required=False, default_value=None
 )
 
+# Semantic Search Configuration
+TA_ENABLE_SEMANTIC_SEARCH = Config(
+    env_name="TA_ENABLE_SEMANTIC_SEARCH", is_required=False, default_value="false"
+)
+TA_SEMANTIC_SEARCH_TOP_K = Config(
+    env_name="TA_SEMANTIC_SEARCH_TOP_K", is_required=False, default_value="2"
+)
+TA_SEMANTIC_SEARCH_THRESHOLD = Config(
+    env_name="TA_SEMANTIC_SEARCH_THRESHOLD", is_required=False, default_value="0.7"
+)
+
+# ChromaDB Configuration
+CHROMA_PERSIST_DIR = Config(
+    env_name="CHROMA_PERSIST_DIR", is_required=False, default_value="./chroma_agents"
+)
+CHROMA_COLLECTION_NAME = Config(
+    env_name="CHROMA_COLLECTION_NAME", is_required=False, default_value="agents_registry"
+)
+
+# BM25 and Semantic Weights
+BM25_WEIGHT = Config(env_name="BM25_WEIGHT", is_required=False, default_value="0.25")
+SEMANTIC_WEIGHT = Config(env_name="SEMANTIC_WEIGHT", is_required=False, default_value="0.75")
+
+# Query Expansion Configuration
+TA_ENABLE_QUERY_EXPANSION = Config(
+    env_name="TA_ENABLE_QUERY_EXPANSION", is_required=False, default_value="true"
+)
+
+# Follow-up Analysis Configuration
+TA_ENABLE_FOLLOWUP_ANALYSIS = Config(
+    env_name="TA_ENABLE_FOLLOWUP_ANALYSIS", is_required=False, default_value="true"
+)
+TA_FOLLOWUP_MAX_HISTORY = Config(
+    env_name="TA_FOLLOWUP_MAX_HISTORY", is_required=False, default_value="2"
+)
+
+# Parallel Processing Configuration
+TA_ENABLE_PARALLEL_PROCESSING = Config(
+    env_name="TA_ENABLE_PARALLEL_PROCESSING", is_required=False, default_value="true"
+)
+TA_PARALLEL_MAX_AGENTS = Config(
+    env_name="TA_PARALLEL_MAX_AGENTS", is_required=False, default_value="2"
+)
+
+# Azure OpenAI Configuration
+AZURE_OPENAI_API_KEY = Config(
+    env_name="AZURE_OPENAI_API_KEY", is_required=False, default_value=None
+)
+AZURE_OPENAI_ENDPOINT = Config(
+    env_name="AZURE_OPENAI_ENDPOINT", is_required=False, default_value=None
+)
+AZURE_OPENAI_API_VERSION = Config(
+    env_name="AZURE_OPENAI_API_VERSION", is_required=False, default_value="2024-02-01"
+)
+AZURE_OPENAI_CHAT_MODEL = Config(
+    env_name="AZURE_OPENAI_CHAT_MODEL", is_required=False, default_value="gpt-4o-2024-11-20"
+)
+AZURE_OPENAI_RERANKER_MODEL = Config(
+    env_name="AZURE_OPENAI_RERANKER_MODEL", is_required=False, default_value=None
+)
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT = Config(
+    env_name="AZURE_OPENAI_EMBEDDING_DEPLOYMENT", is_required=False, default_value="text-embedding-3-small"
+)
+
 CONFIGS = [
     TA_AGW_KEY,
     TA_AGW_HOST,
@@ -54,4 +118,29 @@ CONFIGS = [
     TA_CUSTOM_USER_CONTEXT_ENABLED,
     TA_CUSTOM_USER_CONTEXT_MODULE,
     TA_CUSTOM_USER_CONTEXT_CLASS_NAME,
+    # Semantic Search
+    TA_ENABLE_SEMANTIC_SEARCH,
+    TA_SEMANTIC_SEARCH_TOP_K,
+    TA_SEMANTIC_SEARCH_THRESHOLD,
+    # ChromaDB
+    CHROMA_PERSIST_DIR,
+    CHROMA_COLLECTION_NAME,
+    # Hybrid Search Weights
+    BM25_WEIGHT,
+    SEMANTIC_WEIGHT,
+    # Query Expansion
+    TA_ENABLE_QUERY_EXPANSION,
+    # Follow-up Analysis
+    TA_ENABLE_FOLLOWUP_ANALYSIS,
+    TA_FOLLOWUP_MAX_HISTORY,
+    # Parallel Processing
+    TA_ENABLE_PARALLEL_PROCESSING,
+    TA_PARALLEL_MAX_AGENTS,
+    # Azure OpenAI
+    AZURE_OPENAI_API_KEY,
+    AZURE_OPENAI_ENDPOINT,
+    AZURE_OPENAI_API_VERSION,
+    AZURE_OPENAI_CHAT_MODEL,
+    AZURE_OPENAI_RERANKER_MODEL,
+    AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
 ]

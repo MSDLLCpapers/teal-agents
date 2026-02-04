@@ -25,6 +25,7 @@ from .deps import (
     get_rec_chooser,
     get_session_manager,
     get_user_context_cache,
+    get_orchestration_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,9 @@ config = get_config()
 agent_catalog = get_agent_catalog()
 fallback_agent = get_fallback_agent()
 cache_user_context = get_user_context_cache()
+
+# Get orchestration service from deps
+orchestration_service = get_orchestration_service()
 
 router = APIRouter()
 header_scheme = APIKeyHeader(name="authorization", auto_error=False)
@@ -75,32 +79,35 @@ async def sse_event_response(
             else nullcontext()
         ):
             try:
-                selected_agent = await rec_chooser.choose_recipient(
-                    request.message, conv, authorization
-                )
+                selected_agent = await rec_chooser.choose_recipient(request.message, conv, authorization)
+                logger.info(f"Agent selected: {selected_agent.agent_name} (parallel={selected_agent.is_parallel})")
+                if selected_agent.is_parallel:
+                    logger.debug(f"Parallel agents: {', '.join(selected_agent.parallel_agents)}")
             except Exception as e:
                 sse_error = SseError(
                     error=f"Error retrieving agent: {e}",
                 )
                 yield format_sse_message(sse_error.model_dump(), SseEventType.UNKNOWN)
                 raise e
-                return
 
-            # Determine the selected agent
-            if selected_agent.agent_name not in agent_catalog.agents:
-                agent = fallback_agent
-                sel_agent_name = fallback_agent.name
-            else:
-                agent = agent_catalog.agents[selected_agent.agent_name]
-                sel_agent_name = agent.name
+            # Resolve agents using recipient chooser
+            agents_to_invoke, primary_agent_name = rec_chooser.resolve_agents(
+                selected_agent, agent_catalog, fallback_agent
+            )
+            
+            # Compute source agents string for all agents that will be invoked
+            source_agents_str = ", ".join([a.name for a in agents_to_invoke])
 
         # --- Orchestrator Response: Agent Chosen ---
-        # Send agent chosen event
+        # Send agent chosen event with source_agents
         sse_agent = SseMessage(
             task="orchestrator_agent_chosen",
-            message=f"{sel_agent_name} was selected by agent chooser.",
+            message=f"{primary_agent_name} was selected by agent chooser.",
         )
-        yield format_sse_message(sse_agent.model_dump(), SseEventType.AGENT_SELECTOR_RESPONSE)
+        yield format_sse_message(
+            {**sse_agent.model_dump(), "source_agents": source_agents_str},
+            SseEventType.AGENT_SELECTOR_RESPONSE
+        )
 
         # --- Update History User ---
         # Add user message to conversation history
@@ -110,7 +117,7 @@ async def sse_event_response(
             else nullcontext()
         ):
             try:
-                await conv_manager.add_user_message(conv, request.message, sel_agent_name)
+                await conv_manager.add_user_message(conv, request.message, primary_agent_name)
             except Exception as e:
                 sse_error = SseError(
                     error=f"Error adding user message to history: {e}",
@@ -125,31 +132,69 @@ async def sse_event_response(
             else nullcontext()
         ):
             try:
-                # Initialize agent_response to be an empty string, to be populated from raw output
+                # Initialize agent_response to be an empty string
                 agent_response = ""
-                logger.info("Begin processing invoke_sse")
-                async for content in agent.invoke_sse(conv, authorization, request.image_data):
-                    try:
-                        # Check if extra data and process extra data, as done in ws
-                        extra_data: ExtraData = ExtraData.new_from_json(content)
-                        context_directives = parse_context_directives(extra_data)
-                        await conv_manager.process_context_directives(conv, context_directives)
-                    except Exception:
-                        # Yield the agent response stream directly
-                        if content:
-                            yield f"{content}"
-                        # Check for final response, and if so parse the output raw data
-                        if content.startswith("event:"):
-                            last_event_type = content[len("event:") :].strip()
-                        elif content.startswith("data:"):
-                            if last_event_type == "final-response":
-                                json_data_str = content[len("data: ") :].strip()
-                                try:
-                                    data = json.loads(json_data_str)
-                                    agent_response = data.get("output_raw", "")
-                                except json.JSONDecodeError:
-                                    print(f"Error decoding JSON: {json_data_str}")
-                        await asyncio.sleep(0.001)
+                
+                if selected_agent.is_parallel and len(agents_to_invoke) > 1:
+                    # PARALLEL MODE: Execute agents and synthesize
+                    logger.info(f"Parallel execution with synthesis: {len(agents_to_invoke)} agents")
+                    
+                    aggregated = await orchestration_service.orchestrate_parallel_with_synthesis(
+                        agents_to_invoke,
+                        conv,
+                        request.message,
+                        authorization,
+                        request.image_data
+                    )
+                    
+                    if not aggregated.success:
+                        sse_error = SseError(
+                            error=f"Parallel execution failed: {aggregated.error}",
+                        )
+                        yield format_sse_message(sse_error.model_dump(), SseEventType.UNKNOWN)
+                        return
+                    
+                    agent_response = aggregated.synthesized_response
+                    
+                    # Send source agent names as a separate SSE event
+                    source_agents_str = ", ".join(aggregated.source_agents)
+                    source_agents_event = SseMessage(
+                        task="parallel_synthesis_complete",
+                        message=f"Response synthesized from agents: {source_agents_str}",
+                    )
+                    yield format_sse_message(
+                        {**source_agents_event.model_dump(), "source_agents": source_agents_str},
+                        SseEventType.AGENT_SELECTOR_RESPONSE
+                    )
+                    
+                    # Stream synthesized response as SSE partial response
+                    yield f"event: partial-response\ndata: {agent_response}\n\n"
+                    
+                else:
+                    # SINGLE AGENT MODE: Stream response
+                    logger.info("Begin processing invoke_sse for single agent")
+                    async for content in agents_to_invoke[0].invoke_sse(conv, authorization, request.image_data):
+                        try:
+                            # Check if extra data and process extra data, as done in ws
+                            extra_data: ExtraData = ExtraData.new_from_json(content)
+                            context_directives = parse_context_directives(extra_data)
+                            await conv_manager.process_context_directives(conv, context_directives)
+                        except Exception:
+                            # Yield the agent response stream directly
+                            if content:
+                                yield f"{content}"
+                            # Check for final response, and if so parse the output raw data
+                            if content.startswith("event:"):
+                                last_event_type = content[len("event:") :].strip()
+                            elif content.startswith("data:"):
+                                if last_event_type == "final-response":
+                                    json_data_str = content[len("data: ") :].strip()
+                                    try:
+                                        data = json.loads(json_data_str)
+                                        agent_response = data.get("output_raw", "")
+                                    except json.JSONDecodeError:
+                                        print(f"Error decoding JSON: {json_data_str}")
+                            await asyncio.sleep(0.001)
             except Exception as e:
                 sse_error = SseError(
                     error=f"Error during agent streaming: {e}",
@@ -165,7 +210,7 @@ async def sse_event_response(
         ):
             try:
                 # Send intermediate event for agent message added to history
-                await conv_manager.add_agent_message(conv, agent_response, sel_agent_name)
+                await conv_manager.add_agent_message(conv, agent_response, primary_agent_name)
             except Exception as e:
                 sse_error = SseError(
                     error=f"Error adding agent response to history:{e}",

@@ -33,7 +33,10 @@ TA_CUSTOM_USER_CONTEXT_MODULE = Config(
 TA_CUSTOM_USER_CONTEXT_CLASS_NAME = Config(
     env_name="TA_CUSTOM_USER_CONTEXT_CLASS_NAME", is_required=False, default_value=None
 )
-
+###Celery config####
+TA_CELERY_CONFIG = Config(env_name="TA_CELERY_CONFIG",
+                        is_required=False,
+                        default_value='redis://redis:6379/0')
 # Semantic Search Configuration
 TA_ENABLE_SEMANTIC_SEARCH = Config(
     env_name="TA_ENABLE_SEMANTIC_SEARCH", is_required=False, default_value="false"

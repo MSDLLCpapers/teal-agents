@@ -13,7 +13,7 @@ from ska_utils import AppConfig, get_telemetry
 from context_directive import parse_context_directives
 from jose_types import ExtraData
 from configs import TA_ENABLE_PARALLEL_PROCESSING
-
+from integration.celery_client import app
 from .deps import (
     get_agent_catalog,
     get_config,
@@ -171,8 +171,11 @@ async def invoke_stream(
                                             try:
                                                 new_keywords = tfidf_service.learn_keywords(agent_info, agent_name, final_response)
                                                 logger.info(f"TFIDF | agent={agent_name} | learned_keywords={new_keywords}")
+                                                app.send_task("content_update.tasks.update_metadata", 
+                                                args=[agent_name,str(new_keywords)])
                                             except Exception as e:
-                                                logger.error("error in learn kw service"+str(e))                                                
+                                                logger.error("error in learn kw service"+str(e))
+                                                                                               
                             else:
                                 error_msg = f"Parallel execution failed: {aggregated.error}"
                                 await websocket.send_text(error_msg)
@@ -216,7 +219,10 @@ async def invoke_stream(
                             if agent_info:
                                 try:
                                     new_keywords = tfidf_service.learn_keywords(agent_info, primary_agent_name, final_response)
+                                    
                                     logger.info(f"TFIDF | agent={primary_agent_name} | learned_keywords={new_keywords}")
+                                    app.send_task("content_update.tasks.update_metadata", 
+                                                args=[primary_agent_name,str(new_keywords)])
                                 except Exception as e:
                                     logger.error("error in learn kw service"+str(e))
                             else:

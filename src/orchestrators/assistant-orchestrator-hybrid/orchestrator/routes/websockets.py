@@ -160,22 +160,10 @@ async def invoke_stream(
                                 # Stream the synthesized response
                                 await websocket.send_text(final_response)
                                 logger.info("------------FOR PARALLEL AGENT------------")
-                                if chroma_client:
-                                    collection=chroma_client.get_collection()
-                                    for agent_name in aggregated.source_agents:
-                                        try:
-                                            agent_info = tfidf_service.get_agent_details(chroma_client.collection, agent_name)
-                                        except Exception as e:
-                                            logger.error("agent detail failed......"+str(e))
-                                        if agent_info:
-                                            try:
-                                                new_keywords = tfidf_service.learn_keywords(agent_info, agent_name, final_response)
-                                                logger.info(f"TFIDF | agent={agent_name} | learned_keywords={new_keywords}")
-                                                app.send_task("content_update.tasks.update_metadata", 
-                                                args=[agent_name,str(new_keywords)])
-                                            except Exception as e:
-                                                logger.error("error in learn kw service"+str(e))
-                                                                                               
+                                for agent_name in aggregated.source_agents:
+                                    logger.info(".....for agent name calling celery.."+str(agent_name))
+                                    app.send_task("content_update.tasks.update_metadata", 
+                                                args=[agent_name,final_response])                                                                        
                             else:
                                 error_msg = f"Parallel execution failed: {aggregated.error}"
                                 await websocket.send_text(error_msg)
@@ -208,29 +196,22 @@ async def invoke_stream(
                         f"===================================\n")
                         # TF-IDF keyword extraction
                         logger.info("------------FOR SINGLE AGENT TF IDF extraction------------")
-                        if chroma_client:
-                            try:
-                                collection = chroma_client.get_collection()
-                                logger.info(".....COLLECTION...."+str(collection))
+                        #if chroma_client:
+                        #    try:
+                        #        collection = chroma_client.get_collection()
+                        #        logger.info(".....COLLECTION...."+str(collection))
             
-                                agent_info = tfidf_service.get_agent_details(collection, primary_agent_name)
-                            except Exception as e:
-                                logger.error("agent detail failed......"+str(e))
-                            if agent_info:
-                                try:
-                                    new_keywords = tfidf_service.learn_keywords(agent_info, primary_agent_name, final_response)
+                        #        agent_info = tfidf_service.get_agent_details(collection, primary_agent_name)
+                        #    except Exception as e:
+                        #        logger.error("agent detail failed......"+str(e))
+                        #    if agent_info:
+                        #        try:
+                        #            new_keywords = tfidf_service.learn_keywords(agent_info, primary_agent_name, final_response)
                                     
-                                    logger.info(f"TFIDF | agent={primary_agent_name} | learned_keywords={new_keywords}")
-                                    app.send_task("content_update.tasks.update_metadata", 
-                                                args=[primary_agent_name,str(new_keywords)])
-                                except Exception as e:
-                                    logger.error("error in learn kw service"+str(e))
-                            else:
-                                logger.warning(f"TFIDF | agent details not found for {primary_agent_name}")
-                        else:
-                            logger.warning("TFIDF | chroma_client not initialized, skipping keyword extraction")
-
-
+                        #            logger.info(f"TFIDF | agent={primary_agent_name} | learned_keywords={new_keywords}")
+                        app.send_task("content_update.tasks.update_metadata", 
+                        args=[primary_agent_name,final_response])
+                                
                     #  THIS IS THE LINE YOU ASKED ABOUT
                         logger.info(agent_response_log)
                         # Add response to conversation history

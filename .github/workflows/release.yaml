@@ -13,6 +13,7 @@ jobs:
       agents: ${{ steps.version_teal_agents.outputs.VERSION }}
       ao: ${{ steps.version_ao.outputs.VERSION }}
       ao_hybrid: ${{ steps.version_ao_hybrid.outputs.VERSION }}
+      ao_hybrid_celery: ${{ steps.version_ao_hybrid_celery.outputs.VERSION }}
       services: ${{ steps.version_ao_services.outputs.VERSION }}
       co: ${{ steps.version_co.outputs.VERSION }}
     steps:
@@ -61,6 +62,15 @@ jobs:
           VERSION=$( uv run hatch version )
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "AO-hybrid release version: $VERSION"
+      - name: Get ao-hybrid-celery release version
+        id: version_ao_hybrid_celery
+        working-directory: ./src/orchestrators/assistant-orchestrator-hybrid/orchestrator
+        run: |
+          make sync
+          uv run hatch version release
+          VERSION=$( uv run hatch version )
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "AO-hybrid-celery release version: $VERSION"
       - name: Get ao-services release version
         id: version_ao_services
         working-directory: ./src/orchestrators/assistant-orchestrator/services
@@ -173,6 +183,29 @@ jobs:
         run: |
           docker push ghcr.io/teal-agents/ao-hybrid:${{ needs.release.outputs.ao_hybrid }}
           docker push ghcr.io/teal-agents/ao-hybrid:latest
+  
+  build-ao-hybrid-celery:
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/teal-agents/ao-hybrid-celery:${{ needs.release.outputs.ao_hybrid_celery }} -f ao-hybrid-celery.Dockerfile .
+          docker tag ghcr.io/teal-agents/ao-hybrid-celery:${{ needs.release.outputs.ao_hybrid_celery }} ghcr.io/teal-agents/ao-hybrid-celery:latest
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/teal-agents/ao-hybrid-celery:${{ needs.release.outputs.ao_hybrid_celery }}
+          docker push ghcr.io/teal-agents/ao-hybrid-celery:latest
           
   build-ao-services:
     runs-on: ubuntu-latest
@@ -222,7 +255,7 @@ jobs:
 
   next-dev-version:
     runs-on: ubuntu-latest
-    needs: [release, build-teal-agents, build-ao, build-ao-hybrid, build-ao-services, build-co]
+    needs: [release, build-teal-agents, build-ao, build-ao-hybrid,build-ao-hybrid-celery ,build-ao-services, build-co]
     permissions:
       contents: write
     steps:
@@ -259,6 +292,12 @@ jobs:
           uv run hatch version patch,dev
           VERSION=$( uv run hatch version )
       - name: Update ao-hybrid version
+        working-directory: ./src/orchestrators/assistant-orchestrator-hybrid/orchestrator
+        run: |
+          make sync
+          uv run hatch version patch,dev
+          VERSION=$( uv run hatch version )
+      - name: Update ao-hybrid-celery version
         working-directory: ./src/orchestrators/assistant-orchestrator-hybrid/orchestrator
         run: |
           make sync

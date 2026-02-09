@@ -26,6 +26,7 @@ jobs:
       agents: ${{ steps.filter.outputs.agents }}
       ao: ${{ steps.filter.outputs.ao }}
       ao_hybrid: ${{ steps.filter.outputs.ao_hybrid }}
+      ao_hybrid_celery: ${{ steps.filter.outputs.ao_hybrid_celery }}
       services: ${{ steps.filter.outputs.services }}
       co: ${{ steps.filter.outputs.co }}
     steps:
@@ -55,6 +56,11 @@ jobs:
             - ao-hybrid.Dockerfile
             - 'shared/ska_utils/**'
             - 'src/orchestrators/assistant-orchestrator-hybrid/orchestrator/**'
+          ao_hybrid_celery:
+            - .github/workflows/build.yaml
+            - ao-hybrid-celery.Dockerfile
+            - 'shared/ska_utils/**'
+            - 'src/orchestrators/assistant-orchestrator-hybrid/orchestrator/**'
           services:
             - .github/workflows/build.yaml
             - ao-services.Dockerfile
@@ -76,6 +82,7 @@ jobs:
       agents: ${{ steps.version_sk_agents.outputs.VERSION }}
       ao: ${{ steps.version_ao.outputs.VERSION }}
       ao_hybrid: ${{ steps.version_ao_hybrid.outputs.VERSION }}
+      ao_hybrid_celery: ${{ steps.version_ao_hybrid_celery.outputs.VERSION }}
       services: ${{ steps.version_ao_services.outputs.VERSION }}
       co: ${{ steps.version_co.outputs.VERSION }}
     steps:
@@ -118,6 +125,10 @@ jobs:
       - name: Update ao-hybrid version
         if: ${{ needs.changes.outputs.ao_hybrid == 'true' }}
         id: version_ao_hybrid
+        working-directory: ./src/orchestrators/assistant-orchestrator-hybrid/orchestrator
+      - name: Update ao-hybrid-celery version
+        if: ${{ needs.changes.outputs.ao_hybrid_celery == 'true' }}
+        id: version_ao_hybrid_celery
         working-directory: ./src/orchestrators/assistant-orchestrator-hybrid/orchestrator
         run: |
           make sync
@@ -220,6 +231,30 @@ jobs:
         run: |
           docker push ghcr.io/teal-agents/ao-hybrid:${{ needs.version.outputs.ao_hybrid }}
           docker push ghcr.io/teal-agents/ao-hybrid:latest
+  
+  build-ao-hybrid-celery:
+    runs-on: ubuntu-latest
+    needs: [changes, version]
+    if: ${{ needs.changes.outputs.ao_hybrid_celery == 'true' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/teal-agents/ao-hybrid-celery:${{ needs.version.outputs.ao_hybrid_celery }} -f ao-hybrid-celery.Dockerfile .
+          docker tag ghcr.io/teal-agents/ao-hybrid-celery:${{ needs.version.outputs.ao_hybrid_celery }} ghcr.io/teal-agents/ao-hybrid-celery:latest
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/teal-agents/ao-hybrid-celery:${{ needs.version.outputs.ao_hybrid_celery }}
+          docker push ghcr.io/teal-agents/ao-hybrid-celery:latest
 
   build-ao-services:
     runs-on: ubuntu-latest

@@ -8,6 +8,8 @@ on:
       - .github/workflows/build.yaml
       - teal-agents.Dockerfile
       - ao.Dockerfile
+      - ao-hybrid.Dockerfile
+      - ao-hybrid-celery.Dockerfile
       - ao-services.Dockerfile
       - co.Dockerfile
       - 'shared/ska_utils/**'
@@ -15,6 +17,7 @@ on:
       - 'src/orchestrators/assistant-orchestrator/orchestrator/**'
       - 'src/orchestrators/assistant-orchestrator/services/**'
       - 'src/orchestrators/assistant-orchestrator-hybrid/orchestrator/**'
+      - 'src/orchestrators/assistant-orchestrator-hybrid/orchestrator/content_update/**'
       - 'src/orchestrators/collab-orchestrator/orchestrator/**'
       - '!**.md'
 
@@ -26,6 +29,7 @@ jobs:
       agents: ${{ steps.filter.outputs.agents }}
       ao: ${{ steps.filter.outputs.ao }}
       ao_hybrid: ${{ steps.filter.outputs.ao_hybrid }}
+      ao_hybrid_celery: ${{ steps.filter.outputs.ao_hybrid_celery }}
       services: ${{ steps.filter.outputs.services }}
       co: ${{ steps.filter.outputs.co }}
     steps:
@@ -55,6 +59,10 @@ jobs:
             - ao-hybrid.Dockerfile
             - 'shared/ska_utils/**'
             - 'src/orchestrators/assistant-orchestrator-hybrid/orchestrator/**'
+          ao_hybrid_celery:
+            - .github/workflows/build.yaml
+            - ao-hybrid-celery.Dockerfile
+            - 'src/orchestrators/assistant-orchestrator-hybrid/orchestrator/content_update/**'
           services:
             - .github/workflows/build.yaml
             - ao-services.Dockerfile
@@ -76,6 +84,7 @@ jobs:
       agents: ${{ steps.version_sk_agents.outputs.VERSION }}
       ao: ${{ steps.version_ao.outputs.VERSION }}
       ao_hybrid: ${{ steps.version_ao_hybrid.outputs.VERSION }}
+      ao_hybrid_celery: ${{ steps.version_ao_hybrid_celery.outputs.VERSION }}
       services: ${{ steps.version_ao_services.outputs.VERSION }}
       co: ${{ steps.version_co.outputs.VERSION }}
     steps:

@@ -13,7 +13,8 @@ USER skagent
 
 WORKDIR /app
 
-COPY --chown=skagent:skagent src/orchestrators/assistant-orchestrator-hybrid/orchestrator/content_update /app/content_update
+COPY --chown=skagent:skagent src/orchestrators/assistant-orchestrator-hybrid/orchestrator/ /app/src/orchestrators/assistant-orchestrator-hybrid/orchestrator
+WORKDIR /app/src/orchestrators/assistant-orchestrator-hybrid/orchestrator
 
 
 # ENV PYTHONUNBUFFERED=1 \

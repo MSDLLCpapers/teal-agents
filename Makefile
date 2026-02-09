@@ -10,6 +10,7 @@ orchestrator :
 	@echo "Building Orchestrators..."
 	@docker build ${DOCKER_FLAGS} -t ao:latest -f ao.Dockerfile --progress=plain .
 	@docker build ${DOCKER_FLAGS} -t ao-hybrid:latest -f ao-hybrid.Dockerfile --progress=plain .
+	@docker build ${DOCKER_FLAGS} -t ao-hybrid-celery:latest -f ao-hybrid-celery.Dockerfile --progress=plain .
 	@docker build ${DOCKER_FLAGS} -t co:latest -f co.Dockerfile --progress=plain .
 
 services :
@@ -20,4 +21,5 @@ clean:
 	@docker rmi teal-agents:latest || true
 	@docker rmi ao:latest || true
 	@docker rmi ao-hybrid:latest || true
+	@docker rmi ao-hybrid-celery:latest || true
 	@docker rmi ao-services:latest || true

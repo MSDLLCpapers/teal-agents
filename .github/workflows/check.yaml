@@ -35,6 +35,11 @@ jobs:
         run: |
           make sync
           make lint
+      - name: lint ao-hybrid-celery
+        working-directory: ./src/orchestrators/assistant-orchestrator-hybrid/orchestrator
+        run: |
+          make sync
+          make lint
       - name: lint ao-services
         working-directory: ./src/orchestrators/assistant-orchestrator/services
         run: |
@@ -86,6 +91,11 @@ jobs:
           make sync
           make coverage
       - name: test ao-hybrid
+        working-directory: ./src/orchestrators/assistant-orchestrator-hybrid/orchestrator
+        run: |
+          make sync
+          make coverage
+      - name: test ao-hybrid-celery
         working-directory: ./src/orchestrators/assistant-orchestrator-hybrid/orchestrator
         run: |
           make sync

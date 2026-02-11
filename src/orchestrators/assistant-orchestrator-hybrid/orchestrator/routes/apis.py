@@ -14,7 +14,7 @@ import logging
 from contextlib import nullcontext
 from context_directive import parse_context_directives
 from jose_types import ExtraData
-from model.requests import ConversationMessageRequest
+from model.requests import ConversationMessageRequest, AgentRegistrationRequest
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import APIKeyHeader
@@ -29,6 +29,7 @@ from .deps import (
     get_rec_chooser,
     get_user_context_cache,
     get_orchestration_service,
+    get_agent_registry_manager,
 )
 
 logger = logging.getLogger(__name__)
@@ -282,3 +283,42 @@ async def new_conversation(user_id: str):
 )
 async def healthcheck():
     return {"status": "healthy"}
+
+
+@router.post(
+    "/agents/sync",
+    tags=["Agents"],
+    description="Add, update, or sync agents in the agents-registry.",
+)
+async def register_agent(request: AgentRegistrationRequest):
+    """
+    Add or update an agent in the agents-registry.
+    
+    The endpoint validates the token, then:
+    - For 'new': Creates a new agent entry
+    - For 'update': Updates an existing agent entry
+    
+    Additionally, any agents in the database not in the provided 'agents' list
+    will be soft deleted (sync behavior).
+    """
+    expected_token = config.get("AGENT_REGISTRATION_TOKEN")
+    if not expected_token or request.token != expected_token:
+        raise HTTPException(status_code=401, detail="Invalid or missing registration token")
+    
+    agent_registry_manager = get_agent_registry_manager()
+    
+    try:
+        result = await agent_registry_manager.sync_agents(
+            agent_name=request.agent_name,
+            description=request.description,
+            desc_keywords=request.desc_keywords,
+            deployment_name=request.deployment_name,
+            change_type=request.change_type,
+            agents=request.agents,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        logger.error(f"Error in register_agent: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error registering agent: {e}") from e

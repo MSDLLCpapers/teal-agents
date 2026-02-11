@@ -22,11 +22,15 @@ from configs import (
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
     BM25_WEIGHT,
     SEMANTIC_WEIGHT,
+    # Agent Registration configs
+    EMBEDDING_SIZE,
+    DEFAULT_DEPLOYMENT_NAME,
 )
 from connection_manager import ConnectionManager
 from conversation_manager import ConversationManager
 from jose_types import Config
 from recipient_chooser import RecipientChooser
+from services.agent_registry_manager import AgentRegistryManager
 from session import AbstractSessionManager, InMemorySessionManager, RedisSessionManager
 from user_context import CustomUserContextHelper, UserContextCache
 
@@ -35,6 +39,7 @@ from integration.chroma_client import ChromaClient
 from integration.openai_client import AzureOpenAIClient
 from services.hybrid_search_service import HybridSearchService
 from services.agent_orchestration_service import AgentOrchestrationService, create_orchestration_service
+from services.agent_registry_manager import AgentRegistryManager
 from services.tfidf_service import TfidfLearningService
 logger = logging.getLogger(__name__)
 
@@ -58,7 +63,10 @@ _chroma_client: ChromaClient | None = None
 _openai_client: AzureOpenAIClient | None = None
 _hybrid_search_service: HybridSearchService | None = None
 _orchestration_service: AgentOrchestrationService | None = None
+_agent_registry_manager: AgentRegistryManager | None = None
 _tfidf_service: TfidfLearningService | None = None
+_agent_registry_manager: AgentRegistryManager | None = None
+
 
 def initialize() -> None:
     global \
@@ -68,16 +76,24 @@ def initialize() -> None:
         _rec_chooser, \
         _config, \
         _agent_catalog, \
+        _agent_registry_manager, \
         _fallback_agent, \
         _user_context, \
         _chroma_client, \
         _openai_client, \
         _hybrid_search_service, \
-        _orchestration_service,\
+        _orchestration_service, \
+        _agent_registry_manager, \
         _tfidf_service
 
     config_file = app_config.get(TA_SERVICE_CONFIG.env_name)
     _config = parse_yaml_file_as(Config, config_file)
+    embedding_size =   app_config.get("EMBEDDING_SIZE")
+    default_deployment_name = app_config.get("DEFAULT_DEPLOYMENT_NAME")
+    _agent_registry_manager = AgentRegistryManager(
+        embedding_size=embedding_size,
+        default_deployment_name=default_deployment_name,
+    )
 
     if _config is None:
         raise TypeError("_config was None which should not happen")
@@ -147,6 +163,12 @@ def initialize() -> None:
     
     # RecipientChooser can work with or without HybridSearchService and ChromaClient
     _rec_chooser = RecipientChooser(recipient_chooser_agent, _hybrid_search_service, _chroma_client)
+
+    # Initialize AgentRegistryManager with config from environment
+    _agent_registry_manager = AgentRegistryManager(
+        embedding_size=int(app_config.get(EMBEDDING_SIZE.env_name)),
+        default_deployment_name=app_config.get(DEFAULT_DEPLOYMENT_NAME.env_name),
+    )
 
 
 def get_conv_manager() -> ConversationManager:
@@ -249,6 +271,16 @@ def get_orchestration_service() -> AgentOrchestrationService:
         if _orchestration_service is None:
             raise TypeError("_orchestration_service is None")
     return _orchestration_service
+
+
+def get_agent_registry_manager() -> AgentRegistryManager:
+    """Get AgentRegistryManager instance."""
+    if _agent_registry_manager is None:
+        initialize()
+        if _agent_registry_manager is None:
+            raise TypeError("_agent_registry_manager is None")
+    return _agent_registry_manager
+
 
 def get_tfidf_learning_service() -> TfidfLearningService:
     """"TFIDF learning service"""

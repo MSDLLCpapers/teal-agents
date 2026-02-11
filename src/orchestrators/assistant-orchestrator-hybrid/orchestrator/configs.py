@@ -101,6 +101,34 @@ AZURE_OPENAI_EMBEDDING_DEPLOYMENT = Config(
     env_name="AZURE_OPENAI_EMBEDDING_DEPLOYMENT", is_required=False, default_value="text-embedding-3-small"
 )
 
+# Agent Registration Configuration
+AGENT_REGISTRATION_TOKEN = Config(
+    env_name="AGENT_REGISTRATION_TOKEN", is_required=False, default_value=""
+)
+EMBEDDING_SIZE = Config(
+    env_name="EMBEDDING_SIZE", is_required=False, default_value="1536"
+)
+DEFAULT_DEPLOYMENT_NAME = Config(
+    env_name="DEFAULT_DEPLOYMENT_NAME", is_required=False, default_value="Talk"
+)
+
+# Database Configuration
+DB_HOST = Config(
+    env_name="DB_HOST", is_required=False, default_value="localhost"
+)
+DB_PORT = Config(
+    env_name="DB_PORT", is_required=False, default_value="5432"
+)
+DB_NAME = Config(
+    env_name="DB_NAME", is_required=False, default_value="agent_registry"
+)
+DB_USER = Config(
+    env_name="DB_USER", is_required=False, default_value="postgres"
+)
+DB_PASSWORD = Config(
+    env_name="DB_PASSWORD", is_required=False, default_value=""
+)
+
 CONFIGS = [
     TA_AGW_KEY,
     TA_AGW_HOST,
@@ -146,4 +174,14 @@ CONFIGS = [
     AZURE_OPENAI_CHAT_MODEL,
     AZURE_OPENAI_RERANKER_MODEL,
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
+    # Agent Registration
+    AGENT_REGISTRATION_TOKEN,
+    EMBEDDING_SIZE,
+    DEFAULT_DEPLOYMENT_NAME,
+    # Database
+    DB_HOST,
+    DB_PORT,
+    DB_NAME,
+    DB_USER,
+    DB_PASSWORD,
 ]

@@ -8,6 +8,7 @@ for storing and querying agent embeddings. Replaces ChromaDB client.
 import logging
 from typing import Optional, Any, List, Tuple
 from dataclasses import dataclass
+from contextlib import contextmanager
 
 from sqlalchemy import create_engine, func
 from sqlalchemy.orm import sessionmaker, Session
@@ -54,7 +55,8 @@ class PostgresClient:
         database: Optional[str] = None,
         user: Optional[str] = None,
         password: Optional[str] = None,
-        embedding_model: Optional[str] = None
+        embedding_model: Optional[str] = None,
+        skip_embeddings: bool = False
     ):
         """
         Initialize PostgreSQL client.
@@ -66,6 +68,7 @@ class PostgresClient:
             user: Database user (defaults to config)
             password: Database password (defaults to config)
             embedding_model: Azure OpenAI embedding model name (defaults to config)
+            skip_embeddings: If True, skip embeddings initialization (for workers that only need DB access)
         """
         app_config = AppConfig()
         
@@ -87,12 +90,17 @@ class PostgresClient:
         # Initialize database connection
         self._initialize_database()
         
-        # Initialize embeddings
-        self._initialize_embeddings()
+        # Initialize embeddings (optional for workers that only need DB access e.g. for content extraction)
+        self._skip_embeddings = skip_embeddings
+        if not skip_embeddings:
+            self._initialize_embeddings()
+            logger.info(f"Embedding model: {self.embedding_model}")
+        else:
+            self._embeddings = None
+            logger.info("Embeddings initialization skipped (DB-only mode)")
         
         logger.info("PostgresClient initialized successfully")
         logger.info(f"Database: {self.host}:{self.port}/{self.database}")
-        logger.info(f"Embedding model: {self.embedding_model}")
     
     def _initialize_database(self) -> None:
         """Initialize database connection and create tables."""
@@ -153,6 +161,25 @@ class PostgresClient:
         """Get a new database session."""
         return self.SessionLocal()
     
+    @contextmanager
+    def get_session_context(self):
+        """
+        Context manager for database sessions with automatic cleanup.
+        
+        Usage:
+            with postgres_client.get_session_context() as session:
+                # use session
+                session.commit()
+        
+        Yields:
+            SQLAlchemy Session instance
+        """
+        session = self.get_session()
+        try:
+            yield session
+        finally:
+            session.close()
+    
     def get_all_documents(self) -> dict[str, Any]:
         """
         Get all active documents from the agent registry.
@@ -193,6 +220,12 @@ class PostgresClient:
         Returns:
             List of (document, score) tuples where score is normalized similarity (0-1)
         """
+        if self._skip_embeddings or self._embeddings is None:
+            raise RuntimeError(
+                "Embeddings not initialized. Cannot perform similarity search. "
+                "Initialize PostgresClient with skip_embeddings=False."
+            )
+        
         try:
             # Generate embedding for query
             query_embedding = self._embeddings.embed_query(query)

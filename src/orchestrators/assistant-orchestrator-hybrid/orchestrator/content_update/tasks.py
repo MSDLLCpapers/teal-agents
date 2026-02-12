@@ -1,17 +1,36 @@
 from content_update.celery_app import celery_app
-from content_update.postgres_client import get_session_context
 from content_update.tfidf_service import TfidfLearningService
-
-# Import AgentRegistry model from integration package
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+from integration.postgres_client import PostgresClient
 from integration.models import AgentRegistry
+from configs import CONFIGS
+
+from ska_utils import AppConfig
 
 import logging
 logger = logging.getLogger(__name__)
 
+# Module-level instances for Celery worker process
+# Each forked worker will have its own instance
+_postgres_client = None
 tfidf_service = TfidfLearningService()
+
+
+def _get_postgres_client() -> PostgresClient:
+    """
+    Get or create PostgresClient instance for Celery worker.
+    
+    This is lazily initialized per worker process. Since Celery workers
+    run in separate processes from FastAPI, they need their own DB client.
+    We use skip_embeddings=True since workers only need DB access, not vector search.
+    """
+    global _postgres_client
+    if _postgres_client is None:
+        # Ensure AppConfig is initialized with all configs in the Celery worker process,
+        # since workers run in separate forked processes from FastAPI.
+        AppConfig.add_configs(CONFIGS)
+        _postgres_client = PostgresClient(skip_embeddings=True)
+        logger.info("PostgresClient initialized for Celery worker (embeddings disabled)")
+    return _postgres_client
 
 @celery_app.task
 def dummy_task(a, b):
@@ -33,7 +52,9 @@ def update_metadata(self, agent_name, agent_response):
     logger.info("Agent response: %s", agent_response)
 
     try:
-        with get_session_context() as session:
+        postgres_client = _get_postgres_client()
+        
+        with postgres_client.get_session_context() as session:
             # Get agent details from database
             logger.info("Gathering agent details from PostgreSQL...")
             agent_info = tfidf_service.get_agent_details(session, agent_name)

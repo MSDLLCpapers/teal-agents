@@ -42,7 +42,7 @@ from integration.openai_client import AzureOpenAIClient
 from services.hybrid_search_service import HybridSearchService
 from services.agent_orchestration_service import AgentOrchestrationService, create_orchestration_service
 from services.agent_registry_manager import AgentRegistryManager
-from services.tfidf_service import TfidfLearningService
+from content_update.tfidf_service import TfidfLearningService
 logger = logging.getLogger(__name__)
 
 AppConfig.add_configs(CONFIGS)

@@ -7,11 +7,6 @@ from typing import List, Set, Dict, Optional
 from sqlalchemy.orm import Session
 import logging
 
-# Import AgentRegistry model from integration package
-import sys
-from pathlib import Path
-# Add parent directory to path to import from integration
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from integration.models import AgentRegistry
 
 logger = logging.getLogger(__name__)

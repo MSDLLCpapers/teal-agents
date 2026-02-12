@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel
 
 from model import Conversation
 
 
-class MessageType(str, Enum):
+class MessageType(StrEnum):
     USER = "user"
     AGENT = "agent"
 

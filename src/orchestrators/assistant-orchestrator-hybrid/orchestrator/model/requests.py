@@ -13,5 +13,4 @@ class AgentRegistrationRequest(BaseModel):
     description: str  # Required for new/update
     desc_keywords: list[str] | None = None  # Optional, extracted via TF-IDF if not provided
     deployment_name: str | None = None  # Optional, uses default if not provided
-    change_type: str  # "new" or "update"
     agents: list[str]  # List of agent names that should be active - agents in DB but not in this list will be soft deleted (is_active=False)

@@ -18,7 +18,7 @@ from model.requests import ConversationMessageRequest, AgentRegistrationRequest
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import APIKeyHeader
-from ska_utils import get_telemetry
+from ska_utils import get_telemetry, AppConfig
 
 from .deps import (
     get_agent_catalog,
@@ -301,7 +301,8 @@ async def register_agent(request: AgentRegistrationRequest):
     Additionally, any agents in the database not in the provided 'agents' list
     will be soft deleted (sync behavior).
     """
-    expected_token = config.get("AGENT_REGISTRATION_TOKEN")
+    app_config = AppConfig()
+    expected_token = app_config.get("AGENT_REGISTRATION_TOKEN")
     if not expected_token or request.token != expected_token:
         raise HTTPException(status_code=401, detail="Invalid or missing registration token")
     
@@ -309,12 +310,11 @@ async def register_agent(request: AgentRegistrationRequest):
     
     try:
         result = await agent_registry_manager.sync_agents(
-            agent_name=request.agent_name,
+            agent_names=request.agents,
+            agent_name=request.service_name,
             description=request.description,
             desc_keywords=request.desc_keywords,
-            deployment_name=request.deployment_name,
-            change_type=request.change_type,
-            agents=request.agents,
+            deployment_name=request.deployment_name
         )
         return result
     except ValueError as e:

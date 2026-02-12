@@ -23,7 +23,6 @@ from configs import (
     BM25_WEIGHT,
     SEMANTIC_WEIGHT,
     # Agent Registration configs
-    EMBEDDING_SIZE,
     DEFAULT_DEPLOYMENT_NAME,
 )
 from connection_manager import ConnectionManager
@@ -88,12 +87,6 @@ def initialize() -> None:
 
     config_file = app_config.get(TA_SERVICE_CONFIG.env_name)
     _config = parse_yaml_file_as(Config, config_file)
-    embedding_size =   app_config.get("EMBEDDING_SIZE")
-    default_deployment_name = app_config.get("DEFAULT_DEPLOYMENT_NAME")
-    _agent_registry_manager = AgentRegistryManager(
-        embedding_size=embedding_size,
-        default_deployment_name=default_deployment_name,
-    )
 
     if _config is None:
         raise TypeError("_config was None which should not happen")
@@ -164,9 +157,9 @@ def initialize() -> None:
     # RecipientChooser can work with or without HybridSearchService and ChromaClient
     _rec_chooser = RecipientChooser(recipient_chooser_agent, _hybrid_search_service, _chroma_client)
 
-    # Initialize AgentRegistryManager with config from environment
+    # Initialize AgentRegistryManager with OpenAI client for embeddings
     _agent_registry_manager = AgentRegistryManager(
-        embedding_size=int(app_config.get(EMBEDDING_SIZE.env_name)),
+        openai_client=_openai_client,
         default_deployment_name=app_config.get(DEFAULT_DEPLOYMENT_NAME.env_name),
     )
 

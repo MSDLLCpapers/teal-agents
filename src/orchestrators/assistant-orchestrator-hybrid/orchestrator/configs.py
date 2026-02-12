@@ -48,12 +48,21 @@ TA_SEMANTIC_SEARCH_THRESHOLD = Config(
     env_name="TA_SEMANTIC_SEARCH_THRESHOLD", is_required=False, default_value="0.7"
 )
 
-# ChromaDB Configuration
-CHROMA_PERSIST_DIR = Config(
-    env_name="CHROMA_PERSIST_DIR", is_required=False, default_value="./chroma_agents"
+# PostgreSQL Configuration
+POSTGRES_HOST = Config(
+    env_name="TA_POSTGRES_HOST", is_required=False, default_value="localhost"
 )
-CHROMA_COLLECTION_NAME = Config(
-    env_name="CHROMA_COLLECTION_NAME", is_required=False, default_value="agents_registry"
+POSTGRES_PORT = Config(
+    env_name="TA_POSTGRES_PORT", is_required=False, default_value="5432"
+)
+POSTGRES_DB = Config(
+    env_name="TA_POSTGRES_DB", is_required=False, default_value="postgres"
+)
+POSTGRES_USER = Config(
+    env_name="TA_POSTGRES_USER", is_required=False, default_value="postgres"
+)
+POSTGRES_PASSWORD = Config(
+    env_name="TA_POSTGRES_PASSWORD", is_required=True, default_value=None
 )
 
 # BM25 and Semantic Weights
@@ -150,9 +159,12 @@ CONFIGS = [
     TA_ENABLE_SEMANTIC_SEARCH,
     TA_SEMANTIC_SEARCH_TOP_K,
     TA_SEMANTIC_SEARCH_THRESHOLD,
-    # ChromaDB
-    CHROMA_PERSIST_DIR,
-    CHROMA_COLLECTION_NAME,
+    # PostgreSQL
+    POSTGRES_HOST,
+    POSTGRES_PORT,
+    POSTGRES_DB,
+    POSTGRES_USER,
+    POSTGRES_PASSWORD,
     # Hybrid Search Weights
     BM25_WEIGHT,
     SEMANTIC_WEIGHT,

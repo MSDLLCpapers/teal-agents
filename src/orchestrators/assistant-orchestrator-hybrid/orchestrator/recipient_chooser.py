@@ -14,7 +14,7 @@ from configs import (
     TA_ENABLE_PARALLEL_PROCESSING,
     TA_PARALLEL_MAX_AGENTS,
 )
-from integration.chroma_client import ChromaClient
+from integration.postgres_client import PostgresClient
 from model import Conversation
 from model.recipient_chooser import ReqAgent, SelectedAgent
 from services.hybrid_search_service import HybridSearchService
@@ -51,11 +51,11 @@ class RecipientChooser:
         self,
         agent: RecipientChooserAgent,
         hybrid_search_service: Optional[HybridSearchService],
-        chroma_client: Optional[ChromaClient] = None
+        postgres_client: Optional[PostgresClient] = None
     ):
         self.agent = agent
         self.hybrid_search_service = hybrid_search_service
-        self.chroma_client = chroma_client
+        self.postgres_client = postgres_client
         
         # Load agent list from agents_registry database table
         self.agent_list: list[ReqAgent] = self._load_agents_from_database()
@@ -91,19 +91,19 @@ class RecipientChooser:
 
     def _load_agents_from_database(self) -> list[ReqAgent]:
         """
-        Load active agents from ChromaDB collection.
+        Load active agents from PostgreSQL database.
         Returns list of ReqAgent objects with name, description, and (if available) type.
         """
-        # If no ChromaClient is available, fallback to agent catalog
-        if self.chroma_client is None:
-            logger.warning("ChromaClient not available, falling back to agent catalog")
+        # If no PostgresClient is available, fallback to agent catalog
+        if self.postgres_client is None:
+            logger.warning("PostgresClient not available, falling back to agent catalog")
             return self._fallback_to_agent_catalog()
         
         try:
-            logger.info("Loading agents from ChromaDB collection...")
+            logger.info("Loading agents from PostgreSQL database...")
             
-            # Get all agents from collection using ChromaClient
-            all_agents = self.chroma_client.get_all_documents()
+            # Get all agents from database using PostgresClient
+            all_agents = self.postgres_client.get_all_documents()
             
             agents = []
             for i, agent_id in enumerate(all_agents['ids']):
@@ -115,16 +115,16 @@ class RecipientChooser:
                 agents.append(ReqAgent(name=agent_name, description=description, type=agent_type))
                 logger.info(f"Loaded agent: {agent_name}")
             
-            logger.info(f"Loaded {len(agents)} agents from ChromaDB")
+            logger.info(f"Loaded {len(agents)} agents from PostgreSQL")
             
             if not agents:
-                logger.warning("No agents found in ChromaDB, falling back to agent catalog")
+                logger.warning("No agents found in PostgreSQL, falling back to agent catalog")
                 return self._fallback_to_agent_catalog()
             
             return agents
             
         except Exception as e:
-            logger.error(f"Failed to load agents from ChromaDB: {e}", exc_info=True)
+            logger.error(f"Failed to load agents from PostgreSQL: {e}", exc_info=True)
             logger.warning("Falling back to agent catalog")
             return self._fallback_to_agent_catalog()
 

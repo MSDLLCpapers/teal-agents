@@ -15,10 +15,13 @@ from configs import (
     TA_REDIS_SESSION_TTL,
     TA_SERVICE_CONFIG,
     TA_SESSION_TYPE,
-    # Semantic Search and ChromaDB configs
+    # Semantic Search and PostgreSQL configs
     TA_ENABLE_SEMANTIC_SEARCH,
-    CHROMA_PERSIST_DIR,
-    CHROMA_COLLECTION_NAME,
+    POSTGRES_HOST,
+    POSTGRES_PORT,
+    POSTGRES_DB,
+    POSTGRES_USER,
+    POSTGRES_PASSWORD,
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
     BM25_WEIGHT,
     SEMANTIC_WEIGHT,
@@ -34,7 +37,7 @@ from session import AbstractSessionManager, InMemorySessionManager, RedisSession
 from user_context import CustomUserContextHelper, UserContextCache
 
 # Import new services and clients
-from integration.chroma_client import ChromaClient
+from integration.postgres_client import PostgresClient
 from integration.openai_client import AzureOpenAIClient
 from services.hybrid_search_service import HybridSearchService
 from services.agent_orchestration_service import AgentOrchestrationService, create_orchestration_service
@@ -58,7 +61,7 @@ _user_context: UserContextCache | None = None
 
 
 # New service instances
-_chroma_client: ChromaClient | None = None
+_postgres_client: PostgresClient | None = None
 _openai_client: AzureOpenAIClient | None = None
 _hybrid_search_service: HybridSearchService | None = None
 _orchestration_service: AgentOrchestrationService | None = None
@@ -78,7 +81,7 @@ def initialize() -> None:
         _agent_registry_manager, \
         _fallback_agent, \
         _user_context, \
-        _chroma_client, \
+        _postgres_client, \
         _openai_client, \
         _hybrid_search_service, \
         _orchestration_service, \
@@ -132,30 +135,33 @@ def initialize() -> None:
     # Initialize orchestration service
     _orchestration_service = create_orchestration_service(_openai_client)
     
-    # Conditionally initialize ChromaClient and HybridSearchService based on TA_ENABLE_SEMANTIC_SEARCH
+    # Conditionally initialize PostgresClient and HybridSearchService based on TA_ENABLE_SEMANTIC_SEARCH
     enable_semantic_search = app_config.get(TA_ENABLE_SEMANTIC_SEARCH.env_name).lower() == "true"
     
     if enable_semantic_search:
-        logger.info("Semantic search ENABLED - initializing ChromaDB and HybridSearchService")
-        _chroma_client = ChromaClient(
-            persist_directory=app_config.get(CHROMA_PERSIST_DIR.env_name),
-            collection_name=app_config.get(CHROMA_COLLECTION_NAME.env_name),
+        logger.info("Semantic search ENABLED - initializing PostgreSQL and HybridSearchService")
+        _postgres_client = PostgresClient(
+            host=app_config.get(POSTGRES_HOST.env_name),
+            port=app_config.get(POSTGRES_PORT.env_name),
+            database=app_config.get(POSTGRES_DB.env_name),
+            user=app_config.get(POSTGRES_USER.env_name),
+            password=app_config.get(POSTGRES_PASSWORD.env_name),
             embedding_model=app_config.get(AZURE_OPENAI_EMBEDDING_DEPLOYMENT.env_name)
         )
         
         _hybrid_search_service = HybridSearchService(
-            chroma_client=_chroma_client,
+            postgres_client=_postgres_client,
             openai_client=_openai_client,
             bm25_weight=float(app_config.get(BM25_WEIGHT.env_name)),
             semantic_weight=float(app_config.get(SEMANTIC_WEIGHT.env_name))
         )
     else:
-        logger.info("Semantic search DISABLED - skipping ChromaDB and HybridSearchService initialization")
-        _chroma_client = None
+        logger.info("Semantic search DISABLED - skipping PostgreSQL and HybridSearchService initialization")
+        _postgres_client = None
         _hybrid_search_service = None
     
-    # RecipientChooser can work with or without HybridSearchService and ChromaClient
-    _rec_chooser = RecipientChooser(recipient_chooser_agent, _hybrid_search_service, _chroma_client)
+    # RecipientChooser can work with or without HybridSearchService and PostgresClient
+    _rec_chooser = RecipientChooser(recipient_chooser_agent, _hybrid_search_service, _postgres_client)
 
     # Initialize AgentRegistryManager with OpenAI client for embeddings
     _agent_registry_manager = AgentRegistryManager(
@@ -226,15 +232,15 @@ def get_user_context_cache() -> UserContextCache | None:
     return _user_context
 
 
-def get_chroma_client() -> ChromaClient | None:
+def get_postgres_client() -> PostgresClient | None:
     """
-    Get ChromaDB client instance.
+    Get PostgreSQL client instance.
     
     Returns None if semantic search is disabled (TA_ENABLE_SEMANTIC_SEARCH=false).
     """
-    if _chroma_client is None:
+    if _postgres_client is None:
         initialize()
-    return _chroma_client
+    return _postgres_client
 
 
 def get_openai_client() -> AzureOpenAIClient:

@@ -15,7 +15,7 @@ from rank_bm25 import BM25Okapi
 from ska_utils import AppConfig
 
 from configs import AZURE_OPENAI_RERANKER_MODEL, AZURE_OPENAI_CHAT_MODEL
-from integration.chroma_client import ChromaClient
+from integration.postgres_client import PostgresClient
 from integration.openai_client import AzureOpenAIClient
 from model.search import AgentSearchResult, SemanticSearchResult, AgentCorpusEntry
 from model.recipient_chooser import FollowUpAnalysisResult, SelectedAgent
@@ -43,7 +43,7 @@ class HybridSearchService:
     Hybrid search service combining BM25 and semantic search.
     
     This service provides:
-    1. Semantic search via ChromaDB with LangChain embeddings
+    1. Semantic search via PostgreSQL + pgvector with embeddings
     2. BM25 lexical matching for keyword-based search
     3. Hybrid scoring with configurable weights
     4. LLM-based query expansion and follow-up analysis
@@ -52,7 +52,7 @@ class HybridSearchService:
     
     def __init__(
         self,
-        chroma_client: ChromaClient,
+        postgres_client: PostgresClient,
         openai_client: AzureOpenAIClient,
         bm25_weight: float = 0.25,
         semantic_weight: float = 0.75
@@ -61,12 +61,12 @@ class HybridSearchService:
         Initialize hybrid search service.
         
         Args:
-            chroma_client: ChromaDB client instance
+            postgres_client: PostgreSQL client instance
             openai_client: Azure OpenAI client instance
             bm25_weight: Weight for BM25 scores (default: 0.25)
             semantic_weight: Weight for semantic scores (default: 0.75)
         """
-        self.chroma_client = chroma_client
+        self.postgres_client = postgres_client
         self.openai_client = openai_client
         self.bm25_weight = bm25_weight
         self.semantic_weight = semantic_weight
@@ -80,10 +80,10 @@ class HybridSearchService:
         logger.info(f"Weights: BM25={bm25_weight}, Semantic={semantic_weight}")
     
     def _initialize_bm25(self) -> None:
-        """Initialize BM25 index from ChromaDB collection."""
+        """Initialize BM25 index from PostgreSQL database."""
         try:
-            # Get all documents from ChromaDB
-            all_docs = self.chroma_client.get_all_documents()
+            # Get all documents from PostgreSQL
+            all_docs = self.postgres_client.get_all_documents()
             
             tokenized_corpus = []
             
@@ -166,7 +166,7 @@ class HybridSearchService:
         top_k: int = 10
     ) -> List[SemanticSearchResult]:
         """
-        Calculate semantic similarity scores using ChromaDB.
+        Calculate semantic similarity scores using PostgreSQL + pgvector.
         
         Args:
             query: The search query
@@ -176,15 +176,15 @@ class HybridSearchService:
             List of SemanticSearchResult objects
         """
         try:
-            results_with_scores = self.chroma_client.similarity_search_with_score(
+            results_with_scores = self.postgres_client.similarity_search_with_score(
                 query=query,
                 k=top_k
             )
             
             semantic_results = []
             for doc, score in results_with_scores:
-                # ChromaDB returns distance (lower is better), convert to similarity
-                similarity_score = 1 - (score / 2) if score < 2 else 0
+                # pgvector returns normalized similarity score (already 0-1 range from PostgresClient)
+                similarity_score = score
                 
                 agent_name = doc.metadata.get('agent_name', 'Unknown')
                 description = doc.page_content

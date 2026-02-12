@@ -3,8 +3,16 @@ TF-IDF service for keyword extraction
 """
 
 from sklearn.feature_extraction.text import TfidfVectorizer
-from typing import List, Set,Dict,Optional
+from typing import List, Set, Dict, Optional
+from sqlalchemy.orm import Session
 import logging
+
+# Import AgentRegistry model from integration package
+import sys
+from pathlib import Path
+# Add parent directory to path to import from integration
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from integration.models import AgentRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -12,24 +20,33 @@ class TfidfLearningService:
     def __init__(self):
         pass  # No internal state needed for now
 
-    def get_agent_details(self, collection, agent_name: str) -> Optional[Dict]:
+    def get_agent_details(self, session: Session, agent_name: str) -> Optional[Dict]:
         """
-        Fetch agent metadata from Chroma collection.
+        Fetch agent metadata from PostgreSQL database.
+        
+        Args:
+            session: SQLAlchemy session
+            agent_name: Name of the agent to fetch
+            
+        Returns:
+            Dictionary with agent details or None if not found
         """
-        results = collection.get(
-            where={"agent_name": agent_name},
-            include=["metadatas"]
-        )
+        agent = session.query(AgentRegistry).filter_by(
+            agent_name=agent_name,
+            is_active=True
+        ).first()
 
-        if not results.get("metadatas"):
-            logger.warning(f"No metadata found for agent {agent_name}")
+        if not agent:
+            logger.warning(f"No agent found with name {agent_name}")
             return None
 
-        meta = results["metadatas"][0]
+        # Convert description_keywords array to comma-separated string for compatibility
+        keywords_str = ",".join(agent.description_keywords) if agent.description_keywords else ""
+        
         return {
             "agent_name": agent_name,
-            "description": meta.get("description", ""),
-            "keywords": meta.get("desc_keywords", "")
+            "description": agent.description or "",
+            "keywords": keywords_str
         }
 
     def extract_tfidf_keywords(self, answer: str, corpus: List[str], top_k: int = 5) -> Set[str]:

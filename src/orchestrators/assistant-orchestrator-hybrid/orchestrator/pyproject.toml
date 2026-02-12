@@ -25,9 +25,6 @@ dependencies = [
     "langchain-openai",
     "scikit-learn",
     "celery",
-    "pgvector",
-    "sqlalchemy",
-    "psycopg2-binary",
 ]
 
 [tool.uv.sources]

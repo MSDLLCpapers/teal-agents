@@ -1,4 +1,4 @@
-from celery_test.tasks import dummy_task
+from content_update.tasks import dummy_task
 
 if __name__ == "__main__":
     result = dummy_task.delay(2, 3)

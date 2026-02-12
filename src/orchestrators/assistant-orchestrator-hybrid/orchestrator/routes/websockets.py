@@ -23,7 +23,7 @@ from .deps import (
     get_rec_chooser,
     get_orchestration_service,
     get_tfidf_learning_service,
-    get_chroma_client
+    get_postgres_client
 )
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ rec_chooser = get_rec_chooser()
 config = get_config()
 agent_catalog = get_agent_catalog()
 fallback_agent = get_fallback_agent()
-chroma_client = get_chroma_client()
+postgres_client = get_postgres_client()
 tfidf_service = get_tfidf_learning_service()
 
 # Get orchestration service from deps

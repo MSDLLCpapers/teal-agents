@@ -105,9 +105,6 @@ AZURE_OPENAI_EMBEDDING_DEPLOYMENT = Config(
 AGENT_REGISTRATION_TOKEN = Config(
     env_name="AGENT_REGISTRATION_TOKEN", is_required=False, default_value=""
 )
-EMBEDDING_SIZE = Config(
-    env_name="EMBEDDING_SIZE", is_required=False, default_value="1536"
-)
 DEFAULT_DEPLOYMENT_NAME = Config(
     env_name="DEFAULT_DEPLOYMENT_NAME", is_required=False, default_value="Talk"
 )
@@ -176,7 +173,6 @@ CONFIGS = [
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
     # Agent Registration
     AGENT_REGISTRATION_TOKEN,
-    EMBEDDING_SIZE,
     DEFAULT_DEPLOYMENT_NAME,
     # Database
     DB_HOST,

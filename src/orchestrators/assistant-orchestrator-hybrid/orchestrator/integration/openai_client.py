@@ -16,6 +16,7 @@ from configs import (
     AZURE_OPENAI_ENDPOINT,
     AZURE_OPENAI_API_VERSION,
     AZURE_OPENAI_CHAT_MODEL,
+    AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
 )
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,8 @@ class AzureOpenAIClient:
         api_key: Optional[str] = None,
         endpoint: Optional[str] = None,
         api_version: Optional[str] = None,
-        default_model: Optional[str] = None
+        default_model: Optional[str] = None,
+        embedding_model: Optional[str] = None
     ):
         """
         Initialize Azure OpenAI client.
@@ -46,12 +48,14 @@ class AzureOpenAIClient:
             endpoint: Azure OpenAI endpoint (defaults to config)
             api_version: API version (defaults to config)
             default_model: Default model/deployment name (defaults to config)
+            embedding_model: Embedding model/deployment name (defaults to config)
         """
         app_config = AppConfig()
         self.api_key = api_key or app_config.get(AZURE_OPENAI_API_KEY.env_name)
         self.endpoint = endpoint or app_config.get(AZURE_OPENAI_ENDPOINT.env_name)
         self.api_version = api_version or app_config.get(AZURE_OPENAI_API_VERSION.env_name)
         self.default_model = default_model or app_config.get(AZURE_OPENAI_CHAT_MODEL.env_name)
+        self.embedding_model = embedding_model or app_config.get(AZURE_OPENAI_EMBEDDING_DEPLOYMENT.env_name)
         
         if not self.api_key or not self.endpoint:
             raise ValueError("Azure OpenAI API key and endpoint are required")
@@ -162,6 +166,30 @@ class AzureOpenAIClient:
         elif "```" in text:
             text = text.split("```")[1].split("```")[0].strip()
         return text
+
+    def generate_embeddings(
+        self,
+        text: str,
+        model: Optional[str] = None
+    ) -> list[float]:
+        """
+        Generate embeddings for the given text.
+        
+        Args:
+            text: Text to generate embeddings for
+            model: Embedding model/deployment name (defaults to configured embedding_model)
+            
+        Returns:
+            List of embedding floats
+        """
+        self._ensure_initialized()
+        
+        response = self._client.embeddings.create(
+            model=model or self.embedding_model,
+            input=text
+        )
+        
+        return response.data[0].embedding
 
 
 def create_azure_openai_client() -> AzureOpenAIClient:

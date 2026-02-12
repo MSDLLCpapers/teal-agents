@@ -15,13 +15,13 @@ from configs import (
     TA_REDIS_SESSION_TTL,
     TA_SERVICE_CONFIG,
     TA_SESSION_TYPE,
-    # Semantic Search and PostgreSQL configs
+    # Semantic Search and Database configs
     TA_ENABLE_SEMANTIC_SEARCH,
-    POSTGRES_HOST,
-    POSTGRES_PORT,
-    POSTGRES_DB,
-    POSTGRES_USER,
-    POSTGRES_PASSWORD,
+    DB_HOST,
+    DB_PORT,
+    DB_NAME,
+    DB_USER,
+    DB_PASSWORD,
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
     BM25_WEIGHT,
     SEMANTIC_WEIGHT,
@@ -141,11 +141,11 @@ def initialize() -> None:
     if enable_semantic_search:
         logger.info("Semantic search ENABLED - initializing PostgreSQL and HybridSearchService")
         _postgres_client = PostgresClient(
-            host=app_config.get(POSTGRES_HOST.env_name),
-            port=app_config.get(POSTGRES_PORT.env_name),
-            database=app_config.get(POSTGRES_DB.env_name),
-            user=app_config.get(POSTGRES_USER.env_name),
-            password=app_config.get(POSTGRES_PASSWORD.env_name),
+            host=app_config.get(DB_HOST.env_name),
+            port=app_config.get(DB_PORT.env_name),
+            database=app_config.get(DB_NAME.env_name),
+            user=app_config.get(DB_USER.env_name),
+            password=app_config.get(DB_PASSWORD.env_name),
             embedding_model=app_config.get(AZURE_OPENAI_EMBEDDING_DEPLOYMENT.env_name)
         )
         

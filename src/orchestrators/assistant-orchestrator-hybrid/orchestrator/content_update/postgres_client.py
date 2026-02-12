@@ -13,11 +13,11 @@ from sqlalchemy.orm import sessionmaker, Session
 
 from ska_utils import AppConfig
 from configs import (
-    POSTGRES_HOST,
-    POSTGRES_PORT,
-    POSTGRES_DB,
-    POSTGRES_USER,
-    POSTGRES_PASSWORD,
+    DB_HOST,
+    DB_PORT,
+    DB_NAME,
+    DB_USER,
+    DB_PASSWORD,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,11 +34,11 @@ def _get_session_factory():
         app_config = AppConfig()
         
         # Build PostgreSQL connection URL
-        host = app_config.get(POSTGRES_HOST.env_name)
-        port = app_config.get(POSTGRES_PORT.env_name)
-        database = app_config.get(POSTGRES_DB.env_name)
-        user = app_config.get(POSTGRES_USER.env_name)
-        password = app_config.get(POSTGRES_PASSWORD.env_name)
+        host = app_config.get(DB_HOST.env_name)
+        port = app_config.get(DB_PORT.env_name)
+        database = app_config.get(DB_NAME.env_name)
+        user = app_config.get(DB_USER.env_name)
+        password = app_config.get(DB_PASSWORD.env_name)
         
         connection_url = (
             f"postgresql+psycopg2://{user}:{password}"

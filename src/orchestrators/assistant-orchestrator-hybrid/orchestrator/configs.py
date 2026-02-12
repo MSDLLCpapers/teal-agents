@@ -48,23 +48,6 @@ TA_SEMANTIC_SEARCH_THRESHOLD = Config(
     env_name="TA_SEMANTIC_SEARCH_THRESHOLD", is_required=False, default_value="0.7"
 )
 
-# PostgreSQL Configuration
-POSTGRES_HOST = Config(
-    env_name="TA_POSTGRES_HOST", is_required=False, default_value="localhost"
-)
-POSTGRES_PORT = Config(
-    env_name="TA_POSTGRES_PORT", is_required=False, default_value="5432"
-)
-POSTGRES_DB = Config(
-    env_name="TA_POSTGRES_DB", is_required=False, default_value="postgres"
-)
-POSTGRES_USER = Config(
-    env_name="TA_POSTGRES_USER", is_required=False, default_value="postgres"
-)
-POSTGRES_PASSWORD = Config(
-    env_name="TA_POSTGRES_PASSWORD", is_required=True, default_value=None
-)
-
 # BM25 and Semantic Weights
 BM25_WEIGHT = Config(env_name="BM25_WEIGHT", is_required=False, default_value="0.25")
 SEMANTIC_WEIGHT = Config(env_name="SEMANTIC_WEIGHT", is_required=False, default_value="0.75")
@@ -159,12 +142,6 @@ CONFIGS = [
     TA_ENABLE_SEMANTIC_SEARCH,
     TA_SEMANTIC_SEARCH_TOP_K,
     TA_SEMANTIC_SEARCH_THRESHOLD,
-    # PostgreSQL
-    POSTGRES_HOST,
-    POSTGRES_PORT,
-    POSTGRES_DB,
-    POSTGRES_USER,
-    POSTGRES_PASSWORD,
     # Hybrid Search Weights
     BM25_WEIGHT,
     SEMANTIC_WEIGHT,

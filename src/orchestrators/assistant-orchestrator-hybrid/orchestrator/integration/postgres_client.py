@@ -19,11 +19,11 @@ from configs import (
     AZURE_OPENAI_ENDPOINT,
     AZURE_OPENAI_API_VERSION,
     AZURE_OPENAI_EMBEDDING_DEPLOYMENT,
-    POSTGRES_HOST,
-    POSTGRES_PORT,
-    POSTGRES_DB,
-    POSTGRES_USER,
-    POSTGRES_PASSWORD,
+    DB_HOST,
+    DB_PORT,
+    DB_NAME,
+    DB_USER,
+    DB_PASSWORD,
 )
 from integration.models import Base, AgentRegistry, ensure_pgvector_extension
 
@@ -70,11 +70,11 @@ class PostgresClient:
         app_config = AppConfig()
         
         # Database connection parameters
-        self.host = host or app_config.get(POSTGRES_HOST.env_name)
-        self.port = port or app_config.get(POSTGRES_PORT.env_name)
-        self.database = database or app_config.get(POSTGRES_DB.env_name)
-        self.user = user or app_config.get(POSTGRES_USER.env_name)
-        self.password = password or app_config.get(POSTGRES_PASSWORD.env_name)
+        self.host = host or app_config.get(DB_HOST.env_name)
+        self.port = port or app_config.get(DB_PORT.env_name)
+        self.database = database or app_config.get(DB_NAME.env_name)
+        self.user = user or app_config.get(DB_USER.env_name)
+        self.password = password or app_config.get(DB_PASSWORD.env_name)
         
         # Embedding model configuration
         self.embedding_model = embedding_model or app_config.get(AZURE_OPENAI_EMBEDDING_DEPLOYMENT.env_name)

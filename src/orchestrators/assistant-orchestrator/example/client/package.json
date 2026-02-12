@@ -10,6 +10,9 @@
     "preview": "vite preview",
     "start": "serve -s ./dist"
   },
+  "resolutions": {
+    "esbuild": "^0.25.0"
+  },
   "dependencies": {
     "@hookstate/core": "^4.0.1",
     "react": "^19.0.0",

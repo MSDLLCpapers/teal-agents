@@ -7,7 +7,7 @@ from typing import List, Set, Dict, Optional
 from sqlalchemy.orm import Session
 import logging
 
-from integration.models import AgentRegistry
+from model.agent_registry import AgentRegistry
 
 logger = logging.getLogger(__name__)
 

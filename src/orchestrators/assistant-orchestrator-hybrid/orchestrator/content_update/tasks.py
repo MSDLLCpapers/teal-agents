@@ -1,7 +1,7 @@
 from content_update.celery_app import celery_app
 from content_update.tfidf_service import TfidfLearningService
 from integration.postgres_client import PostgresClient
-from integration.models import AgentRegistry
+from model.agent_registry import AgentRegistry
 from configs import CONFIGS
 
 from ska_utils import AppConfig

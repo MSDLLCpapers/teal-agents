@@ -5,20 +5,17 @@ This module defines the ORM models for storing agent registry data
 with vector embeddings using pgvector extension.
 """
 
-from datetime import datetime
 from sqlalchemy import (
     Column,
     Integer,
     String,
     Text,
     Boolean,
-    DateTime,
     ARRAY,
-    create_engine,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
-from pgvector.sqlalchemy import Vector
+from pgvector.sqlalchemy import Vector, Text, text
 
 Base = declarative_base()
 
@@ -49,14 +46,25 @@ class AgentRegistry(Base):
     agent_name = Column(String(255), unique=True, nullable=False, index=True)
     description = Column(Text, nullable=False)
     version = Column(String(50), nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+        index=True,
+    )
+    updated_at = Column(
+        TIMESTAMP(timezone=True),
+        nullable=False,
+        server_default=text("now()"),
+        onupdate=text("now()"),
+        index=True,
+    )
     extra_info = Column(JSONB, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     tags = Column(ARRAY(Text), nullable=True)
     description_keywords = Column(ARRAY(Text), nullable=True)
     description_embeddings = Column(Vector(1536), nullable=True)
-    deployment_name = Column(String(255), unique=True, nullable=False, index=True)
+    deployment_name = Column(String(255), nullable=False, index=True)
     learned_keywords = Column(ARRAY(Text), nullable=True)
     
     def __repr__(self):
@@ -87,7 +95,6 @@ def ensure_pgvector_extension(engine):
     Args:
         engine: SQLAlchemy engine instance
     """
-    from sqlalchemy import text
     
     with engine.connect() as conn:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))

@@ -5,7 +5,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sqlalchemy.orm import Session
 
 from .database import get_db_session
-from .orm_models import AgentRegistry
+from model.agent_registry import AgentRegistry
 
 if TYPE_CHECKING:
     from integration.openai_client import AzureOpenAIClient

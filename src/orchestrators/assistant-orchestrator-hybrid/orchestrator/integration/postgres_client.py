@@ -26,7 +26,7 @@ from configs import (
     DB_USER,
     DB_PASSWORD,
 )
-from integration.models import Base, AgentRegistry, ensure_pgvector_extension
+from model.agent_registry import Base, AgentRegistry, ensure_pgvector_extension
 
 logger = logging.getLogger(__name__)
 

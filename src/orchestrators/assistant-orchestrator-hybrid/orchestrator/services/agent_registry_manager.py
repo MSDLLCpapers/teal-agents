@@ -95,13 +95,6 @@ class AgentRegistryManager:
     ) -> dict:
         """Create a new agent in the registry."""
         try:
-            # Check if agent already exists
-            existing = self.db.query(AgentRegistry).filter(
-                AgentRegistry.agent_name == agent_name
-            ).first()
-            if existing:
-                raise ValueError(f"Agent '{agent_name}' already exists")
-
             # Generate embeddings
             desc_embeddings = await self.generate_embeddings(description)
 
@@ -131,8 +124,6 @@ class AgentRegistryManager:
                 "desc_keywords": desc_keywords,
                 "deployment_name": deployment_name,
             }
-        except ValueError:
-            raise
         except Exception as e:
             self.db.rollback()
             logger.error(f"Error creating agent {agent_name}: {e}")
@@ -140,19 +131,13 @@ class AgentRegistryManager:
 
     async def update_agent(
         self,
-        agent_name: str,
+        agent: AgentRegistry,
         description: str,
         desc_keywords: Optional[list[str]] = None,
         deployment_name: Optional[str] = None,
     ) -> dict:
         """Update an existing agent in the registry. Also reactivates if inactive."""
         try:
-            agent = self.db.query(AgentRegistry).filter(
-                AgentRegistry.agent_name == agent_name
-            ).first()
-            if not agent:
-                raise ValueError(f"Agent '{agent_name}' not found")
-
             # Generate embeddings
             desc_embeddings = await self.generate_embeddings(description)
 
@@ -173,20 +158,18 @@ class AgentRegistryManager:
             self.db.commit()
             self.db.refresh(agent)
 
-            logger.info(f"Updated agent: {agent_name}")
+            logger.info(f"Updated agent: {agent.agent_name}")
             return {
                 "agent_id": agent.id,
-                "agent_name": agent_name,
+                "agent_name": agent.agent_name,
                 "description": description,
                 "desc_keywords": desc_keywords,
                 "deployment_name": deployment_name,
                 "is_active": agent.is_active,
             }
-        except ValueError:
-            raise
         except Exception as e:
             self.db.rollback()
-            logger.error(f"Error updating agent {agent_name}: {e}")
+            logger.error(f"Error updating agent {agent.agent_name}: {e}")
             raise
 
     async def register_or_update_agent(
@@ -195,19 +178,24 @@ class AgentRegistryManager:
         description: str,
         desc_keywords: Optional[list[str]] = None,
         deployment_name: Optional[str] = None,
+        existing: Optional[AgentRegistry] = None,
     ) -> dict:
         """
         Register a new agent or update an existing one.
         If agent exists (active or inactive), update it and reactivate.
         If agent doesn't exist, create it.
+        
+        Args:
+            existing: Optional pre-fetched agent to avoid redundant DB query
         """
-        existing = self.db.query(AgentRegistry).filter(
-            AgentRegistry.agent_name == agent_name
-        ).first()
+        if existing is None:
+            existing = self.db.query(AgentRegistry).filter(
+                AgentRegistry.agent_name == agent_name
+            ).first()
         
         if existing:
             # Agent exists - update and reactivate
-            return await self.update_agent(agent_name, description, desc_keywords, deployment_name)
+            return await self.update_agent(existing, description, desc_keywords, deployment_name)
         else:
             # Agent doesn't exist - create new
             return await self.create_agent(agent_name, description, desc_keywords, deployment_name)
@@ -324,7 +312,7 @@ class AgentRegistryManager:
             
             if existing:
                 was_inactive = not existing.is_active
-                await self.register_or_update_agent(agent_name, description, desc_keywords, deployment_name)
+                await self.register_or_update_agent(agent_name, description, desc_keywords, deployment_name, existing=existing)
                 updated.append(agent_name)
                 if was_inactive:
                     reactivated.append(agent_name)

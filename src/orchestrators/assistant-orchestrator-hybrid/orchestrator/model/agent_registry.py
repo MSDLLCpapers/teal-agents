@@ -12,10 +12,11 @@ from sqlalchemy import (
     Text,
     Boolean,
     ARRAY,
+    text
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
 from sqlalchemy.ext.declarative import declarative_base
-from pgvector.sqlalchemy import Vector, Text, text
+from pgvector.sqlalchemy import Vector
 
 Base = declarative_base()
 

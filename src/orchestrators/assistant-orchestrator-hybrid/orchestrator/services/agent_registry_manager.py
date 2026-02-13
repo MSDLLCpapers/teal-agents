@@ -4,7 +4,6 @@ from typing import Optional, TYPE_CHECKING
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sqlalchemy.orm import Session
 
-from .database import get_db_session
 from model.agent_registry import AgentRegistry
 
 if TYPE_CHECKING:
@@ -29,8 +28,6 @@ class AgentRegistryManager:
     @property
     def db(self) -> Session:
         """Get or create a database session."""
-        if self._db_session is None:
-            self._db_session = get_db_session()
         return self._db_session
 
     def close(self) -> None:

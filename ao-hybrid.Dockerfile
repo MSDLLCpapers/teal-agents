@@ -25,6 +25,6 @@ RUN uv sync --frozen --no-dev
 
 EXPOSE 8000
 
-RUN chmod +x ao-hybrid
+RUN chmod +x ao-hybrid.sh
 
-ENTRYPOINT ["./ao-hybrid"]
+ENTRYPOINT ["./ao-hybrid.sh"]

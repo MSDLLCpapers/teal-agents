@@ -167,6 +167,7 @@ def initialize() -> None:
     _agent_registry_manager = AgentRegistryManager(
         openai_client=_openai_client,
         default_deployment_name=app_config.get(DEFAULT_DEPLOYMENT_NAME.env_name),
+        db_session=_postgres_client.get_session()
     )
 
 

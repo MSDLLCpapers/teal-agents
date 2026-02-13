@@ -63,7 +63,7 @@ class AgentRegistry(Base):
         return f"<AgentRegistry(agent_name='{self.agent_name}', is_active={self.is_active})>"
     
     def to_metadata_dict(self):
-        """Convert to metadata dictionary matching ChromaDB format."""
+        """Convert to metadata dictionary matching VectorDB format."""
         return {
             'agent_name': self.agent_name,
             'name': self.agent_name,

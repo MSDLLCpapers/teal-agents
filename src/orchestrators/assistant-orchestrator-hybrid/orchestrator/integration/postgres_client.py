@@ -2,7 +2,7 @@
 PostgreSQL client wrapper with pgvector support.
 
 This module provides a wrapper around PostgreSQL database with pgvector
-for storing and querying agent embeddings. Replaces ChromaDB client.
+for storing and querying agent embeddings.
 """
 
 import logging
@@ -185,7 +185,7 @@ class PostgresClient:
         Get all active documents from the agent registry.
         
         Returns:
-            Dictionary with 'ids', 'documents', 'metadatas' keys matching ChromaDB format
+            Dictionary with 'ids', 'documents', 'metadatas' keys matching VectorDB format
         """
         with self.get_session() as session:
             agents = session.query(AgentRegistry).filter_by(is_active=True).all()

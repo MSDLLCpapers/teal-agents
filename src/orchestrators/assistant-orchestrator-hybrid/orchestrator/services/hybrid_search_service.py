@@ -3,7 +3,7 @@ Hybrid Search Service for Agent Selection.
 
 This module provides the main hybrid search service that combines:
 - BM25 lexical matching
-- Semantic similarity via ChromaDB
+- Semantic similarity via Pgvector
 - LLM-based reranking and follow-up analysis
 """
 

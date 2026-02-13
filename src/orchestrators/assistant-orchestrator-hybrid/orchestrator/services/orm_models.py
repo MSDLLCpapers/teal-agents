@@ -30,5 +30,5 @@ class AgentRegistry(Base):
     tags = Column(ARRAY(Text), nullable=True)
     description_keywords = Column(ARRAY(Text), nullable=True)
     description_embeddings = Column(Vector(1536), nullable=True)
-    deployment_name = Column(String(255), unique=True, nullable=False, index=True)
+    deployment_name = Column(String(255), unique=False, nullable=False, index=True)
     

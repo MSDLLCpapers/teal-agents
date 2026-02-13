@@ -8,7 +8,6 @@ class ConversationMessageRequest(BaseModel):
 
 class AgentRegistrationRequest(BaseModel):
     """Request to register or update an agent."""
-    token: str
     service_name: str  # The agent name (unique identifier)
     description: str  # Required for new/update
     desc_keywords: list[str] | None = None  # Optional, extracted via TF-IDF if not provided

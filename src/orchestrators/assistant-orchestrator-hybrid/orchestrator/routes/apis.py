@@ -290,11 +290,14 @@ async def healthcheck():
     tags=["Agents"],
     description="Add, update, or sync agents in the agents-registry.",
 )
-async def register_agent(request: AgentRegistrationRequest):
+async def register_agent(
+    request: AgentRegistrationRequest,
+    authorization: str = Depends(header_scheme),
+):
     """
     Add or update an agent in the agents-registry.
     
-    The endpoint validates the token, then:
+    The endpoint validates the token from Authorization header, then:
     - For 'new': Creates a new agent entry
     - For 'update': Updates an existing agent entry
     
@@ -303,7 +306,7 @@ async def register_agent(request: AgentRegistrationRequest):
     """
     app_config = AppConfig()
     expected_token = app_config.get("AGENT_REGISTRATION_TOKEN")
-    if not expected_token or request.token != expected_token:
+    if not expected_token or authorization != expected_token:
         raise HTTPException(status_code=401, detail="Invalid or missing registration token")
     
     agent_registry_manager = get_agent_registry_manager()

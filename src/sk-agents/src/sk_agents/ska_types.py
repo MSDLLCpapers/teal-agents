@@ -89,7 +89,8 @@ class HistoryMultiModalMessage(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def convert_content_to_items(cls, data: Any) -> Any:
-        """Auto-convert plain HistoryMessage format (content: str) to MultiModal format (items: list)."""
+        """Auto-convert plain HistoryMessage format (content: str)
+        to MultiModal format (items: list)."""
         if isinstance(data, dict) and "content" in data and "items" not in data:
             content = data.pop("content")
             data["items"] = [{"content_type": "text", "content": content}]
@@ -104,7 +105,8 @@ class BaseMultiModalInput(KernelBaseModel):
 
 class BaseMultiModalInputWithUserContext(KernelBaseModel):
     """The history of a chat interaction between an automated assistant and a
-    human with multimodal input (text and images), along with context about the user."""
+    human with multimodal input (text and images),
+    along with context about the user."""
 
     session_id: str | None = None
     chat_history: list[HistoryMultiModalMessage] | None = None

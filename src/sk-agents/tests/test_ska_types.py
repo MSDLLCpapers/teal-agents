@@ -1,6 +1,7 @@
 """Tests for HistoryMultiModalMessage auto-conversion validator."""
 
 import pytest
+from pydantic import ValidationError
 
 from sk_agents.ska_types import (
     ContentType,
@@ -13,7 +14,8 @@ class TestHistoryMultiModalMessageAutoConversion:
     """Tests for the convert_content_to_items model_validator."""
 
     def test_plain_content_string_is_converted_to_items(self):
-        """Plain HistoryMessage format {role, content} should auto-convert to {role, items}."""
+        """Plain HistoryMessage format {role, content}
+        should auto-convert to {role, items}."""
         msg = HistoryMultiModalMessage(
             **{"role": "user", "content": "tell me the latest company news"}
         )
@@ -84,12 +86,12 @@ class TestHistoryMultiModalMessageAutoConversion:
 
     def test_missing_role_raises_validation_error(self):
         """Missing role field should raise a validation error."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             HistoryMultiModalMessage(**{"content": "no role"})
 
     def test_missing_content_and_items_raises_validation_error(self):
         """Missing both content and items should raise a validation error."""
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             HistoryMultiModalMessage(**{"role": "user"})
 
     def test_items_as_dicts_are_parsed(self):

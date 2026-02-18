@@ -92,8 +92,8 @@ def test_class_not_subclass_of_request_authorizer_raises_type_error(
 
 
 def test_missing_module_env_variable_raises_value_error(mock_app_config):
-    mock_app_config.get.side_effect = (
-        lambda key: None if key == TA_AUTHORIZER_MODULE.env_name else "SomeClass"
+    mock_app_config.get.side_effect = lambda key: (
+        None if key == TA_AUTHORIZER_MODULE.env_name else "SomeClass"
     )  # noqa: E501
 
     with pytest.raises(ValueError, match="TA_AUTHORIZER_MODULE is not set"):
@@ -101,8 +101,8 @@ def test_missing_module_env_variable_raises_value_error(mock_app_config):
 
 
 def test_missing_class_env_variable_raises_value_error(mock_app_config):
-    mock_app_config.get.side_effect = (
-        lambda key: "some.module" if key == TA_AUTHORIZER_MODULE.env_name else None
+    mock_app_config.get.side_effect = lambda key: (
+        "some.module" if key == TA_AUTHORIZER_MODULE.env_name else None
     )  # noqa: E501
 
     with pytest.raises(ValueError, match="TA_AUTHORIZER_CLASS is not set"):

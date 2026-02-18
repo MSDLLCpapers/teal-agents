@@ -1,9 +1,9 @@
-from enum import Enum
+from enum import Enum, StrEnum
 
 from pydantic import BaseModel
 
 
-class ContextType(str, Enum):
+class ContextType(StrEnum):
     TRANSIENT = "transient"
     PERSISTENT = "persistent"
 

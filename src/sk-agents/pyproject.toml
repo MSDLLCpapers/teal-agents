@@ -5,7 +5,7 @@ description = "Teal Agents - Core Agent Framework"
 readme = "README.md"
 requires-python = ">=3.12, <3.14"
 dependencies = [
-    "semantic-kernel==1.33.0",
+    "semantic-kernel==1.39.4",
     "pyyaml",
     "pydantic",
     "pydantic-yaml",
@@ -22,6 +22,7 @@ dependencies = [
     "google-generativeai>=0.8.5",
     "google-ai-generativelanguage>=0.6.15",
     "mcp>=1.23.0",
+    "google-genai>=1.63.0",
 ]
 
 [project.urls]

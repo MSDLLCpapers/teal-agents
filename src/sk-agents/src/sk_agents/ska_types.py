@@ -3,7 +3,7 @@ from collections.abc import AsyncIterable
 from enum import Enum
 from typing import Any, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 from semantic_kernel.connectors.ai.chat_completion_client_base import (
     ChatCompletionClientBase,
 )
@@ -86,6 +86,16 @@ class HistoryMultiModalMessage(BaseModel):
     role: Literal["user", "assistant"]
     items: list[MultiModalItem]
 
+    @model_validator(mode="before")
+    @classmethod
+    def convert_content_to_items(cls, data: Any) -> Any:
+        """Auto-convert plain HistoryMessage format (content: str)
+        to MultiModal format (items: list)."""
+        if isinstance(data, dict) and "content" in data and "items" not in data:
+            content = data.pop("content")
+            data["items"] = [{"content_type": "text", "content": content}]
+        return data
+
 
 class BaseMultiModalInput(KernelBaseModel):
     session_id: str | None = None
@@ -95,7 +105,8 @@ class BaseMultiModalInput(KernelBaseModel):
 
 class BaseMultiModalInputWithUserContext(KernelBaseModel):
     """The history of a chat interaction between an automated assistant and a
-    human with multimodal input (text and images), along with context about the user."""
+    human with multimodal input (text and images),
+    along with context about the user."""
 
     session_id: str | None = None
     chat_history: list[HistoryMultiModalMessage] | None = None

@@ -243,11 +243,13 @@ class McpPluginRegistry:
                 user_id,
                 mcp_session_id=stored_session_id,
                 on_stale_session=(
-                    lambda sid: discovery_manager.clear_mcp_session(
-                        user_id, session_id, server_config.name, expected_session_id=sid
+                    lambda sid: (
+                        discovery_manager.clear_mcp_session(
+                            user_id, session_id, server_config.name, expected_session_id=sid
+                        )
+                        if discovery_manager
+                        else None
                     )
-                    if discovery_manager
-                    else None
                 ),
             )
 

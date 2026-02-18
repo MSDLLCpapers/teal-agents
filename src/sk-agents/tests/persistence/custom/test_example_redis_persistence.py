@@ -534,8 +534,8 @@ def test_clear_all_tasks_with_keys(mock_redis_class, mock_app_config):
     mock_client.ping.return_value = True
     mock_redis_class.return_value = mock_client
     manager = RedisTaskPersistenceManager(mock_app_config)
-    mock_client.keys.side_effect = (
-        lambda pattern: [f"{pattern}abc"] if "task:" in pattern else [f"{pattern}idx"]
+    mock_client.keys.side_effect = lambda pattern: (
+        [f"{pattern}abc"] if "task:" in pattern else [f"{pattern}idx"]
     )
     mock_client.delete.return_value = 2
     deleted = manager.clear_all_tasks()

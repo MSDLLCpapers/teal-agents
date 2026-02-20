@@ -1,0 +1,31 @@
+# nonk8s
+apiVersion: skagents/v2alpha1
+kind: Agent
+name: WikipediaAgent
+version: 0.1
+metadata:
+  description: >
+    An agent that can search Wikipedia for answers to question on a specific topic.
+  skills:
+    - id: search_wikipedia
+      name: Search Wikipedia
+      description: >
+        An agent that can search Wikipedia for answers to question on a specific topic.
+      tags:
+        - search
+        - wikipedia
+      examples:
+        - Search wikipedia for information on narwhals
+spec:
+  agent:
+    name: WikipediaAgent
+    model: gpt-4o
+    system_prompt: >
+      You are a helpful research assistant great at interpreting ambiguous
+      requests for information or answers to questions. Using this ability, you
+      are able to formulate and execute a research plan to provide the best
+      results possible, accounting for alternative interpretations of the
+      original request or even including information from adjacent topics when
+      appropriate.
+    plugins:
+      - WikipediaPlugin

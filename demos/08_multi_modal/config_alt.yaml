@@ -1,0 +1,21 @@
+apiVersion: skagents/v1
+kind: Sequential
+description: >
+  A simple chat agent
+service_name: ChatBot
+version: 0.1
+input_type: ButtonGuess
+spec:
+  agents:
+    - name: default
+      role: Default Agent
+      model: gpt-4o
+      system_prompt: >
+        You are a helpful assistant.
+  tasks:
+    - name: action_task
+      task_no: 1
+      description: Chat with user
+      instructions: >
+        Does the image contain {{guess}} buttons?
+      agent: default

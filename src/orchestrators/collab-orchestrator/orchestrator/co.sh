@@ -17,10 +17,10 @@ if [ "${TA_GITHUB}" == "true" ]; then
   git clone --no-checkout --depth=1 --branch=${TA_GH_BRANCH} https://oauth2:${TA_GH_TOKEN}@github.com/${TA_GH_ORG}/${TA_GH_REPO}.git
   cd ${TA_GH_REPO} || exit
   echo "Checking out ${TA_GH_BRANCH} to ${WORK_DIR}"
-  git checkout ${TA_GH_BRANCH} -- ${TA_CO_NAME}
+  git checkout ${TA_GH_BRANCH} -- ${TA_AO_NAME}
 
-  echo "Copying contents of ${TA_CO_NAME} to ${CONF_DIR}"
-  cd ${TA_CO_NAME} || exit
+  echo "Copying contents of ${TA_AO_NAME} to ${CONF_DIR}"
+  cd ${TA_AO_NAME} || exit
   cp -r . ${CONF_DIR}
   cd ${CONF_DIR} || exit
   echo "Removing temp dir ${WORK_DIR}"

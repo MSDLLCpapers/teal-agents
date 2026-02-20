@@ -3,7 +3,7 @@ name = "ska-utils"
 dynamic = ["version"]
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12, <3.14"
 dependencies = [
     "opentelemetry-exporter-otlp-proto-grpc>=1.29.0",
     "pydantic>=2.9.2",

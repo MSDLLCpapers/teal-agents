@@ -55,7 +55,7 @@ $ fastapi run src/sk_agents/app.py
 
 You can test the agent by visiting http://localhost:8000/docs
 
-![Agent Swagger UI](doc/assets/demo-1.png)
+![Agent Swagger UI](docs/assets/demo-1.png)
 
 ### Additional Documentation
 - [Configuring an Agent](/src/sk-agents/demos/01_getting_started/README.md)

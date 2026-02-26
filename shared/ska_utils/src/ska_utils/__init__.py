@@ -18,6 +18,7 @@ from .strtobool import strtobool as strtobool
 from .telemetry import (
     TA_OTEL_ENDPOINT as TA_OTEL_ENDPOINT,
     TA_TELEMETRY_ENABLED as TA_TELEMETRY_ENABLED,
+    AgentTelemetryLogger as AgentTelemetryLogger,
     Telemetry as Telemetry,
     get_telemetry as get_telemetry,
     initialize_telemetry as initialize_telemetry,

@@ -3,12 +3,11 @@ import logging
 import time
 import uuid
 from collections.abc import AsyncIterable
-from contextlib import nullcontext
 from copy import deepcopy
 from typing import Any
 
 from semantic_kernel.contents.chat_history import ChatHistory
-from ska_utils import get_telemetry
+from ska_utils import AgentTelemetryLogger, get_telemetry
 
 from sk_agents.exceptions import AgentInvokeException, InvalidConfigException
 from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
@@ -114,6 +113,14 @@ class SequentialSkagents(BaseHandler):
             task_inputs = None
         return task_inputs
 
+    @staticmethod
+    def _extract_user_isid(inputs: dict[str, Any] | None) -> str | None:
+        """Extract user ISID from inputs user_context if available."""
+        if inputs and "user_context" in inputs and inputs["user_context"]:
+            user_context = inputs["user_context"]
+            return user_context.get("user.isid") or user_context.get("isid")
+        return None
+
     async def invoke_stream(
         self, inputs: dict[str, Any] | None = None
     ) -> AsyncIterable[PartialResponse | IntermediateTaskResponse | InvokeResponse]:
@@ -136,11 +143,24 @@ class SequentialSkagents(BaseHandler):
         else:
             session_id = str(uuid.uuid4().hex)
         request_id = str(uuid.uuid4().hex)
+
+        # Determine agent info from the last task's agent for telemetry
+        last_agent_config = None
+        agents = self.config.get_agents()
+        if agents:
+            last_agent_config = agents[-1]
+
+        user_isid = SequentialSkagents._extract_user_isid(inputs)
+        agent_telemetry = AgentTelemetryLogger(
+            agent_name=last_agent_config.name if last_agent_config else self.name,
+            model_name=last_agent_config.model if last_agent_config else "unknown",
+            user_isid=user_isid,
+            telemetry=jt,
+        )
+
         average_ttft_ms = []
-        with (
-            jt.tracer.start_as_current_span("handler-stream")
-            if jt.telemetry_enabled()
-            else nullcontext()
+        with agent_telemetry.trace_agent_invocation(
+            "handler-stream", session_id=session_id, request_id=request_id
         ) as stream_span:
             logger.info("Beginning processing invoke stream")
 
@@ -168,6 +188,25 @@ class SequentialSkagents(BaseHandler):
                     total_tokens += i_response.token_usage.total_tokens
                     collector.add_extra_data_items(i_response.extra_data)
                     task_no += 1
+
+                    # Record tool calls made by the agent during this task
+                    tool_calls = getattr(task.agent, "last_tool_calls", None)
+                    if isinstance(tool_calls, list) and tool_calls:
+                        agent_telemetry.record_tool_calls(tool_calls)
+
+                    # Record reasoning tokens from this task (always report)
+                    reasoning_tokens = getattr(task.agent, "last_reasoning_tokens", 0)
+                    if not isinstance(reasoning_tokens, int):
+                        reasoning_tokens = 0
+                    agent_telemetry.record_reasoning(
+                        f"task:{task.name}:reasoning_tokens={reasoning_tokens}"
+                    )
+
+                    # Record each intermediate task invocation
+                    agent_telemetry.record_internal_function_call(
+                        f"task:{task.name}"
+                    )
+
                     yield IntermediateTaskResponse(
                         task_no=task_no,
                         task_name=task.name,
@@ -213,15 +252,42 @@ class SequentialSkagents(BaseHandler):
                         request_id=request_id,
                         output_partial=content,
                     )
-            if stream_span:
-                stream_span.set_attribute("completion_tokens", completion_tokens)
-                stream_span.set_attribute("prompt_tokens", prompt_tokens)
-                stream_span.set_attribute("total_tokens", total_tokens)
-                average_ttft = sum(average_ttft_ms) / len(average_ttft_ms) if average_ttft_ms else 0
-                stream_span.add_event(
-                    "agent_time_to_first_token",
-                    attributes={"first_token_time_ms": average_ttft},
-                )
+
+            average_ttft = sum(average_ttft_ms) / len(average_ttft_ms) if average_ttft_ms else 0
+
+            # Record tool calls made by the final task's agent
+            final_tool_calls = getattr(self.tasks[-1].agent, "last_tool_calls", None)
+            if isinstance(final_tool_calls, list) and final_tool_calls:
+                agent_telemetry.record_tool_calls(final_tool_calls)
+
+            # Record reasoning tokens from the final task (always report)
+            final_reasoning = getattr(self.tasks[-1].agent, "last_reasoning_tokens", 0)
+            if not isinstance(final_reasoning, int):
+                final_reasoning = 0
+            agent_telemetry.record_reasoning(
+                f"task:{self.tasks[-1].name}:reasoning_tokens={final_reasoning}"
+            )
+
+            # Enrich span with agent metadata
+            agent_telemetry.enrich_span(
+                span=stream_span,
+                session_id=session_id,
+                request_id=request_id,
+                completion_tokens=completion_tokens,
+                prompt_tokens=prompt_tokens,
+                total_tokens=total_tokens,
+                time_to_first_token_ms=average_ttft,
+            )
+
+            # Emit standardized structured log
+            agent_telemetry.emit_log(
+                session_id=session_id,
+                request_id=request_id,
+                completion_tokens=completion_tokens,
+                prompt_tokens=prompt_tokens,
+                total_tokens=total_tokens,
+            )
+
             logger.info(
                 f"{self.name}:{self.version} responded with {total_tokens} tokens. "
                 f"Session-id {session_id}, Request-id {request_id}"
@@ -268,10 +334,23 @@ class SequentialSkagents(BaseHandler):
         else:
             session_id = str(uuid.uuid4().hex)
         request_id = str(uuid.uuid4().hex)
-        with (
-            jt.tracer.start_as_current_span("handler-invoke")
-            if jt.telemetry_enabled()
-            else nullcontext()
+
+        # Determine agent info from the last task's agent for telemetry
+        last_agent_config = None
+        agents = self.config.get_agents()
+        if agents:
+            last_agent_config = agents[-1]
+
+        user_isid = SequentialSkagents._extract_user_isid(inputs)
+        agent_telemetry = AgentTelemetryLogger(
+            agent_name=last_agent_config.name if last_agent_config else self.name,
+            model_name=last_agent_config.model if last_agent_config else "unknown",
+            user_isid=user_isid,
+            telemetry=jt,
+        )
+
+        with agent_telemetry.trace_agent_invocation(
+            "handler-invoke", session_id=session_id, request_id=request_id
         ) as invoke_span:
             average_ttft_ms = []
             logger.info("Beginning processing invoke")
@@ -288,23 +367,55 @@ class SequentialSkagents(BaseHandler):
                     total_tokens += i_response.token_usage.total_tokens
                     collector.add_extra_data_items(i_response.extra_data)
                     task_no += 1
+
+                    # Record tool calls made by the agent during this task
+                    tool_calls = getattr(task.agent, "last_tool_calls", None)
+                    if isinstance(tool_calls, list) and tool_calls:
+                        agent_telemetry.record_tool_calls(tool_calls)
+
+                    # Record reasoning tokens from this task (always report)
+                    reasoning_tokens = getattr(task.agent, "last_reasoning_tokens", 0)
+                    if not isinstance(reasoning_tokens, int):
+                        reasoning_tokens = 0
+                    agent_telemetry.record_reasoning(
+                        f"task:{task.name}:reasoning_tokens={reasoning_tokens}"
+                    )
+
+                    # Record each task invocation
+                    agent_telemetry.record_internal_function_call(
+                        f"task:{task.name}"
+                    )
                 except Exception as e:
                     raise AgentInvokeException(
                         f"Error invoking {self.name}:{self.version} "
                         f"for Session-id {session_id}, Request-id {request_id}, "
                         f"Task description {task.description}. Error: {str(e)}"
                     ) from e
-            if invoke_span:
-                invoke_span.set_attribute("completion_tokens", completion_tokens)
-                invoke_span.set_attribute("prompt_tokens", prompt_tokens)
-                invoke_span.set_attribute("total_tokens", total_tokens)
-                average_response_time = (
-                    sum(average_ttft_ms) / len(average_ttft_ms) if average_ttft_ms else 0
-                )
-                invoke_span.add_event(
-                    "agent_response_time_ms",
-                    attributes={"response_time_ms": average_response_time},
-                )
+
+            average_response_time = (
+                sum(average_ttft_ms) / len(average_ttft_ms) if average_ttft_ms else 0
+            )
+
+            # Enrich span with agent metadata
+            agent_telemetry.enrich_span(
+                span=invoke_span,
+                session_id=session_id,
+                request_id=request_id,
+                completion_tokens=completion_tokens,
+                prompt_tokens=prompt_tokens,
+                total_tokens=total_tokens,
+                time_to_first_token_ms=average_response_time,
+            )
+
+            # Emit standardized structured log
+            agent_telemetry.emit_log(
+                session_id=session_id,
+                request_id=request_id,
+                completion_tokens=completion_tokens,
+                prompt_tokens=prompt_tokens,
+                total_tokens=total_tokens,
+            )
+
             logger.info(
                 f"{self.name}:{self.version} responded with {total_tokens} tokens. "
                 f"Session-id {session_id}, Request-id {request_id}"

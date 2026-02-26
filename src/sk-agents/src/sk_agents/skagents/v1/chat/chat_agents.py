@@ -145,12 +145,13 @@ class ChatAgents(BaseHandler):
             if isinstance(tool_calls, list) and tool_calls:
                 agent_telemetry.record_tool_calls(tool_calls)
 
-            # Record reasoning tokens from the agent
+            # Record reasoning tokens from the agent (always report)
             reasoning_tokens = getattr(agent, "last_reasoning_tokens", 0)
-            if isinstance(reasoning_tokens, int) and reasoning_tokens > 0:
-                agent_telemetry.record_reasoning(
-                    f"reasoning_tokens={reasoning_tokens}"
-                )
+            if not isinstance(reasoning_tokens, int):
+                reasoning_tokens = 0
+            agent_telemetry.record_reasoning(
+                f"reasoning_tokens={reasoning_tokens}"
+            )
 
             # Enrich span with agent metadata
             agent_telemetry.enrich_span(
@@ -246,12 +247,13 @@ class ChatAgents(BaseHandler):
             if isinstance(tool_calls, list) and tool_calls:
                 agent_telemetry.record_tool_calls(tool_calls)
 
-            # Record reasoning tokens from the agent
+            # Record reasoning tokens from the agent (always report)
             reasoning_tokens = getattr(agent, "last_reasoning_tokens", 0)
-            if isinstance(reasoning_tokens, int) and reasoning_tokens > 0:
-                agent_telemetry.record_reasoning(
-                    f"reasoning_tokens={reasoning_tokens}"
-                )
+            if not isinstance(reasoning_tokens, int):
+                reasoning_tokens = 0
+            agent_telemetry.record_reasoning(
+                f"reasoning_tokens={reasoning_tokens}"
+            )
 
             # Enrich span with agent metadata
             agent_telemetry.enrich_span(

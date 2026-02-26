@@ -194,12 +194,13 @@ class SequentialSkagents(BaseHandler):
                     if isinstance(tool_calls, list) and tool_calls:
                         agent_telemetry.record_tool_calls(tool_calls)
 
-                    # Record reasoning tokens from this task
+                    # Record reasoning tokens from this task (always report)
                     reasoning_tokens = getattr(task.agent, "last_reasoning_tokens", 0)
-                    if isinstance(reasoning_tokens, int) and reasoning_tokens > 0:
-                        agent_telemetry.record_reasoning(
-                            f"reasoning_tokens={reasoning_tokens}"
-                        )
+                    if not isinstance(reasoning_tokens, int):
+                        reasoning_tokens = 0
+                    agent_telemetry.record_reasoning(
+                        f"task:{task.name}:reasoning_tokens={reasoning_tokens}"
+                    )
 
                     # Record each intermediate task invocation
                     agent_telemetry.record_internal_function_call(
@@ -259,12 +260,13 @@ class SequentialSkagents(BaseHandler):
             if isinstance(final_tool_calls, list) and final_tool_calls:
                 agent_telemetry.record_tool_calls(final_tool_calls)
 
-            # Record reasoning tokens from the final task
+            # Record reasoning tokens from the final task (always report)
             final_reasoning = getattr(self.tasks[-1].agent, "last_reasoning_tokens", 0)
-            if isinstance(final_reasoning, int) and final_reasoning > 0:
-                agent_telemetry.record_reasoning(
-                    f"reasoning_tokens={final_reasoning}"
-                )
+            if not isinstance(final_reasoning, int):
+                final_reasoning = 0
+            agent_telemetry.record_reasoning(
+                f"task:{self.tasks[-1].name}:reasoning_tokens={final_reasoning}"
+            )
 
             # Enrich span with agent metadata
             agent_telemetry.enrich_span(
@@ -371,12 +373,13 @@ class SequentialSkagents(BaseHandler):
                     if isinstance(tool_calls, list) and tool_calls:
                         agent_telemetry.record_tool_calls(tool_calls)
 
-                    # Record reasoning tokens from this task
+                    # Record reasoning tokens from this task (always report)
                     reasoning_tokens = getattr(task.agent, "last_reasoning_tokens", 0)
-                    if isinstance(reasoning_tokens, int) and reasoning_tokens > 0:
-                        agent_telemetry.record_reasoning(
-                            f"reasoning_tokens={reasoning_tokens}"
-                        )
+                    if not isinstance(reasoning_tokens, int):
+                        reasoning_tokens = 0
+                    agent_telemetry.record_reasoning(
+                        f"task:{task.name}:reasoning_tokens={reasoning_tokens}"
+                    )
 
                     # Record each task invocation
                     agent_telemetry.record_internal_function_call(

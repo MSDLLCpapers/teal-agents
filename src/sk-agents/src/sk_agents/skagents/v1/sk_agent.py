@@ -43,17 +43,18 @@ class SKAgent:
         return self._last_reasoning_tokens
 
     @staticmethod
-    def _extract_tool_calls_from_history(
-        history: ChatHistory, initial_message_count: int
+    def _extract_tool_calls_from_messages(
+        messages: list[ChatMessageContent],
     ) -> list[str]:
-        """Extract tool call names from messages added to history during invocation.
+        """Extract tool call names from intermediate messages.
 
-        Semantic Kernel's ChatCompletionAgent automatically handles tool calling
-        and appends FunctionCallContent items to the chat history. This method
-        inspects the new messages added during an invocation to extract tool names.
+        Semantic Kernel's ChatCompletionAgent handles tool calling internally
+        and provides intermediate messages (including FunctionCallContent) via
+        the on_intermediate_message callback. This method inspects those messages
+        to extract tool names.
         """
         tool_calls: list[str] = []
-        for message in history.messages[initial_message_count:]:
+        for message in messages:
             for item in message.items:
                 if isinstance(item, FunctionCallContent):
                     full_name = (
@@ -65,39 +66,63 @@ class SKAgent:
         return tool_calls
 
     @staticmethod
-    def _extract_reasoning_from_history(
-        history: ChatHistory, initial_message_count: int
+    def _extract_reasoning_from_messages(
+        messages: list[ChatMessageContent],
     ) -> int:
-        """Extract total reasoning tokens from messages added during invocation."""
+        """Extract total reasoning tokens from intermediate messages."""
         total_reasoning = 0
-        for message in history.messages[initial_message_count:]:
+        for message in messages:
             total_reasoning += get_reasoning_tokens_for_response(message)
         return total_reasoning
 
     async def invoke_stream(
         self, history: ChatHistory
     ) -> AsyncIterable[StreamingChatMessageContent]:
-        initial_count = len(history.messages)
         self._last_tool_calls = []
         self._last_reasoning_tokens = 0
-        async for result in self.agent.invoke_stream(messages=history):
+        intermediate_messages: list[ChatMessageContent] = []
+
+        async def _on_intermediate_message(message: ChatMessageContent) -> None:
+            intermediate_messages.append(message)
+
+        async for result in self.agent.invoke_stream(
+            messages=history,
+            on_intermediate_message=_on_intermediate_message,
+        ):
+            # Accumulate reasoning tokens from streamed response chunks
+            self._last_reasoning_tokens += get_reasoning_tokens_for_response(
+                result.content
+            )
             yield result.content
-        self._last_tool_calls = SKAgent._extract_tool_calls_from_history(
-            history, initial_count
+        self._last_tool_calls = SKAgent._extract_tool_calls_from_messages(
+            intermediate_messages
         )
-        self._last_reasoning_tokens = SKAgent._extract_reasoning_from_history(
-            history, initial_count
+        # Also check intermediate messages for any reasoning tokens
+        self._last_reasoning_tokens += SKAgent._extract_reasoning_from_messages(
+            intermediate_messages
         )
 
     async def invoke(self, history: ChatHistory) -> AsyncIterable[ChatMessageContent]:
-        initial_count = len(history.messages)
         self._last_tool_calls = []
         self._last_reasoning_tokens = 0
-        async for result in self.agent.invoke(messages=history):
+        intermediate_messages: list[ChatMessageContent] = []
+        response_messages: list[ChatMessageContent] = []
+
+        async def _on_intermediate_message(message: ChatMessageContent) -> None:
+            intermediate_messages.append(message)
+
+        async for result in self.agent.invoke(
+            messages=history,
+            on_intermediate_message=_on_intermediate_message,
+        ):
+            response_messages.append(result.content)
             yield result.content
-        self._last_tool_calls = SKAgent._extract_tool_calls_from_history(
-            history, initial_count
+        self._last_tool_calls = SKAgent._extract_tool_calls_from_messages(
+            intermediate_messages
         )
-        self._last_reasoning_tokens = SKAgent._extract_reasoning_from_history(
-            history, initial_count
+        # Extract reasoning from both response messages and intermediate messages
+        self._last_reasoning_tokens = SKAgent._extract_reasoning_from_messages(
+            response_messages
+        ) + SKAgent._extract_reasoning_from_messages(
+            intermediate_messages
         )

@@ -966,6 +966,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 total_tokens += call_usage.total_tokens
 
                 # Check for reasoning/thinking in response metadata
+                reasoning_tokens = 0
                 if hasattr(response, "inner_content") and response.inner_content:
                     inner = response.inner_content
                     # OpenAI reasoning tokens
@@ -974,11 +975,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                     ):
                         details = inner.usage.completion_tokens_details
                         if details and hasattr(details, "reasoning_tokens"):
-                            reasoning_tokens = details.reasoning_tokens
-                            if reasoning_tokens and reasoning_tokens > 0:
-                                agent_telemetry.record_reasoning(
-                                    f"reasoning_tokens={reasoning_tokens}"
-                                )
+                            reasoning_tokens = details.reasoning_tokens or 0
+                agent_telemetry.record_reasoning(
+                    f"reasoning_tokens={reasoning_tokens}"
+                )
 
                 # A response may have multiple items, e.g., multiple tool calls
                 fc_in_response = [
@@ -1163,6 +1163,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 total_tokens += call_usage.total_tokens
 
                 # Check for reasoning/thinking in response metadata
+                reasoning_tokens = 0
                 if hasattr(response, "inner_content") and response.inner_content:
                     inner = response.inner_content
                     if hasattr(inner, "usage") and inner.usage and hasattr(
@@ -1170,11 +1171,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                     ):
                         details = inner.usage.completion_tokens_details
                         if details and hasattr(details, "reasoning_tokens"):
-                            reasoning_tokens = details.reasoning_tokens
-                            if reasoning_tokens and reasoning_tokens > 0:
-                                agent_telemetry.record_reasoning(
-                                    f"reasoning_tokens={reasoning_tokens}"
-                                )
+                            reasoning_tokens = details.reasoning_tokens or 0
+                agent_telemetry.record_reasoning(
+                    f"reasoning_tokens={reasoning_tokens}"
+                )
 
                 if response.content:
                     try:

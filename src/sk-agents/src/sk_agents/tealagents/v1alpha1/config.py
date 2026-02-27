@@ -205,3 +205,8 @@ class AgentConfig(BaseModel):
     plugins: list[str] | None = None
     remote_plugins: list[str] | None = None
     mcp_servers: list[McpServerConfig] | None = None
+    # CDW-1602: Extended thinking support
+    include_thinking: bool = Field(
+        default=False,
+        description="Include extended thinking/reasoning in response"
+    )

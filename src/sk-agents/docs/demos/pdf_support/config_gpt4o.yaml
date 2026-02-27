@@ -1,0 +1,44 @@
+apiVersion: skagents/v1
+kind: Sequential
+description: PDF Support Demo with GPT-4o - Tests multimodal PDF processing
+service_name: PDFSupportGPT4o
+version: 1.0.0
+input_type: BaseMultiModalInput  # Required for PDF/image support
+
+spec:
+  agents:
+    - name: pdf_analyzer
+      role: PDF Document Analyzer
+      model: gpt-4o-2024-08-06  # GPT-4o with vision/multimodal support
+      system_prompt: |
+        You are an expert document analyzer specialized in processing PDF files.
+        
+        Your capabilities include:
+        - Reading and extracting text from PDF documents
+        - Analyzing document structure and layout
+        - Identifying key information, dates, figures, and entities
+        - Summarizing content clearly and concisely
+        - Answering specific questions about document content
+        - Comparing multiple documents when provided
+        
+        Always provide:
+        1. Direct answers to user questions
+        2. Relevant quotes or references from the PDF
+        3. Clear, structured responses
+        
+        If the PDF content is unclear or the question cannot be answered from the document,
+        explicitly state that and explain why.
+      temperature: 0.7
+      max_tokens: 4000
+      include_thinking: true  # Enable extended thinking
+
+  tasks:
+    - name: analyze_pdf
+      task_no: 1
+      description: Analyze PDF documents and answer questions
+      instructions: |
+        Process the uploaded PDF document and respond to the user's question.
+        Provide detailed, accurate information based solely on the document content.
+        
+        If multiple PDFs are provided, analyze all of them and compare/contrast as needed.
+      agent: pdf_analyzer

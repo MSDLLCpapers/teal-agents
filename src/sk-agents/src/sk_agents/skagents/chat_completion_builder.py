@@ -1,3 +1,4 @@
+import importlib
 import logging
 
 from semantic_kernel.connectors.ai.chat_completion_client_base import (
@@ -28,10 +29,24 @@ class ChatCompletionBuilder:
             if not ccc_factory_name:
                 raise ValueError("Custom Chat Completion Factory class name not provided")
 
-            cccf_module = ModuleLoader.load_module(cccf_module_name)
+            # Try to import as a Python module first (for installed packages)
+            # If that fails, try to load as a file path (legacy behavior)
+            try:
+                if "/" in cccf_module_name or cccf_module_name.endswith(".py"):
+                    # File path - use ModuleLoader
+                    cccf_module = ModuleLoader.load_module(cccf_module_name)
+                else:
+                    # Python module path - use importlib
+                    cccf_module = importlib.import_module(cccf_module_name)
+            except (ImportError, ModuleNotFoundError) as e:
+                raise ImportError(
+                    f"Failed to import custom chat completion factory module: {cccf_module_name}. "
+                    f"Error: {e}"
+                )
+            
             if not hasattr(cccf_module, ccc_factory_name):
                 raise ValueError(
-                    f"Custom Chat Completion Factory class: {ccc_factory_name}"
+                    f"Custom Chat Completion Factory class: {ccc_factory_name} "
                     f"Not found in module: {cccf_module_name}"
                 )
             ccc_factory_type: type[ChatCompletionFactory] = getattr(cccf_module, ccc_factory_name)

@@ -1,0 +1,12 @@
+apiVersion: skagents/v1
+kind: AssistantOrchestrator
+description: >
+  Assistant Orchestrator for demo chat app
+service_name: DemoAgentOrchestrator
+version: 0.1
+spec:
+  fallback_agent: GeneralAgent:0.1
+  agent_chooser: AgentSelectorAgent:0.1
+  agents:
+    - MathAgent:0.1
+    - WeatherAgent:0.1

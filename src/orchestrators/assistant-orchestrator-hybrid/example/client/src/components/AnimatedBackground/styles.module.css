@@ -1,0 +1,69 @@
+.main {
+    position: absolute;
+    opacity: 0.3;
+    width: 100svw;
+    display: flex;
+    flex: 1;
+    height: 100svh;
+    justify-content: space-evenly;
+    overflow: hidden;
+}
+.group1 {
+    width: 50%;
+    --random-time: 1s;
+    --random-delay: 1;
+}
+
+.group2 {
+    width: 50%;
+    --random-time: 2s;
+    --random-delay: 2;
+}
+
+@keyframes animate {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+@keyframes animate2 {
+    0% {
+        transform: rotate(360deg);
+    }
+
+    100% {
+        transform: rotate(0deg);
+    }
+}
+
+.box {
+    position: absolute;
+    width: 65%;
+    aspect-ratio: 1/1;
+    top: 32%;
+    border: 0.5px inset transparent;
+    border-top: 4px solid;
+    border-radius: 50%;
+    animation: animate calc(4s + (2 * var(--random-time, 1s))) linear infinite;
+    transition: border-color 3s, filter 3s;
+}
+.box:nth-child(2) {
+    top: auto;
+    bottom: 2%;
+    border: 0.5px inset transparent;
+    border-left: 4px solid;
+    border-radius: 50%;
+    animation: animate2 calc(4s + (2 * var(--random-time, 1s))) linear infinite;
+    animation-delay: calc(-2.5s * var(--random-delay, 1));
+}
+
+.box:nth-child(3) {
+    top: 2%;
+    border: 0.5px inset transparent;
+    border-right: 4px solid;
+    animation: animate2 calc(4s + (2 * var(--random-time, 1s))) linear infinite;
+    animation-delay: calc(-2.5s * var(--random-delay, 1));
+}

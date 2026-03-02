@@ -80,7 +80,7 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
                 async_client=AsyncAnthropic(
                     api_key="unused",
                     base_url=f"{self.url_base}/anthropic/{model_name}-v1",
-                    default_headers={"X-Custom-Header": self.api_key},
+                    default_headers={"api-key": self.api_key},
                 ),
             )
         elif model_name in ExampleCustomChatCompletionFactory._GOOGLE_MODELS:

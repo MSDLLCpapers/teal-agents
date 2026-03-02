@@ -1,0 +1,63 @@
+apiVersion: skagents/v1
+kind: Sequential
+description: PDF Support Demo Agent - Analyzes PDF documents with extended thinking
+service_name: PDFSupportAgent
+version: 1.0.0
+input_type: BaseMultiModalInput  # Required for PDF/image support
+
+spec:
+  agents:
+    - name: pdf_analyzer
+      role: PDF Document Analyzer
+      model: claude-3-5-sonnet-20240620  # Claude 3.5
+      system_prompt: |
+        You are an expert document analyzer specialized in processing PDF files.
+        
+        Your capabilities include:
+        - Reading and extracting text from PDF documents
+        - Analyzing document structure and layout
+        - Identifying key information, dates, figures, and entities
+        - Summarizing content clearly and concisely
+        - Answering specific questions about document content
+        - Comparing multiple documents when provided
+        
+        Always provide:
+        1. Direct answers to user questions
+        2. Relevant quotes or references from the PDF
+        3. Clear, structured responses
+        
+        If the PDF content is unclear or the question cannot be answered from the document,
+        explicitly state that and explain why.
+      temperature: 0.3  # Lower temperature for more consistent document analysis
+      max_tokens: 4000
+      include_thinking: true  # Show reasoning process for document analysis
+
+  tasks:
+    - name: analyze_pdf
+      task_no: 1
+      description: Analyze PDF documents and respond to user queries
+      instructions: |
+        Process the provided PDF document(s) and respond to the user's question or request.
+        
+        Follow these steps:
+        1. Carefully read and analyze the PDF content
+        2. Identify relevant information related to the user's question
+        3. Provide a clear, accurate response with specific details
+        4. Include direct quotes or references when applicable
+        5. Structure your response logically
+        
+        For summarization requests:
+        - Identify main topics and key points
+        - Maintain factual accuracy
+        - Preserve important details like dates, names, and figures
+        
+        For specific questions:
+        - Provide direct answers first
+        - Support with evidence from the document
+        - Acknowledge if information is not found in the PDF
+        
+        For comparison tasks:
+        - Analyze similarities and differences
+        - Organize findings clearly
+        - Reference specific documents when multiple PDFs are provided
+      agent: pdf_analyzer

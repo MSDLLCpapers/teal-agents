@@ -197,7 +197,7 @@ spec:
 
 ```bash
 TA_API_KEY=your-api-key
-TA_BASE_URL=https://iapi-test.merck.com/gpt/libsupport
+TA_BASE_URL=https://your-api-endpoint.example.com
 TA_SERVICE_CONFIG=path/to/your/config.yaml
 TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE=sk_agents.chat_completion.custom.example_custom_chat_completion_factory
 TA_CUSTOM_CHAT_COMPLETION_FACTORY_CLASS_NAME=ExampleCustomChatCompletionFactory
@@ -314,7 +314,7 @@ spec:
 
 ```bash
 TA_API_KEY=your-api-key
-TA_BASE_URL=https://iapi-test.merck.com/gpt/libsupport
+TA_BASE_URL=https://your-api-endpoint.example.com
 TA_SERVICE_CONFIG=docs/demos/thinking_test/config.yaml
 TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE=sk_agents.chat_completion.custom.example_custom_chat_completion_factory
 TA_CUSTOM_CHAT_COMPLETION_FACTORY_CLASS_NAME=ExampleCustomChatCompletionFactory
@@ -535,7 +535,7 @@ teal-agents/
 
 **Key Change** (Line 83):
 - Updated Claude authentication header from `X-Custom-Header` to `api-key`
-- Required for proper authentication with Merck's API gateway
+- Required for proper authentication with your API gateway
 
 ---
 
@@ -557,7 +557,7 @@ teal-agents/
 
 ```bash
 TA_API_KEY=<your-api-key>
-TA_BASE_URL=https://iapi-test.merck.com/gpt/libsupport
+TA_BASE_URL=https://your-api-endpoint.example.com
 TA_API_VERSION=2024-02-15-preview
 TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE=sk_agents.chat_completion.custom.example_custom_chat_completion_factory
 TA_CUSTOM_CHAT_COMPLETION_FACTORY_CLASS_NAME=ExampleCustomChatCompletionFactory

@@ -9,7 +9,7 @@ spec:
   agents:
     - name: default
       role: Reasoning Agent
-      model: gpt-4o-2024-08-06  # Latest GPT-4o model from Merck list
+      model: gpt-4o-2024-08-06  # GPT-4o model
       system_prompt: |
         You are a helpful assistant that provides clear, well-reasoned responses.
         Take time to think through problems carefully.

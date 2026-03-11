@@ -4,11 +4,20 @@ import uuid
 from collections.abc import AsyncIterable
 from typing import Any
 
+import httpx
+import openai
 from semantic_kernel.contents import ChatMessageContent, TextContent
 from semantic_kernel.contents.chat_history import ChatHistory
 from semantic_kernel.contents.utils.author_role import AuthorRole
+from semantic_kernel.exceptions import ServiceResponseException
 from ska_utils import AgentTelemetryLogger, get_telemetry
 
+from sk_agents.exceptions import (
+    AgentInvokeException,
+    AgentUnavailableException,
+    LLMAuthenticationException,
+    LLMServiceException,
+)
 from sk_agents.extra_data_collector import ExtraDataCollector, ExtraDataPartial
 from sk_agents.ska_types import (
     BaseConfig,
@@ -48,6 +57,76 @@ class ChatAgents(BaseHandler):
             raise ValueError("Invalid config")
 
         self.agent_builder = agent_builder
+
+    @staticmethod
+    def _extract_agent_name_from_error(error: Exception) -> str:
+        """Extract agent name from error message if possible."""
+        error_str = str(error)
+        for prefix in ["Error invoking ", "Error calling "]:
+            if prefix in error_str:
+                rest = error_str.split(prefix, 1)[1]
+                if ":" in rest:
+                    return rest.split(":")[0]
+        return "unknown"
+
+    @staticmethod
+    def _classify_llm_error(error: Exception) -> None:
+        """
+        This unwraps ServiceResponseException from Semantic Kernel
+        and raises the appropriate specific exception.
+        If no specific classification is found, returns without raising.
+        """
+        if isinstance(error, ServiceResponseException):
+            inner = error.__cause__ or error
+        else:
+            inner = error
+
+        # Check for openai-specific exceptions
+        if isinstance(inner, openai.AuthenticationError):
+            raise LLMAuthenticationException(
+                status_code=401,
+                message=f"LLM authentication failed: {str(inner)}"
+            ) from error
+        if isinstance(inner, openai.PermissionDeniedError):
+            raise LLMAuthenticationException(
+                status_code=403,
+                message=f"LLM permission denied: {str(inner)}"
+            ) from error
+        if isinstance(inner, openai.RateLimitError):
+            raise LLMServiceException(
+                error_type="rate_limit",
+                message=f"LLM rate limit exceeded: {str(inner)}",
+                status_code=429,
+            ) from error
+        if isinstance(inner, openai.NotFoundError):
+            raise LLMServiceException(
+                error_type="model_not_found",
+                message=f"LLM model or resource not found: {str(inner)}",
+                status_code=404,
+            ) from error
+        if isinstance(inner, openai.APIStatusError):
+            raise LLMServiceException(
+                error_type="service_error",
+                message=f"LLM API error: {str(inner)}",
+                status_code=getattr(inner, "status_code", None),
+            ) from error
+        if isinstance(inner, openai.APIConnectionError):
+            raise LLMServiceException(
+                error_type="connection_error",
+                message=f"Cannot connect to LLM service: {str(inner)}",
+            ) from error
+        if isinstance(inner, openai.APITimeoutError):
+            raise LLMServiceException(
+                error_type="timeout",
+                message=f"LLM request timed out: {str(inner)}",
+            ) from error
+
+        # If it was a ServiceResponseException but not openai, still raise as LLM error
+        if isinstance(error, ServiceResponseException):
+            raise LLMServiceException(
+                error_type="service_error",
+                message=f"LLM service error: {str(error)}",
+            ) from error
 
     @staticmethod
     def _augment_with_user_context(
@@ -111,32 +190,50 @@ class ChatAgents(BaseHandler):
             start_time = time.time()
             titme_to_first_token_ms = 0.0
             logger.info("Beginning processing invoke stream")
-            async for chunk in agent.invoke_stream(chat_history):
-                if not first_token_received:
-                    first_token_time = time.time()
-                    titme_to_first_token_ms = (first_token_time - start_time) * 1000
-                    first_token_received = True
-                # Initialize content as the partial message in chunk
-                content = chunk.content
-                # Calculate usage metrics
-                call_usage = get_token_usage_for_response(agent.get_model_type(), chunk)
-                completion_tokens += call_usage.completion_tokens
-                prompt_tokens += call_usage.prompt_tokens
-                total_tokens += call_usage.total_tokens
-                try:
-                    # Attempt to parse as ExtraDataPartial
-                    extra_data_partial: ExtraDataPartial = ExtraDataPartial.new_from_json(content)
-                    extra_data_collector.add_extra_data_items(extra_data_partial.extra_data)
-                except Exception:
-                    if len(content) > 0:
-                        # Handle and return partial response
-                        final_response.append(content)
-                        yield PartialResponse(
-                            session_id=session_id,
-                            source=f"{self.name}:{self.version}",
-                            request_id=request_id,
-                            output_partial=content,
-                        )
+            try:
+                async for chunk in agent.invoke_stream(chat_history):
+                    if not first_token_received:
+                        first_token_time = time.time()
+                        titme_to_first_token_ms = (first_token_time - start_time) * 1000
+                        first_token_received = True
+                    # Initialize content as the partial message in chunk
+                    content = chunk.content
+                    # Calculate usage metrics
+                    call_usage = get_token_usage_for_response(agent.get_model_type(), chunk)
+                    completion_tokens += call_usage.completion_tokens
+                    prompt_tokens += call_usage.prompt_tokens
+                    total_tokens += call_usage.total_tokens
+                    try:
+                        # Attempt to parse as ExtraDataPartial
+                        extra_data_partial: ExtraDataPartial = ExtraDataPartial.new_from_json(content)
+                        extra_data_collector.add_extra_data_items(extra_data_partial.extra_data)
+                    except Exception:
+                        if len(content) > 0:
+                            # Handle and return partial response
+                            final_response.append(content)
+                            yield PartialResponse(
+                                session_id=session_id,
+                                source=f"{self.name}:{self.version}",
+                                request_id=request_id,
+                                output_partial=content,
+                            )
+            except httpx.ConnectError as e:
+                agent_name = self._extract_agent_name_from_error(e)
+                raise AgentUnavailableException(
+                    agent_name=agent_name,
+                    message=f"Connection refused: {str(e)}",
+                ) from e
+            except httpx.HTTPStatusError as e:
+                agent_name = self._extract_agent_name_from_error(e)
+                if e.response.status_code in (502, 503, 504):
+                    raise AgentUnavailableException(
+                        agent_name=agent_name,
+                        message=f"Agent returned HTTP {e.response.status_code}: {str(e)}",
+                    ) from e
+                self._classify_llm_error(e)
+            except (ServiceResponseException, openai.OpenAIError) as e:
+                self._classify_llm_error(e)
+                raise
             # Build the final response with InvokeResponse
             logger.info("Building the final response with InvokeRespons")
 
@@ -228,17 +325,35 @@ class ChatAgents(BaseHandler):
             start_time = time.time()
             titme_to_first_token_ms = 0.0
             logger.info("Beginning processing invoke")
-
-            async for content in agent.invoke(chat_history):
-                if not first_token_received:
-                    first_token_time = time.time()
-                    titme_to_first_token_ms = (first_token_time - start_time) * 1000
-                    first_token_received = True
-                response_content.append(content)
-                call_usage = get_token_usage_for_response(agent.get_model_type(), content)
-                completion_tokens += call_usage.completion_tokens
-                prompt_tokens += call_usage.prompt_tokens
-                total_tokens += call_usage.total_tokens
+            try:
+                async for content in agent.invoke(chat_history):
+                    if not first_token_received:
+                        first_token_time = time.time()
+                        titme_to_first_token_ms = (first_token_time - start_time) * 1000
+                        first_token_received = True
+                    response_content.append(content)
+                    call_usage = get_token_usage_for_response(agent.get_model_type(), content)
+                    completion_tokens += call_usage.completion_tokens
+                    prompt_tokens += call_usage.prompt_tokens
+                    total_tokens += call_usage.total_tokens
+            except httpx.ConnectError as e:
+                agent_name = self._extract_agent_name_from_error(e)
+                raise AgentUnavailableException(
+                    agent_name=agent_name,
+                    message=f"Connection refused: {str(e)}",
+                ) from e
+            except httpx.HTTPStatusError as e:
+                agent_name = self._extract_agent_name_from_error(e)
+                if e.response.status_code in (502, 503, 504):
+                    raise AgentUnavailableException(
+                        agent_name=agent_name,
+                        message=f"Agent returned HTTP {e.response.status_code}: {str(e)}",
+                    ) from e
+                self._classify_llm_error(e)
+                raise
+            except (ServiceResponseException, openai.OpenAIError) as e:
+                self._classify_llm_error(e)
+                raise
 
             logger.info("Building the final response with InvokeRespons")
 

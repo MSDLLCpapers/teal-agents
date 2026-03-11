@@ -28,6 +28,12 @@ from sk_agents.configs import (
     TA_PROVIDER_URL,
 )
 from sk_agents.persistence.task_persistence_manager import TaskPersistenceManager
+from sk_agents.exceptions import (
+    AgentInvokeException,
+    AgentUnavailableException,
+    LLMAuthenticationException,
+    LLMServiceException,
+)
 from sk_agents.ska_types import (
     BaseConfig,
     BaseHandler,
@@ -230,15 +236,47 @@ class Routes:
                 if st.telemetry_enabled()
                 else nullcontext()
             ):
-                match root_handler_name:
-                    case "skagents":
-                        handler: BaseHandler = skagents_handle(config, app_config, authorization)
-                    case _:
-                        raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
-
                 inv_inputs = inputs.__dict__
-                output = await handler.invoke(inputs=inv_inputs)
-                return output
+                try:
+                    match root_handler_name:
+                        case "skagents":
+                            handler: BaseHandler = skagents_handle(config, app_config, authorization)
+                        case _:
+                            raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
+
+                    output = await handler.invoke(inputs=inv_inputs)
+                    return output
+                except AgentUnavailableException as e:
+                    logger.exception(f"Agent unavailable: {e}")
+                    raise HTTPException(
+                        status_code=502, detail=f"Agent unavailable: {e.message}"
+                    ) from e
+                except LLMAuthenticationException as e:
+                    logger.exception(f"LLM authentication failed: {e}")
+                    raise HTTPException(
+                        status_code=401,
+                        detail=f"LLM authentication failed: {e.message}",
+                    ) from e
+                except LLMServiceException as e:
+                    sc = {
+                        "rate_limit": 429, "model_not_found": 404,
+                        "server_error": 502, "content_filter": 400,
+                    }.get(e.error_type, 502)
+                    logger.exception(f"LLM service error: {e}")
+                    raise HTTPException(
+                        status_code=sc,
+                        detail=f"LLM service error ({e.error_type}): {e.message}",
+                    ) from e
+                except AgentInvokeException as e:
+                    logger.exception(f"Agent invocation failed: {e}")
+                    raise HTTPException(
+                        status_code=500, detail=f"Agent invocation failed: {e.message}"
+                    ) from e
+                except Exception as e:
+                    logger.exception(f"Unexpected error: {e}")
+                    raise HTTPException(
+                        status_code=500, detail=f"Internal Server Error: {str(e)}"
+                    ) from e
 
         @router.post("/sse")
         @docstring_parameter(description)
@@ -267,8 +305,24 @@ class Routes:
                                 config, app_config, authorization
                             )
                             # noinspection PyTypeChecker
-                            async for content in handler.invoke_stream(inputs=inv_inputs):
-                                yield get_sse_event_for_response(content)
+                            try:
+                                async for content in handler.invoke_stream(inputs=inv_inputs):
+                                    yield get_sse_event_for_response(content)
+                            except AgentUnavailableException as e:
+                                logger.exception(f"Agent unavailable in SSE: {e}")
+                                yield get_sse_event_for_response({"error": f"Agent unavailable: {e.message}", "status_code": 502})
+                            except LLMAuthenticationException as e:
+                                logger.exception(f"LLM auth failed in SSE: {e}")
+                                yield get_sse_event_for_response({"error": f"LLM authentication failed: {e.message}", "status_code": 401})
+                            except LLMServiceException as e:
+                                logger.exception(f"LLM service error in SSE: {e}")
+                                yield get_sse_event_for_response({"error": f"LLM service error ({e.error_type}): {e.message}", "status_code": getattr(e, "status_code", 502) or 502})
+                            except AgentInvokeException as e:
+                                logger.exception(f"Agent invocation failed in SSE: {e}")
+                                yield get_sse_event_for_response({"error": f"Agent invocation failed: {e.message}", "status_code": 500})
+                            except Exception as e:
+                                logger.exception(f"Unexpected error in SSE: {e}")
+                                yield get_sse_event_for_response({"error": f"Internal Server Error: {str(e)}", "status_code": 500})
                         case _:
                             logger.exception(
                                 "Unknown apiVersion: %s", config.apiVersion, exc_info=True
@@ -367,7 +421,39 @@ class Routes:
             teal_handler = Routes.get_task_handler(
                 config, app_config, user_id, state_manager, mcp_discovery_manager
             )
-            response_content = await teal_handler.invoke(user_id, message)
+            try:
+                response_content = await teal_handler.invoke(user_id, message)
+            except AgentUnavailableException as e:
+                logger.exception(f"Agent unavailable: {e}")
+                raise HTTPException(
+                    status_code=502, detail=f"Agent unavailable: {e.message}"
+                ) from e
+            except LLMAuthenticationException as e:
+                logger.exception(f"LLM authentication failed: {e}")
+                raise HTTPException(
+                    status_code=401,
+                    detail=f"LLM authentication failed: {e.message}",
+                ) from e
+            except LLMServiceException as e:
+                sc = {
+                    "rate_limit": 429, "model_not_found": 404,
+                    "server_error": 502, "content_filter": 400,
+                }.get(e.error_type, 502)
+                logger.exception(f"LLM service error: {e}")
+                raise HTTPException(
+                    status_code=sc,
+                    detail=f"LLM service error ({e.error_type}): {e.message}",
+                ) from e
+            except AgentInvokeException as e:
+                logger.exception(f"Agent invocation failed: {e}")
+                raise HTTPException(
+                    status_code=500, detail=f"Agent invocation failed: {e.message}"
+                ) from e
+            except Exception as e:
+                logger.exception(f"Unexpected error: {e}")
+                raise HTTPException(
+                    status_code=500, detail=f"Internal Server Error: {str(e)}"
+                ) from e
             # Return response with state identifiers
             status = TaskStatus.COMPLETED.value
             if type(response_content) is HitlResponse:
@@ -399,9 +485,29 @@ class Routes:
             )
             try:
                 return await teal_handler.resume_task(authorization, request_id, body, stream=False)
+            except AgentUnavailableException as e:
+                logger.exception(f"Agent unavailable in resume: {e}")
+                raise HTTPException(
+                    status_code=502, detail=f"Agent unavailable: {e.message}"
+                ) from e
+            except LLMAuthenticationException as e:
+                logger.exception(f"LLM auth failed in resume: {e}")
+                raise HTTPException(
+                    status_code=401, detail=f"LLM authentication failed: {e.message}"
+                ) from e
+            except LLMServiceException as e:
+                sc = {
+                    "rate_limit": 429, "model_not_found": 404,
+                    "server_error": 502, "content_filter": 400,
+                }.get(e.error_type, 502)
+                logger.exception(f"LLM service error in resume: {e}")
+                raise HTTPException(status_code=sc, detail=f"LLM service error ({e.error_type}): {e.message}") from e
+            except AgentInvokeException as e:
+                logger.exception(f"Agent invocation failed in resume: {e}")
+                raise HTTPException(status_code=500, detail=f"Agent invocation failed: {e.message}") from e
             except Exception as e:
                 logger.exception(f"Error in resume: {e}")
-                raise HTTPException(status_code=500, detail="Internal Server Error") from e
+                raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}") from e
 
         @router.post("/tealagents/v1alpha1/resume/{request_id}/sse")
         async def resume_sse(request_id: str, request: Request, body: ResumeRequest):
@@ -416,9 +522,21 @@ class Routes:
                         authorization, request_id, body, stream=True
                     ):
                         yield get_sse_event_for_response(content)
+                except AgentUnavailableException as e:
+                    logger.exception(f"Agent unavailable in resume_sse: {e}")
+                    yield get_sse_event_for_response({"error": f"Agent unavailable: {e.message}", "status_code": 502})
+                except LLMAuthenticationException as e:
+                    logger.exception(f"LLM auth failed in resume_sse: {e}")
+                    yield get_sse_event_for_response({"error": f"LLM authentication failed: {e.message}", "status_code": 401})
+                except LLMServiceException as e:
+                    logger.exception(f"LLM service error in resume_sse: {e}")
+                    yield get_sse_event_for_response({"error": f"LLM service error ({e.error_type}): {e.message}", "status_code": getattr(e, 'status_code', 502) or 502})
+                except AgentInvokeException as e:
+                    logger.exception(f"Agent invocation failed in resume_sse: {e}")
+                    yield get_sse_event_for_response({"error": f"Agent invocation failed: {e.message}", "status_code": 500})
                 except Exception as e:
                     logger.exception(f"Error in resume_sse: {e}")
-                    raise HTTPException(status_code=500, detail="Internal Server Error") from e
+                    yield get_sse_event_for_response({"error": f"Internal Server Error: {str(e)}", "status_code": 500})
 
             return StreamingResponse(event_generator(), media_type="text/event-stream")
 

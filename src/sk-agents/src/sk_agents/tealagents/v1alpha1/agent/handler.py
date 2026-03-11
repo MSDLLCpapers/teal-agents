@@ -2,6 +2,9 @@ import asyncio
 import logging
 import time
 import uuid
+
+import httpx
+import openai
 from collections.abc import AsyncIterable
 from datetime import datetime
 from functools import reduce
@@ -14,13 +17,17 @@ from semantic_kernel.contents.function_call_content import FunctionCallContent
 from semantic_kernel.contents.function_result_content import FunctionResultContent
 from semantic_kernel.contents.streaming_chat_message_content import StreamingChatMessageContent
 from semantic_kernel.contents.utils.author_role import AuthorRole
+from semantic_kernel.exceptions import ServiceResponseException
 from semantic_kernel.kernel import Kernel
 from ska_utils import AgentTelemetryLogger, AppConfig
 
 from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
 from sk_agents.exceptions import (
     AgentInvokeException,
+    AgentUnavailableException,
     AuthenticationException,
+    LLMAuthenticationException,
+    LLMServiceException,
     PersistenceCreateError,
     PersistenceLoadError,
 )
@@ -251,15 +258,88 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         kernel: Kernel, fc_content: FunctionCallContent
     ) -> FunctionResultContent:
         """Helper to execute a single tool function call."""
-        function = kernel.get_function(
-            fc_content.plugin_name,
-            fc_content.function_name,
-        )
-        kernel_argument = fc_content.to_kernel_arguments()
-        function_result = await function.invoke(kernel, kernel_argument)
-        return FunctionResultContent.from_function_call_content_and_result(
-            fc_content, function_result
-        )
+        try:
+            function = kernel.get_function(
+                fc_content.plugin_name,
+                fc_content.function_name,
+            )
+            kernel_argument = fc_content.to_kernel_arguments()
+            function_result = await function.invoke(kernel, kernel_argument)
+            return FunctionResultContent.from_function_call_content_and_result(
+                fc_content, function_result
+            )
+        except httpx.ConnectError as e:
+            raise AgentUnavailableException(
+                agent_name=fc_content.plugin_name or "unknown",
+                message=f"Connection refused when calling tool {fc_content.function_name}: {str(e)}",
+            ) from e
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in (502, 503, 504):
+                raise AgentUnavailableException(
+                    agent_name=fc_content.plugin_name or "unknown",
+                    message=f"Tool returned HTTP {e.response.status_code}: {str(e)}",
+                ) from e
+            raise
+        except httpx.TimeoutException as e:
+            raise AgentUnavailableException(
+                agent_name=fc_content.plugin_name or "unknown",
+                message=f"Timeout calling tool {fc_content.function_name}: {str(e)}",
+            ) from e
+
+    @staticmethod
+    def _classify_llm_error(error: Exception) -> None:
+        """
+        Classify LLM errors from ServiceResponseException or openai errors
+        and raise the appropriate specific exception.
+        """
+        if isinstance(error, ServiceResponseException):
+            inner = error.__cause__ or error
+        else:
+            inner = error
+
+        if isinstance(inner, openai.AuthenticationError):
+            raise LLMAuthenticationException(
+                status_code=401,
+                message=f"LLM authentication failed: {str(inner)}"
+            ) from error
+        if isinstance(inner, openai.PermissionDeniedError):
+            raise LLMAuthenticationException(
+                status_code=403,
+                message=f"LLM permission denied: {str(inner)}"
+            ) from error
+        if isinstance(inner, openai.RateLimitError):
+            raise LLMServiceException(
+                error_type="rate_limit",
+                message=f"LLM rate limit exceeded: {str(inner)}",
+                status_code=429,
+            ) from error
+        if isinstance(inner, openai.NotFoundError):
+            raise LLMServiceException(
+                error_type="model_not_found",
+                message=f"LLM model or resource not found: {str(inner)}",
+                status_code=404,
+            ) from error
+        if isinstance(inner, openai.APIStatusError):
+            raise LLMServiceException(
+                error_type="service_error",
+                message=f"LLM API error: {str(inner)}",
+                status_code=getattr(inner, "status_code", None),
+            ) from error
+        if isinstance(inner, openai.APIConnectionError):
+            raise LLMServiceException(
+                error_type="connection_error",
+                message=f"Cannot connect to LLM service: {str(inner)}",
+            ) from error
+        if isinstance(inner, openai.APITimeoutError):
+            raise LLMServiceException(
+                error_type="timeout",
+                message=f"LLM request timed out: {str(inner)}",
+            ) from error
+        if isinstance(error, ServiceResponseException):
+            raise LLMServiceException(
+                error_type="service_error",
+                message=f"LLM service error: {str(error)}",
+            ) from error
 
     @staticmethod
     def _augment_with_user_context(inputs: UserMessage, chat_history: ChatHistory) -> None:
@@ -1045,6 +1125,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             )
 
         except Exception as e:
+            if isinstance(e, (AgentUnavailableException, LLMAuthenticationException, LLMServiceException)):
+                raise
+            try:
+                self._classify_llm_error(e)
+            except (LLMAuthenticationException, LLMServiceException):
+                raise
+            except Exception:
+                pass
             logger.exception(
                 f"Error invoking {self.name}:{self.version}"
                 f"for Session ID {session_id}, Task ID {task_id},"
@@ -1250,6 +1338,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             return
 
         except Exception as e:
+            if isinstance(e, (AgentUnavailableException, LLMAuthenticationException, LLMServiceException)):
+                raise
+            try:
+                self._classify_llm_error(e)
+            except (LLMAuthenticationException, LLMServiceException):
+                raise
+            except Exception:
+                pass
             logger.exception(
                 f"Error invoking stream for {self.name}:{self.version} "
                 f"for Session ID {session_id}, Task ID {task_id},"

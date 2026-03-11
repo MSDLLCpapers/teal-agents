@@ -1,6 +1,10 @@
 import asyncio
 import logging
+import time
 import uuid
+
+import httpx
+import openai
 from collections.abc import AsyncIterable
 from datetime import datetime
 from functools import reduce
@@ -13,13 +17,17 @@ from semantic_kernel.contents.function_call_content import FunctionCallContent
 from semantic_kernel.contents.function_result_content import FunctionResultContent
 from semantic_kernel.contents.streaming_chat_message_content import StreamingChatMessageContent
 from semantic_kernel.contents.utils.author_role import AuthorRole
+from semantic_kernel.exceptions import ServiceResponseException
 from semantic_kernel.kernel import Kernel
-from ska_utils import AppConfig
+from ska_utils import AgentTelemetryLogger, AppConfig
 
 from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
 from sk_agents.exceptions import (
     AgentInvokeException,
+    AgentUnavailableException,
     AuthenticationException,
+    LLMAuthenticationException,
+    LLMServiceException,
     PersistenceCreateError,
     PersistenceLoadError,
 )
@@ -44,6 +52,13 @@ from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
 from sk_agents.tealagents.v1alpha1.utils import get_token_usage_for_response, item_to_content
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_user_isid_from_message(inputs: UserMessage) -> str | None:
+    """Extract user ISID from UserMessage user_context if available."""
+    if inputs.user_context:
+        return inputs.user_context.get("user.isid") or inputs.user_context.get("isid")
+    return None
 
 
 class TealAgentsV1Alpha1Handler(BaseHandler):
@@ -243,15 +258,88 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         kernel: Kernel, fc_content: FunctionCallContent
     ) -> FunctionResultContent:
         """Helper to execute a single tool function call."""
-        function = kernel.get_function(
-            fc_content.plugin_name,
-            fc_content.function_name,
-        )
-        kernel_argument = fc_content.to_kernel_arguments()
-        function_result = await function.invoke(kernel, kernel_argument)
-        return FunctionResultContent.from_function_call_content_and_result(
-            fc_content, function_result
-        )
+        try:
+            function = kernel.get_function(
+                fc_content.plugin_name,
+                fc_content.function_name,
+            )
+            kernel_argument = fc_content.to_kernel_arguments()
+            function_result = await function.invoke(kernel, kernel_argument)
+            return FunctionResultContent.from_function_call_content_and_result(
+                fc_content, function_result
+            )
+        except httpx.ConnectError as e:
+            raise AgentUnavailableException(
+                agent_name=fc_content.plugin_name or "unknown",
+                message=f"Connection refused when calling tool {fc_content.function_name}: {str(e)}",
+            ) from e
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code in (502, 503, 504):
+                raise AgentUnavailableException(
+                    agent_name=fc_content.plugin_name or "unknown",
+                    message=f"Tool returned HTTP {e.response.status_code}: {str(e)}",
+                ) from e
+            raise
+        except httpx.TimeoutException as e:
+            raise AgentUnavailableException(
+                agent_name=fc_content.plugin_name or "unknown",
+                message=f"Timeout calling tool {fc_content.function_name}: {str(e)}",
+            ) from e
+
+    @staticmethod
+    def _classify_llm_error(error: Exception) -> None:
+        """
+        Classify LLM errors from ServiceResponseException or openai errors
+        and raise the appropriate specific exception.
+        """
+        if isinstance(error, ServiceResponseException):
+            inner = error.__cause__ or error
+        else:
+            inner = error
+
+        if isinstance(inner, openai.AuthenticationError):
+            raise LLMAuthenticationException(
+                status_code=401,
+                message=f"LLM authentication failed: {str(inner)}"
+            ) from error
+        if isinstance(inner, openai.PermissionDeniedError):
+            raise LLMAuthenticationException(
+                status_code=403,
+                message=f"LLM permission denied: {str(inner)}"
+            ) from error
+        if isinstance(inner, openai.RateLimitError):
+            raise LLMServiceException(
+                error_type="rate_limit",
+                message=f"LLM rate limit exceeded: {str(inner)}",
+                status_code=429,
+            ) from error
+        if isinstance(inner, openai.NotFoundError):
+            raise LLMServiceException(
+                error_type="model_not_found",
+                message=f"LLM model or resource not found: {str(inner)}",
+                status_code=404,
+            ) from error
+        if isinstance(inner, openai.APIStatusError):
+            raise LLMServiceException(
+                error_type="service_error",
+                message=f"LLM API error: {str(inner)}",
+                status_code=getattr(inner, "status_code", None),
+            ) from error
+        if isinstance(inner, openai.APIConnectionError):
+            raise LLMServiceException(
+                error_type="connection_error",
+                message=f"Cannot connect to LLM service: {str(inner)}",
+            ) from error
+        if isinstance(inner, openai.APITimeoutError):
+            raise LLMServiceException(
+                error_type="timeout",
+                message=f"LLM request timed out: {str(inner)}",
+            ) from error
+        if isinstance(error, ServiceResponseException):
+            raise LLMServiceException(
+                error_type="service_error",
+                message=f"LLM service error: {str(error)}",
+            ) from error
 
     @staticmethod
     def _augment_with_user_context(inputs: UserMessage, chat_history: ChatHistory) -> None:
@@ -878,6 +966,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         task_id: str,
         request_id: str,
         connection_manager=None,
+        agent_telemetry: AgentTelemetryLogger | None = None,
     ) -> TealAgentsResponse | HitlResponse:
         # Initial setup
 
@@ -899,10 +988,29 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 agent.agent.kernel, user_id, session_id, self.discovery_manager, connection_manager
             )
 
+        # Initialize agent telemetry logger if not provided (top-level call)
+        from ska_utils import get_telemetry
+
+        try:
+            jt = get_telemetry()
+        except ValueError:
+            jt = None
+        if agent_telemetry is None:
+            agent_config = self.config.get_agent()
+            agent_telemetry = AgentTelemetryLogger(
+                agent_name=agent_config.name,
+                model_name=agent_config.model,
+                user_isid=str(user_id) if user_id else None,
+                telemetry=jt,
+            )
+
+        agent_telemetry.record_invocation()
+
         # Prepare metadata
         completion_tokens: int = 0
         prompt_tokens: int = 0
         total_tokens: int = 0
+        start_time = time.time()
 
         try:
             # Manual tool calling implementation (existing logic)
@@ -923,7 +1031,6 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 arguments=arguments,
             )
             for response_chunk in responses:
-                # response_list.extend(response_chunk)
                 chat_history.add_message(response_chunk)
                 response_list.append(response_chunk)
 
@@ -938,18 +1045,32 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 prompt_tokens += call_usage.prompt_tokens
                 total_tokens += call_usage.total_tokens
 
+                # Check for reasoning/thinking in response metadata
+                reasoning_tokens = 0
+                if hasattr(response, "inner_content") and response.inner_content:
+                    inner = response.inner_content
+                    # OpenAI reasoning tokens
+                    if hasattr(inner, "usage") and inner.usage and hasattr(
+                        inner.usage, "completion_tokens_details"
+                    ):
+                        details = inner.usage.completion_tokens_details
+                        if details and hasattr(details, "reasoning_tokens"):
+                            reasoning_tokens = details.reasoning_tokens or 0
+                agent_telemetry.record_reasoning(
+                    f"reasoning_tokens={reasoning_tokens}"
+                )
+
                 # A response may have multiple items, e.g., multiple tool calls
                 fc_in_response = [
                     item for item in response.items if isinstance(item, FunctionCallContent)
                 ]
 
                 if fc_in_response:
-                    # chat_history.add_message(response)
-                    # Add assistant's message to history
                     function_calls.extend(fc_in_response)
                 else:
                     # If no function calls, it's a direct answer
                     final_response = response
+
             token_usage = TokenUsage(
                 completion_tokens=completion_tokens,
                 prompt_tokens=prompt_tokens,
@@ -957,7 +1078,26 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             )
             # If tool calls were returned, execute them
             if function_calls:
+                # Record tool calls for telemetry
+                tool_names = []
+                for fc in function_calls:
+                    full_name = (
+                        f"{fc.plugin_name}.{fc.function_name}"
+                        if fc.plugin_name
+                        else fc.function_name
+                    )
+                    tool_names.append(full_name)
+                agent_telemetry.record_tool_calls(tool_names)
+
                 await self._manage_function_calls(function_calls, chat_history, kernel)
+
+                # Record internal function calls (the actual kernel invocations)
+                for fc in function_calls:
+                    agent_telemetry.record_internal_function_call(
+                        f"{fc.plugin_name}.{fc.function_name}"
+                        if fc.plugin_name
+                        else fc.function_name
+                    )
 
                 # Make a recursive call to get the final response from the LLM
                 recursive_response = await self.recursion_invoke(
@@ -966,6 +1106,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                     task_id=task_id,
                     request_id=request_id,
                     connection_manager=connection_manager,
+                    agent_telemetry=agent_telemetry,
                 )
                 return recursive_response
 
@@ -984,6 +1125,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             )
 
         except Exception as e:
+            if isinstance(e, (AgentUnavailableException, LLMAuthenticationException, LLMServiceException)):
+                raise
+            try:
+                self._classify_llm_error(e)
+            except (LLMAuthenticationException, LLMServiceException):
+                raise
+            except Exception:
+                pass
             logger.exception(
                 f"Error invoking {self.name}:{self.version}"
                 f"for Session ID {session_id}, Task ID {task_id},"
@@ -995,6 +1144,25 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 f"for Session ID {session_id}, Task ID {task_id},"
                 f" Request ID {request_id}, Error message: {str(e)}"
             ) from e
+
+        # Emit standardized structured log at the end of the invocation chain
+        elapsed_ms = (time.time() - start_time) * 1000
+        agent_telemetry.enrich_span(
+            span=None,  # span managed at invoke() level
+            session_id=session_id,
+            request_id=request_id,
+            completion_tokens=completion_tokens,
+            prompt_tokens=prompt_tokens,
+            total_tokens=total_tokens,
+            time_to_first_token_ms=elapsed_ms,
+        )
+        agent_telemetry.emit_log(
+            session_id=session_id,
+            request_id=request_id,
+            completion_tokens=completion_tokens,
+            prompt_tokens=prompt_tokens,
+            total_tokens=total_tokens,
+        )
 
         # Persist and return response
         return await self.prepare_agent_response(
@@ -1008,6 +1176,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         task_id: str,
         request_id: str,
         connection_manager=None,
+        agent_telemetry: AgentTelemetryLogger | None = None,
     ) -> AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse]:
         chat_history = inputs
         agent_task = await self.state.load_by_request_id(request_id)
@@ -1026,6 +1195,24 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             await self.agent_builder.kernel_builder.load_mcp_plugins(
                 agent.agent.kernel, user_id, session_id, self.discovery_manager, connection_manager
             )
+
+        # Initialize agent telemetry logger if not provided (top-level call)
+        from ska_utils import get_telemetry
+
+        try:
+            jt = get_telemetry()
+        except ValueError:
+            jt = None
+        if agent_telemetry is None:
+            agent_config = self.config.get_agent()
+            agent_telemetry = AgentTelemetryLogger(
+                agent_name=agent_config.name,
+                model_name=agent_config.model,
+                user_isid=str(user_id) if user_id else None,
+                telemetry=jt,
+            )
+
+        agent_telemetry.record_invocation()
 
         # Prepare metadata
         final_response = []
@@ -1063,6 +1250,20 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 prompt_tokens += call_usage.prompt_tokens
                 total_tokens += call_usage.total_tokens
 
+                # Check for reasoning/thinking in response metadata
+                reasoning_tokens = 0
+                if hasattr(response, "inner_content") and response.inner_content:
+                    inner = response.inner_content
+                    if hasattr(inner, "usage") and inner.usage and hasattr(
+                        inner.usage, "completion_tokens_details"
+                    ):
+                        details = inner.usage.completion_tokens_details
+                        if details and hasattr(details, "reasoning_tokens"):
+                            reasoning_tokens = details.reasoning_tokens or 0
+                agent_telemetry.record_reasoning(
+                    f"reasoning_tokens={reasoning_tokens}"
+                )
+
                 if response.content:
                     try:
                         # Attempt to parse as ExtraDataPartial
@@ -1098,7 +1299,27 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
             # If tool calls are present, execute them
             if function_calls:
+                # Record tool calls for telemetry
+                tool_names = []
+                for fc in function_calls:
+                    full_name = (
+                        f"{fc.plugin_name}.{fc.function_name}"
+                        if fc.plugin_name
+                        else fc.function_name
+                    )
+                    tool_names.append(full_name)
+                agent_telemetry.record_tool_calls(tool_names)
+
                 await self._manage_function_calls(function_calls, chat_history, kernel)
+
+                # Record internal function calls
+                for fc in function_calls:
+                    agent_telemetry.record_internal_function_call(
+                        f"{fc.plugin_name}.{fc.function_name}"
+                        if fc.plugin_name
+                        else fc.function_name
+                    )
+
                 # Make a recursive call to get the final streamed response
                 async for final_response_chunk in self.recursion_invoke_stream(
                     chat_history,
@@ -1106,6 +1327,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                     task_id,
                     request_id,
                     connection_manager=connection_manager,
+                    agent_telemetry=agent_telemetry,
                 ):
                     yield final_response_chunk
                 return
@@ -1116,6 +1338,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             return
 
         except Exception as e:
+            if isinstance(e, (AgentUnavailableException, LLMAuthenticationException, LLMServiceException)):
+                raise
+            try:
+                self._classify_llm_error(e)
+            except (LLMAuthenticationException, LLMServiceException):
+                raise
+            except Exception:
+                pass
             logger.exception(
                 f"Error invoking stream for {self.name}:{self.version} "
                 f"for Session ID {session_id}, Task ID {task_id},"
@@ -1128,7 +1358,16 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 f"Request ID {request_id}, Error message: {str(e)}"
             ) from e
 
-        # # Persist and return response
+        # Emit standardized structured log
+        agent_telemetry.emit_log(
+            session_id=session_id,
+            request_id=request_id,
+            completion_tokens=completion_tokens,
+            prompt_tokens=prompt_tokens,
+            total_tokens=total_tokens,
+        )
+
+        # Persist and return response
         yield await self.prepare_agent_response(
             agent_task, request_id, final_response, token_usage, extra_data_collector
         )

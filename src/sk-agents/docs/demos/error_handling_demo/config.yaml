@@ -1,0 +1,22 @@
+apiVersion: skagents/v1
+kind: Sequential
+description: >
+  Demo configuration for testing error handling implementation
+service_name: ErrorHandlingDemo
+version: 1.0
+input_type: BaseInput
+spec:
+  agents:
+    - name: demo_agent
+      role: Error Handling Test Agent
+      model: claude-3-5-sonnet-20240620
+      system_prompt: >
+        You are a helpful assistant for testing error handling functionality.
+  tasks:
+    - name: test_task
+      task_no: 1
+      description: Test error handling scenarios
+      instructions: >
+        Help test various error handling scenarios including validation,
+        authentication, and execution errors.
+      agent: demo_agent

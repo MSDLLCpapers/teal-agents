@@ -1,5 +1,5 @@
 """
-Comprehensive Error Handling for Teal Agents (CDW-1653)
+Comprehensive Error Handling for Teal Agents
 
 This module provides:
 - Custom exception classes with HTTP status code mapping

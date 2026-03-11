@@ -1,4 +1,4 @@
-﻿# CDW-1653 Error Models - Import from error_handling
+﻿# Error Models - Import from error_handling
 from sk_agents.error_handling import (
     ErrorDetail,
     ErrorResponse,

@@ -1,7 +1,5 @@
 """
 Configuration validator for detecting missing/invalid environment variables at startup.
-
-CDW-1653: Better error handling in Agents
 """
 
 import logging

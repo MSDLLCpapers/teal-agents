@@ -1,7 +1,7 @@
 apiVersion: skagents/v1
 kind: Sequential
 description: >
-  Demo configuration for testing CDW-1653 error handling implementation
+  Demo configuration for testing error handling implementation
 service_name: ErrorHandlingDemo
 version: 1.0
 input_type: BaseInput

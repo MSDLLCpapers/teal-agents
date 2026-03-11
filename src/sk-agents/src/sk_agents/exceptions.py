@@ -52,7 +52,7 @@ class PluginFileReadException(AgentsException):
     def __init__(self, message: str):
         self.message = message
 
-# CDW-1653 imports
+# Standard error handling imports
 from sk_agents.error_handling import (
     AgentException, AgentConfigurationError, AgentAuthenticationError,
     AgentValidationError, AgentExecutionError, AgentTimeoutError,

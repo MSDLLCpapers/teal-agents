@@ -47,7 +47,7 @@ try:
     AppConfig.add_configs(configs)
     app_config = AppConfig()
 
-    # CDW-1653: Validate configuration at startup
+    # Validate configuration at startup
     logger.info("Validating configuration...")
     try:
         validate_config_or_raise(app_config)
@@ -128,7 +128,7 @@ try:
     app.add_middleware(TelemetryMiddleware, st=get_telemetry())
 
     # ============================================================================
-    # CDW-1653: Global Exception Handlers
+    # Global Exception Handlers
     # ============================================================================
 
     @app.exception_handler(AgentConfigurationError)

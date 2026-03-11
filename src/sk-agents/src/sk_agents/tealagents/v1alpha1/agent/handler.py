@@ -527,6 +527,47 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             logger.info(f"Intervention required for{len(intervention_calls)} function calls.")
             raise hitl_manager.HitlInterventionRequired(intervention_calls)
 
+    def _extract_thinking(self, response: ChatMessageContent) -> str | None:
+        """
+        Extract thinking/reasoning content from LLM response.
+        
+        Support for extended thinking from Claude and GPT-o1 models.
+        
+        Args:
+            response: ChatMessageContent from the LLM
+            
+        Returns:
+            Thinking content as string, or None if not available
+        """
+        try:
+            # For Claude: Check for thinking blocks in items
+            if hasattr(response, "items"):
+                for item in response.items:
+                    # Claude extended thinking blocks have type "thinking"
+                    if hasattr(item, "type") and item.type == "thinking":
+                        if hasattr(item, "thinking"):
+                            logger.info(f"Extracted Claude thinking: {len(item.thinking)} chars")
+                            return item.thinking
+                        elif hasattr(item, "text"):
+                            logger.info(f"Extracted Claude thinking: {len(item.text)} chars")
+                            return item.text
+            
+            # For OpenAI o1: Check for reasoning_content attribute
+            if hasattr(response, "reasoning_content") and response.reasoning_content:
+                logger.info(f"Extracted OpenAI reasoning: {len(response.reasoning_content)} chars")
+                return response.reasoning_content
+            
+            # Check metadata for thinking
+            if hasattr(response, "metadata") and response.metadata:
+                if "thinking" in response.metadata:
+                    logger.info(f"Extracted thinking from metadata")
+                    return response.metadata["thinking"]
+            
+        except Exception as e:
+            logger.warning(f"Failed to extract thinking content: {e}")
+        
+        return None
+
     async def prepare_agent_response(
         self,
         agent_task: AgentTask,
@@ -545,6 +586,12 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         task_id = agent_task.task_id
         request_id = request_id
 
+        # Extract thinking/reasoning if enabled
+        thinking_content = None
+        agent_config = self.config.get_agent()
+        if agent_config.include_thinking and isinstance(response, ChatMessageContent):
+            thinking_content = self._extract_thinking(response)
+
         agent_response = TealAgentsResponse(
             session_id=session_id,
             task_id=task_id,
@@ -553,6 +600,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             source=f"{self.name}:{self.version}",
             token_usage=token_usage,
             extra_data=extra_data_collector.get_extra_data(),
+            thinking=thinking_content,
         )
         await self._manage_agent_response_task(agent_task, agent_response)
         logger.info(

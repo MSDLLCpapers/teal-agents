@@ -1,0 +1,69 @@
+# Gitleaks configuration for detecting secrets in commits
+# https://github.com/gitleaks/gitleaks
+
+title = "Gitleaks Configuration for Teal Agents"
+
+[extend]
+# Use the default gitleaks rules as a base
+useDefault = true
+
+[allowlist]
+description = "Allowlist for known false positives"
+paths = [
+    '''\.secrets\.baseline$''',
+    '''\.pre-commit-config\.yaml$''',
+    '''tests/.*fixtures.*''',
+    '''examples/.*test.*''',
+]
+
+# Example patterns to ignore (update as needed)
+regexes = [
+    '''(example|sample|test|mock|fake|dummy)(_)?key''',
+]
+
+# Custom rules for organization-specific patterns
+[[rules]]
+id = "organization-api-key"
+description = "Organization API Key"
+regex = '''(?i)(org|internal)[_-]?api[_-]?key['"]?\s*[:=]\s*['"]?[a-zA-Z0-9]{20,}'''
+tags = ["key", "organization", "api"]
+
+[[rules]]
+id = "openai-api-key"
+description = "OpenAI API Key"
+regex = '''sk-[a-zA-Z0-9]{20,}'''
+tags = ["key", "openai"]
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API Key"
+regex = '''sk-ant-[a-zA-Z0-9-_]{95,}'''
+tags = ["key", "anthropic"]
+
+[[rules]]
+id = "azure-key"
+description = "Azure API Key"
+regex = '''(?i)azure[_-]?key['"]?\s*[:=]\s*['"]?[a-zA-Z0-9]{32,}'''
+tags = ["key", "azure"]
+
+[[rules]]
+id = "generic-api-key"
+description = "Generic API Key"
+regex = '''(?i)api[_-]?key['"]?\s*[:=]\s*['"]?[a-zA-Z0-9]{20,}'''
+tags = ["key", "api"]
+[rules.allowlist]
+regexes = [
+    '''(example|test|sample|mock|dummy|placeholder)''',
+]
+
+[[rules]]
+id = "bearer-token"
+description = "Bearer Token"
+regex = '''(?i)bearer\s+[a-zA-Z0-9\-_=]+\.[a-zA-Z0-9\-_=]+\.?[a-zA-Z0-9\-_=]*'''
+tags = ["token", "bearer"]
+
+[[rules]]
+id = "private-key"
+description = "Private Key"
+regex = '''-----BEGIN\s+(RSA|EC|DSA|OPENSSH)?\s?PRIVATE KEY-----'''
+tags = ["key", "private"]

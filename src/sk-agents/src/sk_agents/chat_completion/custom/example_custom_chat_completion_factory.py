@@ -27,15 +27,36 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
         "gpt-4-turbo-2024-04-09",
     ]
     _ANTHROPIC_MODELS: list[str] = [
-        "claude-3-5-sonnet-20240620",
-        "claude-3-haiku-20240307",
+        "claude-3-haiku-20240307-v1",
+        "claude-3-sonnet-20240229-v1",
+        "claude-3-opus-20240229-v1",
+        "claude-3-5-sonnet-20240620-v1",
+        "claude-3-5-sonnet-20241022-v2",
+        "claude-3-5-haiku-20241022-v1",
+        "claude-3-7-sonnet-20250219-v1",
+        "claude-opus-4-20250514-v1",
+        "claude-opus-4-1-20250805-v1",
+        "claude-sonnet-4-20250514-v1",
+        "claude-sonnet-4-5-20250929-v1",
+        "claude-sonnet-4-6",
+        "claude-haiku-4-5-20251001-v1",
+        "claude-opus-4-5-20251101-v1",
+        "claude-opus-4-6-v1",
     ]
 
     _GOOGLE_MODELS: list[str] = [
-        "gemini-2-5-pro-preview-03-25",
-        "gemini-2-5-flash-preview-04-17",
+        "gemini-2-5-pro",
+        "gemini-2-5-flash",
         "gemini-2-0-flash",
         "gemini-2-0-flash-lite",
+        "gemini-embedding-001",
+        "gemini-2.5-flash-image",
+        "gemini-3-pro-preview",
+        "gemini-3-1-pro-preview",
+        "gemini-3-pro-image-preview",
+        "gemini-3-flash-preview",
+        "gemini-3.1-flash-image-preview",
+        "gemini-3.1-flash-lite-preview",
     ]
 
     TA_BASE_URL = UtilConfig(
@@ -73,13 +94,16 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
                 api_version=self.api_version,
             )
         elif model_name in ExampleCustomChatCompletionFactory._ANTHROPIC_MODELS:
+            # Use model name as-is for the API path - no modifications
+            # This supports both versioned (claude-3-7-sonnet-20250219-v1) 
+            # and unversioned (claude-3-haiku) model names flexibly
             return AnthropicChatCompletion(
                 service_id=service_id,
                 api_key="unused",
                 ai_model_id=model_name,
                 async_client=AsyncAnthropic(
                     api_key="unused",
-                    base_url=f"{self.url_base}/anthropic/{model_name}-v1",
+                    base_url=f"{self.url_base}/anthropic/{model_name}",
                     default_headers={"api-key": self.api_key},
                 ),
             )

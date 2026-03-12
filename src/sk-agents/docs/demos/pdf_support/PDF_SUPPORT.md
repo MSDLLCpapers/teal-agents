@@ -222,7 +222,7 @@ curl -X POST "http://localhost:8000/PDFAgent/1.0.0/api" \
       "attachments": [
         {
           "type": "pdf",
-          "url": "https://example.com/research.pdf"
+          "url": "https://arxiv.org/pdf/2303.08774.pdf"
         }
       ]
     }
@@ -534,6 +534,111 @@ Potential improvements:
 
 ---
 
+## Testing Results
+
+### Model Compatibility Testing
+
+Testing was performed on **March 12, 2026** using an internal API gateway with various models to evaluate PDF processing capabilities.
+
+#### Test Configuration
+
+**Test Case**: PDF URL Processing
+- **PDF Source**: https://arxiv.org/pdf/2303.08774.pdf
+- **Task**: Summarize research paper content
+- **Input Type**: BaseMultiModalInput with PDF URL attachment
+
+#### Results Summary
+
+| Model | Version | Status | Notes |
+|-------|---------|--------|-------|
+| Claude 3.7 Sonnet | claude-3-7-sonnet-20250219-v1 | ✅ **SUCCESS** | Successfully read and processed PDF from URL |
+| GPT-4o | gpt-4o-2024-08-06 | ❌ **FAILED** | Unable to process PDF from URL |
+
+#### Detailed Findings
+
+**✅ Claude Models - WORKING**
+
+Configuration:
+```yaml
+spec:
+  agents:
+    - name: pdf_analyzer
+      role: PDF Document Analyzer
+      model: claude-3-7-sonnet-20250219-v1
+      system_prompt: |
+        You are an expert document analyzer specialized in processing PDF files.
+```
+
+**Results**:
+- Successfully fetched PDF from arXiv URL
+- Extracted text content accurately
+- Provided coherent document summaries
+- Handled multimodal input correctly
+
+---
+
+**❌ GPT-4o Models - FAILED**
+
+Configuration:
+```yaml
+spec:
+  agents:
+    - name: pdf_analyzer
+      role: PDF Document Analyzer
+      model: gpt-4o-2024-08-06
+      system_prompt: |
+        You are an expert document analyzer specialized in processing PDF files.
+```
+
+**Results**:
+- Failed to process PDF from URL
+- Endpoint returned 404 errors
+- Azure OpenAI SDK incompatibility with API gateway structure
+
+---
+
+### Recommendations
+
+**For PDF Processing Tasks**:
+1. ✅ **Use Claude Models** (claude-3-7-sonnet-20250219-v1 or similar)
+   - Proven compatibility with API gateway
+   - Excellent multimodal and PDF processing capabilities
+   - Reliable URL-based PDF fetching
+
+2. ❌ **Avoid GPT Models** for PDF URLs at this time
+   - Endpoint compatibility issues with current gateway configuration
+   - May work with base64-encoded PDFs (not tested)
+
+**Configuration Best Practices**:
+```yaml
+# RECOMMENDED: Claude for PDF processing
+model: claude-3-7-sonnet-20250219-v1
+input_type: BaseMultiModalInput
+max_tokens: 4000
+temperature: 0.3
+include_thinking: true
+```
+
+**Custom Factory Setup**:
+```bash
+# Required environment variables
+export TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE=src/sk_agents/chat_completion/custom/example_custom_chat_completion_factory.py
+export TA_CUSTOM_CHAT_COMPLETION_FACTORY_CLASS_NAME=ExampleCustomChatCompletionFactory
+```
+
+### Testing Checklist
+
+When testing PDF support:
+- ✅ Use Claude models for URL-based PDFs
+- ✅ Set `input_type: BaseMultiModalInput` in config
+- ✅ Configure custom chat completion factory
+- ✅ Test with public PDFs (e.g., arXiv) before internal documents
+- ✅ Verify API key has proper permissions
+- ✅ Monitor token usage for large documents
+- ⚠️ Consider base64 encoding for sensitive documents instead of URLs
+
+---
+
 ## Summary
 
 PDF support enables agents to:
@@ -544,8 +649,11 @@ PDF support enables agents to:
 
 The implementation provides a flexible foundation for document processing tasks while maintaining compatibility with the existing agent framework.
 
+**⚠️ Important**: Based on testing with internal API gateways, **Claude models are recommended** for PDF processing tasks. GPT models may have endpoint compatibility issues with URL-based PDF attachments depending on the API gateway configuration.
+
 ---
 
 **Implementation Date**: February 2026  
-**Status**: Production Ready  
+**Testing Date**: March 12, 2026  
+**Status**: Production Ready (Claude models)  
 **Version**: 1.0.0

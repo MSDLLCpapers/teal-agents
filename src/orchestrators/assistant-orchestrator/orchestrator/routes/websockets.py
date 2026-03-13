@@ -66,6 +66,12 @@ async def invoke_stream(
                     )
                     if selected_agent.agent_name not in agent_catalog.agents:
                         agent = fallback_agent
+                        if agent is None:
+                            # No fallback agent available
+                            await websocket.send_json({
+                                "error": "No agent available to handle this request"
+                            })
+                            continue
                         sel_agent_name = fallback_agent.name
                     else:
                         agent = agent_catalog.agents[selected_agent.agent_name]

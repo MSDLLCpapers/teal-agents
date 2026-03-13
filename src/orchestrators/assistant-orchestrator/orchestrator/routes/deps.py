@@ -1,3 +1,5 @@
+import logging
+
 from pydantic_yaml import parse_yaml_file_as
 from ska_utils import AppConfig, initialize_telemetry
 
@@ -21,6 +23,7 @@ from recipient_chooser import RecipientChooser
 from session import AbstractSessionManager, InMemorySessionManager, RedisSessionManager
 from user_context import CustomUserContextHelper, UserContextCache
 
+logger = logging.getLogger(__name__)
 AppConfig.add_configs(CONFIGS)
 
 app_config = AppConfig()
@@ -64,16 +67,37 @@ def initialize() -> None:
         app_config.get(TA_AGW_SECURE.env_name),
     )
     agents: dict[str, Agent] = {}
+    failed_agents: list[str] = []
+    
     for agent_name in _config.spec.agents:
-        agents[agent_name] = agent_builder.build_agent(agent_name, api_key)
+        agent = agent_builder.build_agent(agent_name, api_key)
+        if agent is not None:
+            agents[agent_name] = agent
+        else:
+            failed_agents.append(agent_name)
+            logger.warning(f"Agent {agent_name} failed to initialize and will not be available")
+    
+    if failed_agents:
+        logger.warning(f"The following agents are unavailable: {', '.join(failed_agents)}")
+    
+    if not agents:
+        logger.error("WARNING: No agents were successfully initialized!")
+    
     _agent_catalog = AgentCatalog(agents=agents)
 
     _fallback_agent = agent_builder.build_fallback_agent(
         _config.spec.fallback_agent, api_key, _agent_catalog
     )
+    if _fallback_agent is None:
+        logger.error(f"CRITICAL: Fallback agent {_config.spec.fallback_agent} could not be initialized!")
+        logger.error("Orchestrator will continue but may fail when no agent matches a request")
+    
     recipient_chooser_agent = agent_builder.build_recipient_chooser_agent(
         _config.spec.agent_chooser, api_key, _agent_catalog
     )
+    if recipient_chooser_agent is None:
+        logger.error(f"CRITICAL: Recipient chooser agent {_config.spec.agent_chooser} could not be initialized!")
+        raise RuntimeError(f"Cannot start orchestrator without recipient chooser agent: {_config.spec.agent_chooser}")
 
     _conn_manager = ConnectionManager()
     _conv_manager = ConversationManager(_config.service_name)

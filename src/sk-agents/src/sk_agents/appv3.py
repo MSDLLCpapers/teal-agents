@@ -22,6 +22,7 @@ from sk_agents.configs import (
     TA_REDIS_SSL,
     TA_SERVICE_CONFIG,
 )
+from sk_agents.file_upload_routes import FileUploadRoutes
 from sk_agents.persistence.persistence_factory import PersistenceFactory
 from sk_agents.routes import Routes
 from sk_agents.ska_types import BaseConfig
@@ -170,6 +171,12 @@ class AppV3:
                 config=config,
                 app_config=app_config,
             ),
+            prefix=f"/{name}/{version}",
+        )
+
+        # Include file upload routes for PDF processing
+        app.include_router(
+            FileUploadRoutes.get_file_upload_routes(),
             prefix=f"/{name}/{version}",
         )
 

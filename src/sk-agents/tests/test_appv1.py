@@ -138,8 +138,13 @@ class TestAppV1Run:
             app_config=mock_app_config,
         )
 
+        # Verify metadata routes were registered
+        mock_utility_routes.get_metadata_routes.assert_called_once_with(
+            config=mock_base_config,
+        )
+
         # Verify routers were added to app with correct prefix
-        assert mock_fastapi_app.include_router.call_count == 3
+        assert mock_fastapi_app.include_router.call_count == 4
         for call in mock_fastapi_app.include_router.call_args_list:
             assert call.kwargs["prefix"] == "/test-service/1.0.0"
 
@@ -675,7 +680,7 @@ class TestAppV1Run:
             app=mock_fastapi_app,
         )
 
-        assert mock_fastapi_app.include_router.call_count == 3
+        assert mock_fastapi_app.include_router.call_count == 4
         call1 = mock_fastapi_app.include_router.call_args_list[0]
         call2 = mock_fastapi_app.include_router.call_args_list[1]
 

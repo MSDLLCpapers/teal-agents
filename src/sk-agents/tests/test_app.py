@@ -7,6 +7,7 @@ import pytest
 # Mock for sk_agents.configs
 class MockTA_SERVICE_CONFIG:
     env_name = "TA_SERVICE_CONFIG_FILE"
+    is_required = False
 
 
 class MockConfigs:

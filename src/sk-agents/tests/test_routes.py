@@ -690,7 +690,7 @@ def test_get_rest_routes_sse_unknown_handler(mock_get_telemetry):
     try:
         response = client.post("/api/sse", json={"test_field": "test"})
         # Need to consume the stream to trigger the generator
-        for _ in response.iter_content():
+        for _ in response.iter_text():
             pass
         raise AssertionError("Expected ValueError to be raised")
     except ValueError as e:

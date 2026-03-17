@@ -29,17 +29,15 @@ from sk_agents.configs import (
     TA_PROVIDER_URL,
 )
 from sk_agents.exceptions import (
+    ERROR_HANDLER_INIT_FAILED,
+    ERROR_REQUEST_TIMEOUT,
+    ERROR_STREAMING_ERROR,
+    ERROR_UNEXPECTED_ERROR,
     AgentAuthenticationError,
     AgentConfigurationError,
     AgentExecutionError,
     AgentTimeoutError,
     AgentValidationError,
-    ERROR_HANDLER_INIT_FAILED,
-    ERROR_INVALID_API_VERSION,
-    ERROR_MISSING_AUTH_HEADER,
-    ERROR_REQUEST_TIMEOUT,
-    ERROR_STREAMING_ERROR,
-    ERROR_UNEXPECTED_ERROR,
 )
 from sk_agents.persistence.task_persistence_manager import TaskPersistenceManager
 from sk_agents.ska_types import (
@@ -238,14 +236,14 @@ class Routes:
                     raise AgentValidationError(
                         message="Request body is required",
                         error_code="VAL-001",
-                        details={"field": "body"}
+                        details={"field": "body"},
                     )
 
                 st = get_telemetry()
                 context = extract(request.headers)
 
                 authorization = request.headers.get("authorization", None)
-                
+
                 with (
                     st.tracer.start_as_current_span(
                         f"{name}-{version}-invoke",
@@ -258,38 +256,36 @@ class Routes:
                     try:
                         match root_handler_name:
                             case "skagents":
-                                handler: BaseHandler = skagents_handle(config, app_config, authorization)
-                            case _:
-                                raise AgentConfigurationError(
-                                    message=f"Unknown apiVersion: {config.apiVersion}",
-                                    error_code=ERROR_INVALID_API_VERSION,
-                                    details={"apiVersion": config.apiVersion, "supported": ["skagents"]}
+                                handler: BaseHandler = skagents_handle(
+                                    config, app_config, authorization
                                 )
+                            case _:
+                                raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
                     except Exception as e:
-                        if isinstance(e, (AgentConfigurationError, AgentAuthenticationError)):
+                        if isinstance(e, AgentConfigurationError | AgentAuthenticationError):
                             raise
                         logger.exception(f"Failed to initialize handler: {e}")
                         raise AgentExecutionError(
                             message="Failed to initialize agent handler",
                             error_code=ERROR_HANDLER_INIT_FAILED,
-                            details={"error": str(e)}
-                        )
+                            details={"error": str(e)},
+                        ) from e
 
                     # Invoke handler with timeout handling
                     try:
                         inv_inputs = inputs.__dict__
                         output = await asyncio.wait_for(
                             handler.invoke(inputs=inv_inputs),
-                            timeout=300.0  # 5 minute timeout
+                            timeout=300.0,  # 5 minute timeout
                         )
                         return output
-                    except asyncio.TimeoutError:
+                    except TimeoutError:
                         logger.error(f"Request timeout after 300 seconds for {name}-{version}")
                         raise AgentTimeoutError(
                             message="Request processing timeout",
                             error_code=ERROR_REQUEST_TIMEOUT,
-                            details={"timeout_seconds": 300, "endpoint": "invoke"}
-                        )
+                            details={"timeout_seconds": 300, "endpoint": "invoke"},
+                        ) from None
 
             except (
                 AgentConfigurationError,
@@ -306,8 +302,8 @@ class Routes:
                 raise AgentExecutionError(
                     message="An unexpected error occurred during agent invocation",
                     error_code=ERROR_UNEXPECTED_ERROR,
-                    details={"error": str(e), "type": type(e).__name__}
-                )
+                    details={"error": str(e), "type": type(e).__name__},
+                ) from e
 
         @router.post("/sse")
         @docstring_parameter(description)
@@ -322,7 +318,7 @@ class Routes:
                     raise AgentValidationError(
                         message="Request body is required for SSE endpoint",
                         error_code="VAL-001",
-                        details={"field": "body", "endpoint": "sse"}
+                        details={"field": "body", "endpoint": "sse"},
                     )
 
                 st = get_telemetry()
@@ -348,38 +344,32 @@ class Routes:
                                             config, app_config, authorization
                                         )
                                     case _:
-                                        raise AgentConfigurationError(
-                                            message=f"Unknown apiVersion: {config.apiVersion}",
-                                            error_code=ERROR_INVALID_API_VERSION,
-                                            details={
-                                                "apiVersion": config.apiVersion,
-                                                "supported": ["skagents"],
-                                                "endpoint": "sse"
-                                            }
-                                        )
+                                        raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
                             except Exception as e:
-                                if isinstance(e, (AgentConfigurationError, AgentAuthenticationError)):
+                                if isinstance(
+                                    e, AgentConfigurationError | AgentAuthenticationError
+                                ):
                                     raise
                                 logger.exception(f"Failed to initialize SSE handler: {e}")
                                 raise AgentExecutionError(
                                     message="Failed to initialize agent handler for SSE",
                                     error_code=ERROR_HANDLER_INIT_FAILED,
-                                    details={"error": str(e), "endpoint": "sse"}
-                                )
+                                    details={"error": str(e), "endpoint": "sse"},
+                                ) from e
 
                             # Stream responses with error handling
                             try:
                                 async for content in asyncio.wait_for(
                                     handler.invoke_stream(inputs=inv_inputs),
-                                    timeout=600.0  # 10 minute timeout for streaming
+                                    timeout=600.0,  # 10 minute timeout for streaming
                                 ):
                                     yield get_sse_event_for_response(content)
-                            except asyncio.TimeoutError:
-                                logger.error(f"SSE streaming timeout after 600 seconds")
+                            except TimeoutError:
+                                logger.error("SSE streaming timeout after 600 seconds")
                                 error_event = {
                                     "error": "streaming_timeout",
                                     "message": "SSE streaming timeout",
-                                    "error_code": ERROR_REQUEST_TIMEOUT
+                                    "error_code": ERROR_REQUEST_TIMEOUT,
                                 }
                                 yield f"event: error\ndata: {error_event}\n\n"
                             except Exception as e:
@@ -387,7 +377,7 @@ class Routes:
                                 error_event = {
                                     "error": "streaming_error",
                                     "message": str(e),
-                                    "error_code": ERROR_STREAMING_ERROR
+                                    "error_code": ERROR_STREAMING_ERROR,
                                 }
                                 yield f"event: error\ndata: {error_event}\n\n"
 
@@ -402,7 +392,7 @@ class Routes:
                         error_event = {
                             "error": type(e).__name__,
                             "message": e.message,
-                            "error_code": e.error_code
+                            "error_code": e.error_code,
                         }
                         yield f"event: error\ndata: {error_event}\n\n"
                     except Exception as e:
@@ -411,7 +401,7 @@ class Routes:
                         error_event = {
                             "error": "unexpected_error",
                             "message": str(e),
-                            "error_code": ERROR_UNEXPECTED_ERROR
+                            "error_code": ERROR_UNEXPECTED_ERROR,
                         }
                         yield f"event: error\ndata: {error_event}\n\n"
 
@@ -426,8 +416,8 @@ class Routes:
                 raise AgentExecutionError(
                     message="Failed to initialize SSE streaming",
                     error_code=ERROR_UNEXPECTED_ERROR,
-                    details={"error": str(e), "type": type(e).__name__}
-                )
+                    details={"error": str(e), "type": type(e).__name__},
+                ) from e
 
         return router
 
@@ -450,14 +440,14 @@ class Routes:
                 context = extract(websocket.headers)
 
                 authorization = websocket.headers.get("authorization", None)
-                
+
                 try:
                     # Receive and validate data with timeout
                     data = await asyncio.wait_for(
                         websocket.receive_json(),
-                        timeout=30.0  # 30 second timeout for initial message
+                        timeout=30.0,  # 30 second timeout for initial message
                     )
-                    
+
                     with (
                         st.tracer.start_as_current_span(
                             f"{name}-{str(version)}-invoke_stream",
@@ -472,11 +462,13 @@ class Routes:
                             inv_inputs = inputs.__dict__
                         except Exception as e:
                             logger.error(f"Invalid WebSocket input data: {e}")
-                            await websocket.send_json({
-                                "error": "validation_error",
-                                "message": f"Invalid input data: {str(e)}",
-                                "error_code": "VAL-001"
-                            })
+                            await websocket.send_json(
+                                {
+                                    "error": "validation_error",
+                                    "message": f"Invalid input data: {str(e)}",
+                                    "error_code": "VAL-001",
+                                }
+                            )
                             await websocket.close(code=1003)  # Unsupported data
                             return
 
@@ -488,21 +480,16 @@ class Routes:
                                         config, app_config, authorization
                                     )
                                 case _:
-                                    logger.error(f"Unknown apiVersion: {config.apiVersion}")
-                                    await websocket.send_json({
-                                        "error": "configuration_error",
-                                        "message": f"Unknown apiVersion: {config.apiVersion}",
-                                        "error_code": ERROR_INVALID_API_VERSION
-                                    })
-                                    await websocket.close(code=1003)
-                                    return
+                                    raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
                         except Exception as e:
                             logger.exception(f"Failed to initialize WebSocket handler: {e}")
-                            await websocket.send_json({
-                                "error": "execution_error",
-                                "message": "Failed to initialize handler",
-                                "error_code": ERROR_HANDLER_INIT_FAILED
-                            })
+                            await websocket.send_json(
+                                {
+                                    "error": "execution_error",
+                                    "message": "Failed to initialize handler",
+                                    "error_code": ERROR_HANDLER_INIT_FAILED,
+                                }
+                            )
                             await websocket.close(code=1011)  # Internal error
                             return
 
@@ -510,46 +497,54 @@ class Routes:
                         try:
                             async for content in asyncio.wait_for(
                                 handler.invoke_stream(inputs=inv_inputs),
-                                timeout=600.0  # 10 minute timeout for streaming
+                                timeout=600.0,  # 10 minute timeout for streaming
                             ):
                                 if isinstance(content, PartialResponse):
                                     await websocket.send_text(content.output_partial)
                             await websocket.close()
-                        except asyncio.TimeoutError:
+                        except TimeoutError:
                             logger.error("WebSocket streaming timeout after 600 seconds")
-                            await websocket.send_json({
-                                "error": "timeout_error",
-                                "message": "WebSocket streaming timeout",
-                                "error_code": ERROR_REQUEST_TIMEOUT
-                            })
+                            await websocket.send_json(
+                                {
+                                    "error": "timeout_error",
+                                    "message": "WebSocket streaming timeout",
+                                    "error_code": ERROR_REQUEST_TIMEOUT,
+                                }
+                            )
                             await websocket.close(code=1008)  # Policy violation
                         except Exception as e:
                             logger.exception(f"Error during WebSocket streaming: {e}")
-                            await websocket.send_json({
-                                "error": "streaming_error",
-                                "message": str(e),
-                                "error_code": ERROR_STREAMING_ERROR
-                            })
+                            await websocket.send_json(
+                                {
+                                    "error": "streaming_error",
+                                    "message": str(e),
+                                    "error_code": ERROR_STREAMING_ERROR,
+                                }
+                            )
                             await websocket.close(code=1011)  # Internal error
 
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.error("Timeout waiting for WebSocket message")
-                    await websocket.send_json({
-                        "error": "timeout_error",
-                        "message": "Timeout waiting for message",
-                        "error_code": ERROR_REQUEST_TIMEOUT
-                    })
+                    await websocket.send_json(
+                        {
+                            "error": "timeout_error",
+                            "message": "Timeout waiting for message",
+                            "error_code": ERROR_REQUEST_TIMEOUT,
+                        }
+                    )
                     await websocket.close(code=1008)
                 except WebSocketDisconnect:
                     logger.info("WebSocket disconnected by client")
                 except Exception as e:
                     logger.exception(f"Unexpected WebSocket error: {e}")
                     try:
-                        await websocket.send_json({
-                            "error": "unexpected_error",
-                            "message": str(e),
-                            "error_code": ERROR_UNEXPECTED_ERROR
-                        })
+                        await websocket.send_json(
+                            {
+                                "error": "unexpected_error",
+                                "message": str(e),
+                                "error_code": ERROR_UNEXPECTED_ERROR,
+                            }
+                        )
                         await websocket.close(code=1011)
                     except Exception:
                         # Connection may already be closed

@@ -95,7 +95,7 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
             )
         elif model_name in ExampleCustomChatCompletionFactory._ANTHROPIC_MODELS:
             # Use model name as-is for the API path - no modifications
-            # This supports both versioned (claude-3-7-sonnet-20250219-v1) 
+            # This supports both versioned (claude-3-7-sonnet-20250219-v1)
             # and unversioned (claude-3-haiku) model names flexibly
             return AnthropicChatCompletion(
                 service_id=service_id,

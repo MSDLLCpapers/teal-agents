@@ -85,3 +85,11 @@ class AppV1:
             ),
             prefix=f"/{name}/{version}",
         )
+
+        # Include metadata route
+        app.include_router(
+            utility_routes.get_metadata_routes(
+                config=config,
+            ),
+            prefix=f"/{name}/{version}",
+        )

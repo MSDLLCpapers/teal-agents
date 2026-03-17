@@ -173,6 +173,14 @@ class AppV3:
             prefix=f"/{name}/{version}",
         )
 
+        # Include metadata route
+        app.include_router(
+            utility_routes.get_metadata_routes(
+                config=config,
+            ),
+            prefix=f"/{name}/{version}",
+        )
+
         # Make config and other essentials available to request handlers
         app.state.config = config
         app.state.app_config = app_config

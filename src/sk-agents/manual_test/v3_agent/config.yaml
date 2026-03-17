@@ -1,0 +1,15 @@
+apiVersion: tealagents/v1alpha1
+kind: Chat
+description: >
+  A simple test tealagent for metadata validation
+name: TestTealAgent
+version: "0.1"
+spec:
+  agent:
+    name: default
+    role: Default Agent
+    model: gpt-4o
+    system_prompt: >
+      You are a helpful assistant.
+    plugins:
+      - MathPlugin

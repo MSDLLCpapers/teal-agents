@@ -32,7 +32,10 @@ def initialize_plugin_loader(agents_path: str, app_config: AppConfig):
             if os.path.exists(custom_plugins):
                 app_config.props[TA_PLUGIN_MODULE.env_name] = custom_plugins
                 plugin_module = custom_plugins
-        get_plugin_loader(plugin_module)
+
+        # Only call get_plugin_loader if plugin_module is not None
+        if plugin_module is not None:
+            get_plugin_loader(plugin_module)
     except Exception as e:
         logger.exception(f"Failed to initialize plugin loader: {e}")
         raise

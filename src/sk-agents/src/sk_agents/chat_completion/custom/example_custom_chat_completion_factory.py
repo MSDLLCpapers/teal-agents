@@ -50,6 +50,7 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
         "gemini-2-5-pro",
         "gemini-2-5-pro-preview-03-25",  # Add preview model for tests
         "gemini-2-5-flash",
+        "gemini-2-5-flash-preview-04-17",  # Add preview model for tests
         "gemini-2-0-flash",
         "gemini-2-0-flash-lite",
         "gemini-embedding-001",
@@ -97,17 +98,21 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
                 api_version=self.api_version,
             )
         elif model_name in ExampleCustomChatCompletionFactory._ANTHROPIC_MODELS:
-            # Use model name as-is for the API path - no modifications
-            # This supports both versioned (claude-3-7-sonnet-20250219-v1)
-            # and unversioned (claude-3-haiku) model names flexibly
+            # Append -v1 suffix for unversioned models to construct the API URL
+            # Versioned models already have -v1, -v2, etc., so only add if missing
+            if not any(model_name.endswith(f"-v{i}") for i in range(1, 10)):
+                api_model_name = f"{model_name}-v1"
+            else:
+                api_model_name = model_name
+
             return AnthropicChatCompletion(
                 service_id=service_id,
                 api_key="unused",
                 ai_model_id=model_name,
                 async_client=AsyncAnthropic(
                     api_key="unused",
-                    base_url=f"{self.url_base}/anthropic/{model_name}",
-                    default_headers={"api-key": self.api_key},
+                    base_url=f"{self.url_base}/anthropic/{api_model_name}",
+                    default_headers={"X-Custom-Header": self.api_key},
                 ),
             )
         elif model_name in ExampleCustomChatCompletionFactory._GOOGLE_MODELS:

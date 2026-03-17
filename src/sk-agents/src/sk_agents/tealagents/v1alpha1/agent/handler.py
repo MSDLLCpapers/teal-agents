@@ -530,12 +530,12 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
     def _extract_thinking(self, response: ChatMessageContent) -> str | None:
         """
         Extract thinking/reasoning content from LLM response.
-        
+
         Support for extended thinking from Claude and GPT-o1 models.
-        
+
         Args:
             response: ChatMessageContent from the LLM
-            
+
         Returns:
             Thinking content as string, or None if not available
         """
@@ -551,21 +551,21 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                         elif hasattr(item, "text"):
                             logger.info(f"Extracted Claude thinking: {len(item.text)} chars")
                             return item.text
-            
+
             # For OpenAI o1: Check for reasoning_content attribute
             if hasattr(response, "reasoning_content") and response.reasoning_content:
                 logger.info(f"Extracted OpenAI reasoning: {len(response.reasoning_content)} chars")
                 return response.reasoning_content
-            
+
             # Check metadata for thinking
             if hasattr(response, "metadata") and response.metadata:
                 if "thinking" in response.metadata:
-                    logger.info(f"Extracted thinking from metadata")
+                    logger.info("Extracted thinking from metadata")
                     return response.metadata["thinking"]
-            
+
         except Exception as e:
             logger.warning(f"Failed to extract thinking content: {e}")
-        
+
         return None
 
     async def prepare_agent_response(

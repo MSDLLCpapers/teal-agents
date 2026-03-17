@@ -42,11 +42,12 @@ class ChatCompletionBuilder:
                 raise ImportError(
                     f"Failed to import custom chat completion factory module: {cccf_module_name}. "
                     f"Error: {e}"
-                )
-            
+                ) from e
+
             if not hasattr(cccf_module, ccc_factory_name):
                 raise ValueError(
-                    f"Custom Chat Completion Factory class: {ccc_factory_name} "
+                    f"Custom Chat Completion Factory class: "
+                    f"{ccc_factory_name} "
                     f"Not found in module: {cccf_module_name}"
                 )
             ccc_factory_type: type[ChatCompletionFactory] = getattr(cccf_module, ccc_factory_name)

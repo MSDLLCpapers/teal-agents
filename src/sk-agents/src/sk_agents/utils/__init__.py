@@ -23,6 +23,8 @@ if _spec and _spec.loader:
     docstring_parameter = _utils_py.docstring_parameter
     get_sse_event_for_response = _utils_py.get_sse_event_for_response
     initialize_plugin_loader = _utils_py.initialize_plugin_loader
+    get_plugin_loader = _utils_py.get_plugin_loader
+    logger = _utils_py.logger
 else:
     raise ImportError("Failed to load sk_agents/utils.py")
 
@@ -32,4 +34,6 @@ __all__ = [
     "docstring_parameter",
     "get_sse_event_for_response",
     "initialize_plugin_loader",
+    "get_plugin_loader",
+    "logger",
 ]

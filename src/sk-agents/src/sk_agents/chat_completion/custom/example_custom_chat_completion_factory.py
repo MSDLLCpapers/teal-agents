@@ -28,9 +28,11 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
     ]
     _ANTHROPIC_MODELS: list[str] = [
         "claude-3-haiku-20240307-v1",
+        "claude-3-haiku-20240307",  # Add unversioned variant for tests
         "claude-3-sonnet-20240229-v1",
         "claude-3-opus-20240229-v1",
         "claude-3-5-sonnet-20240620-v1",
+        "claude-3-5-sonnet-20240620",  # Add unversioned variant for tests
         "claude-3-5-sonnet-20241022-v2",
         "claude-3-5-haiku-20241022-v1",
         "claude-3-7-sonnet-20250219-v1",
@@ -46,6 +48,7 @@ class ExampleCustomChatCompletionFactory(ChatCompletionFactory):
 
     _GOOGLE_MODELS: list[str] = [
         "gemini-2-5-pro",
+        "gemini-2-5-pro-preview-03-25",  # Add preview model for tests
         "gemini-2-5-flash",
         "gemini-2-0-flash",
         "gemini-2-0-flash-lite",

@@ -1,6 +1,5 @@
 import logging
 import uuid
-from datetime import datetime
 from enum import Enum
 
 from fastapi import FastAPI, HTTPException, Request, status
@@ -17,11 +16,10 @@ from sk_agents.configs import (
     TA_SERVICE_CONFIG,
     configs,
 )
-from sk_agents.error_models import ErrorDetail, ErrorResponse, create_error_response
+from sk_agents.error_models import ErrorDetail, create_error_response
 from sk_agents.exceptions import (
     AgentAuthenticationError,
     AgentConfigurationError,
-    AgentException,
     AgentExecutionError,
     AgentResourceError,
     AgentStateError,
@@ -56,7 +54,7 @@ try:
         logger.error(f"Configuration validation failed: {e.message}")
         if e.details:
             logger.error(f"Details: {e.details}")
-        raise SystemExit(1)
+        raise SystemExit(1) from e
 
     config_file = app_config.get(TA_SERVICE_CONFIG.env_name)
     if not config_file:
@@ -72,7 +70,7 @@ try:
             message=f"Failed to parse YAML configuration file: {config_file}",
             error_code="CFG-002",
             details={"file": config_file, "error": str(e)},
-        )
+        ) from e
 
     try:
         (root_handler, api_version) = config.apiVersion.split("/")
@@ -82,7 +80,7 @@ try:
             message=f"Invalid API version format: {config.apiVersion}",
             error_code="CFG-004",
             details={"api_version": config.apiVersion},
-        )
+        ) from e
 
     name: str | None = None
     version = str(config.version)
@@ -182,9 +180,7 @@ try:
         )
 
     @app.exception_handler(AgentValidationError)
-    async def validation_error_handler(
-        request: Request, exc: AgentValidationError
-    ) -> JSONResponse:
+    async def validation_error_handler(request: Request, exc: AgentValidationError) -> JSONResponse:
         """Handle validation errors (HTTP 400)."""
         trace_id = getattr(request.state, "trace_id", str(uuid.uuid4()))
         logger.warning(
@@ -216,9 +212,7 @@ try:
         )
 
     @app.exception_handler(AgentExecutionError)
-    async def execution_error_handler(
-        request: Request, exc: AgentExecutionError
-    ) -> JSONResponse:
+    async def execution_error_handler(request: Request, exc: AgentExecutionError) -> JSONResponse:
         """Handle execution errors (HTTP 500)."""
         trace_id = getattr(request.state, "trace_id", str(uuid.uuid4()))
         logger.error(
@@ -266,9 +260,7 @@ try:
         )
 
     @app.exception_handler(AgentResourceError)
-    async def resource_error_handler(
-        request: Request, exc: AgentResourceError
-    ) -> JSONResponse:
+    async def resource_error_handler(request: Request, exc: AgentResourceError) -> JSONResponse:
         """Handle resource errors (HTTP 503)."""
         trace_id = getattr(request.state, "trace_id", str(uuid.uuid4()))
         logger.error(
@@ -402,7 +394,7 @@ try:
 except AgentConfigurationError as e:
     # Configuration errors are already logged and should exit gracefully
     logger.error(f"Application startup failed due to configuration error: {e.message}")
-    raise SystemExit(1)
+    raise SystemExit(1) from e
 except Exception as e:
     logger.exception(f"Application failed to start due to an unexpected error: {e}")
-    raise SystemExit(1)
+    raise SystemExit(1) from e

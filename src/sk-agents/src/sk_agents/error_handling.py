@@ -13,7 +13,7 @@ Usage:
         ERROR_MISSING_REQUIRED_FIELD,
         ErrorResponse
     )
-    
+
     raise AgentValidationError(
         message="Missing required field",
         error_code=ERROR_MISSING_REQUIRED_FIELD,
@@ -23,17 +23,18 @@ Usage:
 
 from datetime import datetime
 from typing import Any
-from pydantic import BaseModel, Field
 
+from pydantic import BaseModel, Field
 
 # ============================================================================
 # Exception Classes
 # ============================================================================
 
+
 class AgentException(Exception):
     """
     Base exception for all agent-related errors with error codes.
-    
+
     Attributes:
         message: Human-readable error message
         error_code: Machine-readable error code (e.g., "CFG-001")
@@ -60,43 +61,85 @@ class AgentException(Exception):
 
 class AgentConfigurationError(AgentException):
     """Configuration errors (missing env vars, invalid config, etc.) - HTTP 503"""
-    def __init__(self, message: str, error_code: str = "CFG-000", details: dict[str, Any] | None = None):
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "CFG-000",
+        details: dict[str, Any] | None = None,
+    ):
         super().__init__(message, error_code, details, status_code=503)
 
 
 class AgentAuthenticationError(AgentException):
     """Authentication failures (missing/invalid tokens, etc.) - HTTP 401"""
-    def __init__(self, message: str, error_code: str = "AUTH-000", details: dict[str, Any] | None = None):
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "AUTH-000",
+        details: dict[str, Any] | None = None,
+    ):
         super().__init__(message, error_code, details, status_code=401)
 
 
 class AgentValidationError(AgentException):
     """Input validation failures (missing fields, invalid format, etc.) - HTTP 400"""
-    def __init__(self, message: str, error_code: str = "VAL-000", details: dict[str, Any] | None = None):
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "VAL-000",
+        details: dict[str, Any] | None = None,
+    ):
         super().__init__(message, error_code, details, status_code=400)
 
 
 class AgentExecutionError(AgentException):
     """Execution failures (handler errors, model failures, etc.) - HTTP 500"""
-    def __init__(self, message: str, error_code: str = "EXEC-000", details: dict[str, Any] | None = None):
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "EXEC-000",
+        details: dict[str, Any] | None = None,
+    ):
         super().__init__(message, error_code, details, status_code=500)
 
 
 class AgentTimeoutError(AgentException):
     """Timeout errors (request timeout, model timeout, etc.) - HTTP 504"""
-    def __init__(self, message: str, error_code: str = "TO-000", details: dict[str, Any] | None = None):
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "TO-000",
+        details: dict[str, Any] | None = None,
+    ):
         super().__init__(message, error_code, details, status_code=504)
 
 
 class AgentResourceError(AgentException):
     """Resource errors (model unavailable, service down, etc.) - HTTP 503"""
-    def __init__(self, message: str, error_code: str = "RES-000", details: dict[str, Any] | None = None):
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "RES-000",
+        details: dict[str, Any] | None = None,
+    ):
         super().__init__(message, error_code, details, status_code=503)
 
 
 class AgentStateError(AgentException):
     """State errors (session not found, invalid transitions, etc.) - HTTP 409"""
-    def __init__(self, message: str, error_code: str = "STATE-000", details: dict[str, Any] | None = None):
+
+    def __init__(
+        self,
+        message: str,
+        error_code: str = "STATE-000",
+        details: dict[str, Any] | None = None,
+    ):
         super().__init__(message, error_code, details, status_code=409)
 
 
@@ -154,8 +197,10 @@ ERROR_STATE_PERSISTENCE_FAILED = "STATE-004"
 # Error Response Models
 # ============================================================================
 
+
 class ErrorDetail(BaseModel):
     """Detailed information about a specific error (for validation errors)."""
+
     code: str = Field(..., description="Error code for this specific detail")
     message: str = Field(..., description="Human-readable error message")
     field: str | None = Field(None, description="Field name that caused the error")
@@ -165,7 +210,7 @@ class ErrorDetail(BaseModel):
 class ErrorResponse(BaseModel):
     """
     Standardized error response for all API errors.
-    
+
     Example:
         {
             "error": "Validation Error",
@@ -176,6 +221,7 @@ class ErrorResponse(BaseModel):
             "timestamp": "2026-03-05T10:30:00Z"
         }
     """
+
     error: str = Field(..., description="High-level error type")
     error_code: str = Field(..., description="Machine-readable error code (e.g., 'VAL-001')")
     message: str = Field(..., description="Human-readable error message")
@@ -192,6 +238,7 @@ class ErrorResponse(BaseModel):
 
 class HealthErrorResponse(BaseModel):
     """Error response for health check endpoints."""
+
     status: str = Field(..., description="Health status ('unhealthy', 'degraded', etc.)")
     error: str = Field(..., description="Error message")
     checks: dict[str, str] | None = Field(None, description="Individual health check results")
@@ -205,6 +252,7 @@ class HealthErrorResponse(BaseModel):
 # Helper Functions
 # ============================================================================
 
+
 def create_error_response(
     error: str,
     error_code: str,
@@ -217,7 +265,7 @@ def create_error_response(
 ) -> ErrorResponse:
     """
     Helper function to create an ErrorResponse.
-    
+
     Args:
         error: High-level error type
         error_code: Machine-readable error code
@@ -227,7 +275,7 @@ def create_error_response(
         request_id: Request ID for debugging
         path: API path where error occurred
         help_url: URL to documentation
-        
+
     Returns:
         ErrorResponse object
     """

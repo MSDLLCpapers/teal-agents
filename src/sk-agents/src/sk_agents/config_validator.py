@@ -3,12 +3,10 @@ Configuration validator for detecting missing/invalid environment variables at s
 """
 
 import logging
-import os
 from pathlib import Path
-from typing import Any
 from urllib.parse import urlparse
 
-from ska_utils import AppConfig, Config
+from ska_utils import AppConfig
 
 from sk_agents.configs import (
     TA_A2A_ENABLED,
@@ -16,34 +14,24 @@ from sk_agents.configs import (
     TA_API_KEY,
     TA_AUTH_STORAGE_MANAGER_CLASS,
     TA_AUTH_STORAGE_MANAGER_MODULE,
-    TA_AUTHORIZER_CLASS,
-    TA_AUTHORIZER_MODULE,
     TA_CUSTOM_CHAT_COMPLETION_FACTORY_CLASS_NAME,
     TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE,
     TA_OAUTH_BASE_URL,
-    TA_OAUTH_CLIENT_NAME,
     TA_OAUTH_REDIRECT_URI,
     TA_PERSISTENCE_CLASS,
     TA_PERSISTENCE_MODULE,
-    TA_PLUGIN_CATALOG_CLASS,
     TA_PLUGIN_CATALOG_FILE,
-    TA_PLUGIN_CATALOG_MODULE,
-    TA_PLUGIN_MODULE,
     TA_PROVIDER_ORG,
     TA_PROVIDER_URL,
     TA_REDIS_DB,
     TA_REDIS_HOST,
     TA_REDIS_PORT,
     TA_REDIS_PWD,
-    TA_REDIS_SSL,
-    TA_REDIS_TTL,
     TA_REMOTE_PLUGIN_PATH,
     TA_SERVICE_CONFIG,
     TA_STATE_MANAGEMENT,
-    TA_STRUCTURED_OUTPUT_TRANSFORMER_MODEL,
-    TA_TYPES_MODULE,
 )
-from sk_agents.exceptions import AgentConfigurationError, ERROR_MISSING_ENV_VAR
+from sk_agents.exceptions import AgentConfigurationError
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +53,7 @@ class ValidationError:
 class ConfigValidator:
     """
     Validates configuration at application startup.
-    
+
     Performs comprehensive validation of:
     - Required environment variables
     - File paths existence
@@ -82,12 +70,12 @@ class ConfigValidator:
     def validate_all(self) -> tuple[list[ValidationError], list[str]]:
         """
         Run all validation checks.
-        
+
         Returns:
             Tuple of (errors, warnings)
         """
         logger.info("Starting configuration validation...")
-        
+
         self.errors = []
         self.warnings = []
 
@@ -96,21 +84,21 @@ class ConfigValidator:
         self._validate_service_config()
         self._validate_file_paths()
         self._validate_urls()
-        
+
         # Conditional validations
         self._validate_state_management()
         self._validate_custom_chat_completion()
         self._validate_auth_storage()
         self._validate_persistence()
         self._validate_a2a_config()
-        
+
         if self.errors:
             logger.error(f"Configuration validation failed with {len(self.errors)} error(s)")
             for error in self.errors:
                 logger.error(f"  - {error}")
         else:
             logger.info("Configuration validation passed ✓")
-            
+
         if self.warnings:
             logger.warning(f"Configuration validation has {len(self.warnings)} warning(s)")
             for warning in self.warnings:
@@ -139,7 +127,7 @@ class ConfigValidator:
                     self.errors.append(
                         ValidationError(
                             code="CFG-001",
-                            message=f"Required environment variable is not set or empty",
+                            message="Required environment variable is not set or empty",
                             field=config.env_name,
                         )
                     )
@@ -165,7 +153,7 @@ class ConfigValidator:
                         field=TA_SERVICE_CONFIG.env_name,
                     )
                 )
-            elif not config_path.suffix in [".yaml", ".yml"]:
+            elif config_path.suffix not in [".yaml", ".yml"]:
                 self.warnings.append(
                     f"Configuration file does not have .yaml/.yml extension: {config_file}"
                 )
@@ -227,10 +215,10 @@ class ConfigValidator:
     def _validate_state_management(self):
         """Validate state management configuration."""
         state_mgmt = self.app_config.get(TA_STATE_MANAGEMENT.env_name)
-        
+
         if not state_mgmt:
             return
-            
+
         valid_options = ["in-memory", "redis", "dynamodb"]
         if state_mgmt not in valid_options:
             self.errors.append(
@@ -257,7 +245,7 @@ class ConfigValidator:
                     self.errors.append(
                         ValidationError(
                             code="CFG-001",
-                            message=f"Required for Redis state management but not set",
+                            message="Required for Redis state management but not set",
                             field=config.env_name,
                         )
                     )
@@ -271,7 +259,9 @@ class ConfigValidator:
                         self.errors.append(
                             ValidationError(
                                 code="CFG-004",
-                                message=f"Redis port must be between 1 and 65535, got: {redis_port}",
+                                message=(
+                                    f"Redis port must be between 1 and 65535, got: {redis_port}"
+                                ),
                                 field=TA_REDIS_PORT.env_name,
                             )
                         )
@@ -361,7 +351,7 @@ class ConfigValidator:
         """Validate Agent-to-Agent configuration if enabled."""
         a2a_enabled_value = self.app_config.props.get(TA_A2A_ENABLED.env_name)
         a2a_enabled_str = (a2a_enabled_value or "false").lower()
-        
+
         if a2a_enabled_str in ["true", "1", "yes"]:
             self.warnings.append(
                 "A2A (Agent-to-Agent) functionality is deprecated and maintained for "
@@ -372,10 +362,10 @@ class ConfigValidator:
 def validate_config_or_raise(app_config: AppConfig) -> None:
     """
     Validate configuration and raise exception if errors found.
-    
+
     Args:
         app_config: Application configuration to validate
-        
+
     Raises:
         AgentConfigurationError: If validation errors are found
     """

@@ -47,8 +47,8 @@ class ChatCompletionBuilder:
             if not hasattr(cccf_module, ccc_factory_name):
                 raise ValueError(
                     f"Custom Chat Completion Factory class: "
-                    f"{ccc_factory_name} "
-                    f"Not found in module: {cccf_module_name}"
+                    f"{ccc_factory_name}"
+                    f" Not found in module: {cccf_module_name}"
                 )
             ccc_factory_type: type[ChatCompletionFactory] = getattr(cccf_module, ccc_factory_name)
             ccc_factory_configs = ccc_factory_type.get_configs()

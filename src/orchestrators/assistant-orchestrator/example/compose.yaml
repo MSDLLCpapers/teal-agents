@@ -95,14 +95,16 @@ services:
     depends_on:
       kong:
         condition: service_healthy
+      dynamodb-healthcheck:
+        condition: service_healthy
       math-healthcheck:
-        condition: service_healthy
+        condition: service_started
       weather-healthcheck:
-        condition: service_healthy
+        condition: service_started
       general-healthcheck:
-        condition: service_healthy
+        condition: service_started
       recipient-healthcheck:
-        condition: service_healthy
+        condition: service_started
   math:
     image: teal-agents:latest
     ports:

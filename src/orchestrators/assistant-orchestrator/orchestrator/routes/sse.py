@@ -89,6 +89,13 @@ async def sse_event_response(
             # Determine the selected agent
             if selected_agent.agent_name not in agent_catalog.agents:
                 agent = fallback_agent
+                if agent is None:
+                    # No fallback agent available
+                    sse_error = SseError(
+                        error="No agent available to handle this request",
+                    )
+                    yield format_sse_message(sse_error.model_dump(), SseEventType.UNKNOWN)
+                    return
                 sel_agent_name = fallback_agent.name
             else:
                 agent = agent_catalog.agents[selected_agent.agent_name]

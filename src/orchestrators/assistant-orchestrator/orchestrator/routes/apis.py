@@ -100,6 +100,12 @@ async def add_conversation_message_by_id(
 
             if selected_agent.agent_name not in agent_catalog.agents:
                 agent = fallback_agent
+                if agent is None:
+                    # No fallback agent available
+                    raise HTTPException(
+                        status_code=503,
+                        detail="No agent available to handle this request"
+                    )
                 sel_agent_name = fallback_agent.name
             else:
                 agent = agent_catalog.agents[selected_agent.agent_name]

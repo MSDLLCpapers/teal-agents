@@ -25,7 +25,7 @@ TA_REDIS_SESSION_TTL = Config(
 )
 TA_SESSION_TYPE = Config(env_name="TA_SESSION_TYPE", is_required=True, default_value="internal")
 TA_CUSTOM_USER_CONTEXT_ENABLED = Config(
-    env_name="TA_CUSTOM_USER_CONTEXT_ENABLED", is_required=True, default_value=None
+    env_name="TA_CUSTOM_USER_CONTEXT_ENABLED", is_required=True, default_value="false"
 )
 TA_CUSTOM_USER_CONTEXT_MODULE = Config(
     env_name="TA_CUSTOM_USER_CONTEXT_MODULE", is_required=False, default_value=None

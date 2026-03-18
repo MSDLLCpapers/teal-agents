@@ -1,3 +1,5 @@
+"""AppV1 application runner for skagents/v1 API version."""
+
 import os
 from datetime import datetime
 from typing import Any
@@ -18,9 +20,12 @@ from sk_agents.utility_routes import UtilityRoutes
 from sk_agents.utils import initialize_plugin_loader
 
 
-class AppV1:
+class AppV1:  # pylint: disable=too-few-public-methods
+    """Application runner for skagents/v1 API version."""
+
     @staticmethod
     def run(name: str, version: str, app_config: AppConfig, config: BaseConfig, app: FastAPI):
+        """Initialize and run the AppV1 application with routes and plugins."""
         config_file = app_config.get(TA_SERVICE_CONFIG.env_name)
         agents_path = str(os.path.dirname(config_file))
 

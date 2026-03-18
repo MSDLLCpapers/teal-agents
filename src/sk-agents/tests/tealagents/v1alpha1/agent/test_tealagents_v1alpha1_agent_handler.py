@@ -94,7 +94,9 @@ def mock_app_config():
     mock_config.get.side_effect = lambda key: {
         TA_PERSISTENCE_MODULE.env_name: TA_PERSISTENCE_MODULE.default_value,
         TA_PERSISTENCE_CLASS.env_name: TA_PERSISTENCE_CLASS.default_value,
-    }.get(key, MagicMock())  # Return MagicMock for other keys
+    }.get(
+        key, MagicMock()
+    )  # Return MagicMock for other keys
 
     return mock_config
 
@@ -381,9 +383,9 @@ async def test_manage_agent_response_task(
     Test that _manage_agent_response_task correctly appends a new item
     and updates the agent task in state.
     """
-    mocker.patch(
-        "sk_agents.tealagents.v1alpha1.agent.handler.datetime"
-    ).now.return_value = mock_date_time
+    mocker.patch("sk_agents.tealagents.v1alpha1.agent.handler.datetime").now.return_value = (
+        mock_date_time
+    )
 
     mocker.patch.object(teal_agents_handler.state, "update", new_callable=mocker.AsyncMock)
 

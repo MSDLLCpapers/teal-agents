@@ -1,3 +1,5 @@
+"""Tests for utility routes including health, liveness, and metadata endpoints."""
+
 from unittest.mock import MagicMock, PropertyMock, patch
 
 from fastapi import FastAPI
@@ -308,7 +310,7 @@ class TestExtractMetadata:
         with patch("sk_agents.utility_routes.logger") as mock_logger:
             UtilityRoutes._extract_metadata(config)
             mock_logger.info.assert_called_once_with(
-                "Extracted metadata for agent: log-test-agent"
+                "Extracted metadata for agent: %s", "log-test-agent"
             )
 
     def test_extract_metadata_logs_exception_on_error(self):
@@ -461,25 +463,30 @@ class TestAgentMetadataModel:
             "plugins": ["P1"],
         }
 
+
 class TestSafeGet:
     """Test UtilityRoutes._safe_get static method with dicts and objects."""
 
     def test_safe_get_from_dict(self):
+        """Test _safe_get retrieves values from a dict."""
         data = {"name": "agent1", "model": "gpt-4o"}
         assert UtilityRoutes._safe_get(data, "name") == "agent1"
         assert UtilityRoutes._safe_get(data, "model") == "gpt-4o"
 
     def test_safe_get_from_dict_missing_key(self):
+        """Test _safe_get returns default for missing dict keys."""
         data = {"name": "agent1"}
         assert UtilityRoutes._safe_get(data, "missing") is None
         assert UtilityRoutes._safe_get(data, "missing", "fallback") == "fallback"
 
     def test_safe_get_from_object(self):
+        """Test _safe_get retrieves attributes from an object."""
         obj = MagicMock()
         obj.name = "agent1"
         assert UtilityRoutes._safe_get(obj, "name") == "agent1"
 
     def test_safe_get_from_object_missing_attr(self):
+        """Test _safe_get returns None for missing object attributes."""
         obj = MagicMock(spec=[])
         assert UtilityRoutes._safe_get(obj, "missing") is None
 
@@ -488,6 +495,7 @@ class TestExtractMetadataWithDictSpec:
     """Test _extract_metadata with dict-based specs (real YAML parsing scenario)."""
 
     def test_single_agent_dict_spec(self):
+        """Test extraction from a single-agent dict spec."""
         config = BaseConfig(
             apiVersion="skagents/v1",
             name="ChatBot",
@@ -509,6 +517,7 @@ class TestExtractMetadataWithDictSpec:
         assert metadata.plugins == ["PluginA", "PluginB", "RemotePlugin"]
 
     def test_multi_agent_dict_spec(self):
+        """Test extraction from a multi-agent dict spec."""
         config = BaseConfig(
             apiVersion="skagents/v1",
             service_name="WeatherAgent",
@@ -532,6 +541,7 @@ class TestExtractMetadataWithDictSpec:
         assert metadata.plugins == ["WeatherPlugin"]
 
     def test_multi_agent_dict_spec_multiple_agents(self):
+        """Test extraction with multiple agents combines models and deduplicates plugins."""
         config = BaseConfig(
             apiVersion="skagents/v1",
             name="MultiAgent",
@@ -548,6 +558,7 @@ class TestExtractMetadataWithDictSpec:
         assert metadata.plugins == ["PluginA", "PluginB"]
 
     def test_dict_spec_with_mcp_servers(self):
+        """Test extraction includes MCP server names prefixed with 'mcp:'."""
         config = BaseConfig(
             apiVersion="tealagents/v1alpha1",
             name="MCPAgent",
@@ -569,6 +580,7 @@ class TestExtractMetadataWithDictSpec:
         assert metadata.plugins == ["LocalPlugin", "mcp:filesystem", "mcp:github"]
 
     def test_dict_spec_no_plugins(self):
+        """Test extraction returns None for plugins when none are configured."""
         config = BaseConfig(
             apiVersion="skagents/v1",
             name="NoPluginAgent",
@@ -580,6 +592,7 @@ class TestExtractMetadataWithDictSpec:
         assert metadata.plugins is None
 
     def test_dict_spec_endpoint_integration(self):
+        """Test the /metadata endpoint returns correct data for dict-based specs."""
         config = BaseConfig(
             apiVersion="skagents/v1",
             service_name="WeatherAgent",

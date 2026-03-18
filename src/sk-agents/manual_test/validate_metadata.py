@@ -40,17 +40,20 @@ FAIL = "\033[91m❌ FAIL\033[0m"
 
 
 def print_header(title: str):
+    """Print a formatted section header."""
     print(f"\n{'='*60}")
     print(f"  {title}")
     print(f"{'='*60}")
 
 
 def print_response(data: dict):
-    print(f"  Response JSON:")
+    """Print the JSON response data."""
+    print("  Response JSON:")
     print(f"  {json.dumps(data, indent=4)}")
 
 
 def check(label: str, condition: bool, actual=None, expected=None):
+    """Check a condition and print PASS/FAIL result."""
     if condition:
         print(f"  {PASS} {label}")
     else:
@@ -98,11 +101,46 @@ def test_appv1_metadata():
     print_response(data)
 
     results = []
-    results.append(check("Status code is 200", response.status_code == 200, response.status_code, 200))
-    results.append(check("agent_name is 'WeatherBot'", data["agent_name"] == "WeatherBot", data["agent_name"], "WeatherBot"))
-    results.append(check("description is 'A weather chat agent'", data["description"] == "A weather chat agent", data["description"], "A weather chat agent"))
-    results.append(check("model is 'gpt-4o'", data["model"] == "gpt-4o", data["model"], "gpt-4o"))
-    results.append(check("plugins contains 'WeatherPlugin'", data["plugins"] == ["WeatherPlugin"], data["plugins"], ["WeatherPlugin"]))
+    results.append(
+        check(
+            "Status code is 200",
+            response.status_code == 200,
+            response.status_code,
+            200,
+        )
+    )
+    results.append(
+        check(
+            "agent_name is 'WeatherBot'",
+            data["agent_name"] == "WeatherBot",
+            data["agent_name"],
+            "WeatherBot",
+        )
+    )
+    results.append(
+        check(
+            "description is 'A weather chat agent'",
+            data["description"] == "A weather chat agent",
+            data["description"],
+            "A weather chat agent",
+        )
+    )
+    results.append(
+        check(
+            "model is 'gpt-4o'",
+            data["model"] == "gpt-4o",
+            data["model"],
+            "gpt-4o",
+        )
+    )
+    results.append(
+        check(
+            "plugins contains 'WeatherPlugin'",
+            data["plugins"] == ["WeatherPlugin"],
+            data["plugins"],
+            ["WeatherPlugin"],
+        )
+    )
     return all(results)
 
 
@@ -143,11 +181,46 @@ def test_appv3_metadata():
     print_response(data)
 
     results = []
-    results.append(check("Status code is 200", response.status_code == 200, response.status_code, 200))
-    results.append(check("agent_name is 'MathAgent'", data["agent_name"] == "MathAgent", data["agent_name"], "MathAgent"))
-    results.append(check("description is 'A math helper agent'", data["description"] == "A math helper agent", data["description"], "A math helper agent"))
-    results.append(check("model is 'gpt-4o-2024-05-13'", data["model"] == "gpt-4o-2024-05-13", data["model"], "gpt-4o-2024-05-13"))
-    results.append(check("plugins contains 'sensitive_plugin'", data["plugins"] == ["sensitive_plugin"], data["plugins"], ["sensitive_plugin"]))
+    results.append(
+        check(
+            "Status code is 200",
+            response.status_code == 200,
+            response.status_code,
+            200,
+        )
+    )
+    results.append(
+        check(
+            "agent_name is 'MathAgent'",
+            data["agent_name"] == "MathAgent",
+            data["agent_name"],
+            "MathAgent",
+        )
+    )
+    results.append(
+        check(
+            "description is 'A math helper agent'",
+            data["description"] == "A math helper agent",
+            data["description"],
+            "A math helper agent",
+        )
+    )
+    results.append(
+        check(
+            "model is 'gpt-4o-2024-05-13'",
+            data["model"] == "gpt-4o-2024-05-13",
+            data["model"],
+            "gpt-4o-2024-05-13",
+        )
+    )
+    results.append(
+        check(
+            "plugins contains 'sensitive_plugin'",
+            data["plugins"] == ["sensitive_plugin"],
+            data["plugins"],
+            ["sensitive_plugin"],
+        )
+    )
     return all(results)
 
 
@@ -185,9 +258,26 @@ def test_appv1_no_plugins():
 
     results = []
     results.append(check("Status code is 200", response.status_code == 200))
-    results.append(check("agent_name is 'ChatBot'", data["agent_name"] == "ChatBot"))
-    results.append(check("model is 'gpt-4o-mini'", data["model"] == "gpt-4o-mini"))
-    results.append(check("plugins is None (no plugins)", data["plugins"] is None, data["plugins"], None))
+    results.append(
+        check(
+            "agent_name is 'ChatBot'",
+            data["agent_name"] == "ChatBot",
+        )
+    )
+    results.append(
+        check(
+            "model is 'gpt-4o-mini'",
+            data["model"] == "gpt-4o-mini",
+        )
+    )
+    results.append(
+        check(
+            "plugins is None (no plugins)",
+            data["plugins"] is None,
+            data["plugins"],
+            None,
+        )
+    )
     return all(results)
 
 
@@ -236,12 +326,14 @@ def test_appv3_with_metadata_description():
 
     results = []
     results.append(check("Status code is 200", response.status_code == 200))
-    results.append(check(
-        "description uses metadata.description (not top-level)",
-        data["description"] == "A demonstration agent that showcases MCP integration",
-        data["description"],
-        "A demonstration agent that showcases MCP integration",
-    ))
+    results.append(
+        check(
+            "description uses metadata.description (not top-level)",
+            data["description"] == "A demonstration agent that showcases MCP integration",
+            data["description"],
+            "A demonstration agent that showcases MCP integration",
+        )
+    )
     return all(results)
 
 
@@ -270,7 +362,14 @@ def test_response_schema():
     print(f"  Actual fields:   {actual_fields}")
 
     results = []
-    results.append(check("Response has exactly 4 expected fields", actual_fields == expected_fields, actual_fields, expected_fields))
+    results.append(
+        check(
+            "Response has exactly 4 expected fields",
+            actual_fields == expected_fields,
+            actual_fields,
+            expected_fields,
+        )
+    )
     return all(results)
 
 
@@ -291,11 +390,11 @@ if __name__ == "__main__":
     print_header("FINAL RESULT")
     if all_passed:
         print(f"  {PASS} ALL TESTS PASSED — Ticket is resolved!")
-        print(f"\n  The /metadata endpoint correctly returns:")
-        print(f"    • agent_name  — from config name/service_name")
-        print(f"    • description — from metadata.description or top-level")
-        print(f"    • model       — from spec.agent.model")
-        print(f"    • plugins     — from spec.agent.plugins + remote_plugins + mcp_servers")
+        print("\n  The /metadata endpoint correctly returns:")
+        print("    • agent_name  — from config name/service_name")
+        print("    • description — from metadata.description or top-level")
+        print("    • model       — from spec.agent.model")
+        print("    • plugins     — from spec.agent.plugins + remote_plugins + mcp_servers")
         sys.exit(0)
     else:
         print(f"  {FAIL} SOME TESTS FAILED — See above for details")

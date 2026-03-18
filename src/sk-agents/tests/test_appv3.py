@@ -1,3 +1,5 @@
+"""Tests for AppV3 application runner."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest

@@ -1,3 +1,4 @@
+# pylint: disable=redefined-outer-name,protected-access
 import json
 import logging
 from unittest.mock import MagicMock, patch

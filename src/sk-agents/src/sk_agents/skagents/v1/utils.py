@@ -113,6 +113,6 @@ def get_reasoning_tokens_for_response(content: ChatMessageContent) -> int:
         ):
             reasoning = content.inner_content.usage.completion_tokens_details.reasoning_tokens
             return reasoning if reasoning and reasoning > 0 else 0
-    except Exception:
+    except (AttributeError, TypeError):
         pass
     return 0

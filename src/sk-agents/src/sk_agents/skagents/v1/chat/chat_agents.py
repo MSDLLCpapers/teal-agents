@@ -104,7 +104,7 @@ class ChatAgents(BaseHandler):
         request_id = str(uuid.uuid4().hex)
 
         # Process the final task with streaming
-        with agent_telemetry.trace_agent_invocation(
+        with agent_telemetry.trace_agent_invocation(  # pylint: disable=contextmanager-generator-missing-cleanup
             "handler-stream", session_id=session_id, request_id=request_id
         ) as stream_span:
             first_token_received = False
@@ -127,7 +127,7 @@ class ChatAgents(BaseHandler):
                     # Attempt to parse as ExtraDataPartial
                     extra_data_partial: ExtraDataPartial = ExtraDataPartial.new_from_json(content)
                     extra_data_collector.add_extra_data_items(extra_data_partial.extra_data)
-                except Exception:
+                except (ValueError, KeyError, TypeError):
                     if len(content) > 0:
                         # Handle and return partial response
                         final_response.append(content)

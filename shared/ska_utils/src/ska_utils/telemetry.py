@@ -368,8 +368,8 @@ class AgentTelemetryLogger:
     def trace_agent_invocation(
         self,
         span_name: str,
-        session_id: str | None = None,
-        request_id: str | None = None,
+        session_id: str | None = None,  # pylint: disable=unused-argument
+        request_id: str | None = None,  # pylint: disable=unused-argument
     ):
         """Context manager that creates a span for agent invocation and
         automatically enriches it on exit with all collected metadata.
@@ -383,8 +383,6 @@ class AgentTelemetryLogger:
 
         Yields the span (or ``None`` if telemetry is disabled).
         """
-        from contextlib import nullcontext
-
         self.record_invocation()
 
         if (
@@ -402,7 +400,7 @@ _services_telemetry: Telemetry | None = None
 
 
 def initialize_telemetry(service_name: str, app_config: AppConfig) -> None:
-    global _services_telemetry
+    global _services_telemetry  # pylint: disable=global-statement
     _services_telemetry = Telemetry(service_name, app_config)
 
 

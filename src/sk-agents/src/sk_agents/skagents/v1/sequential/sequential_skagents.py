@@ -159,7 +159,7 @@ class SequentialSkagents(BaseHandler):
         )
 
         average_ttft_ms = []
-        with agent_telemetry.trace_agent_invocation(
+        with agent_telemetry.trace_agent_invocation(  # pylint: disable=contextmanager-generator-missing-cleanup
             "handler-stream", session_id=session_id, request_id=request_id
         ) as stream_span:
             logger.info("Beginning processing invoke stream")
@@ -243,7 +243,7 @@ class SequentialSkagents(BaseHandler):
                     # Attempt to parse as ExtraDataPartial
                     extra_data_partial: ExtraDataPartial = ExtraDataPartial.new_from_json(content)
                     collector.add_extra_data_items(extra_data_partial.extra_data)
-                except Exception:
+                except (ValueError, KeyError, TypeError):
                     # Handle and return partial response
                     final_response.append(content)
                     yield PartialResponse(
@@ -289,8 +289,8 @@ class SequentialSkagents(BaseHandler):
             )
 
             logger.info(
-                f"{self.name}:{self.version} responded with {total_tokens} tokens. "
-                f"Session-id {session_id}, Request-id {request_id}"
+                "%s:%s responded with %d tokens. Session-id %s, Request-id %s",
+                self.name, self.version, total_tokens, session_id, request_id,
             )
             logger.info("Building the final response with InvokeResponse")
             # Build the final response with InvokeResponse
@@ -417,8 +417,8 @@ class SequentialSkagents(BaseHandler):
             )
 
             logger.info(
-                f"{self.name}:{self.version} responded with {total_tokens} tokens. "
-                f"Session-id {session_id}, Request-id {request_id}"
+                "%s:%s responded with %d tokens. Session-id %s, Request-id %s",
+                self.name, self.version, total_tokens, session_id, request_id,
             )
             logger.info("Building the final response with InvokeResponse")
             last_message = chat_history.messages[-1].content

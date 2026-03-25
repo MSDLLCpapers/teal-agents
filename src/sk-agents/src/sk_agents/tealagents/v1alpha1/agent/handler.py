@@ -112,10 +112,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 state_manager=self.discovery_manager,
                 app_config=self.app_config,
             )
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning(
-                f"Failed to create MCP connection manager: {e}. "
-                "Falling back to per-tool connections."
+                "Failed to create MCP connection manager: %s. "
+                "Falling back to per-tool connections.", e,
             )
             return None
 
@@ -144,7 +144,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         # Check if discovery already completed for this session
         is_completed = await self.discovery_manager.is_completed(user_id, session_id)
         if is_completed:
-            logger.debug(f"MCP discovery already completed for session: {session_id}")
+            logger.debug("MCP discovery already completed for session: %s", session_id)
             return None
 
         # Load or create discovery state
@@ -159,7 +159,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 discovery_completed=False,
             )
             await self.discovery_manager.create_discovery(discovery_state)
-            logger.info(f"Created discovery state for session: {session_id}")
+            logger.info("Created discovery state for session: %s", session_id)
 
         # Check if MCP servers configured
         mcp_servers = self.config.get_agent().mcp_servers
@@ -172,7 +172,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             from sk_agents.mcp_plugin_registry import McpPluginRegistry
 
             logger.info(
-                f"Starting MCP discovery for session {session_id} ({len(mcp_servers)} servers)"
+                "Starting MCP discovery for session %s (%d servers)",
+                session_id, len(mcp_servers),
             )
 
             await McpPluginRegistry.discover_and_materialize(
@@ -180,21 +181,23 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             )
 
             await self.discovery_manager.mark_completed(user_id, session_id)
-            logger.info(f"MCP discovery completed for session {session_id}")
+            logger.info("MCP discovery completed for session %s", session_id)
             return None
 
         except AuthRequiredError as e:
             # Auth required - return challenge
             logger.info(
-                f"MCP discovery requires authentication for '{e.server_name}' "
-                f"(session: {session_id})"
+                "MCP discovery requires authentication for '%s' (session: %s)",
+                e.server_name, session_id,
             )
 
             try:
                 # Find server config
                 server_config = next((s for s in mcp_servers if s.name == e.server_name), None)
                 if not server_config:
-                    raise ValueError(f"Server config not found for '{e.server_name}'")
+                    raise ValueError(
+                        f"Server config not found for '{e.server_name}'"
+                    ) from e
 
                 # Initiate OAuth 2.1 authorization flow with PKCE
                 from sk_agents.auth.oauth_client import OAuthClient
@@ -206,7 +209,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                     server_config=server_config, user_id=user_id
                 )
 
-                logger.info(f"Generated OAuth authorization URL for {e.server_name}")
+                logger.info("Generated OAuth authorization URL for %s", e.server_name)
 
                 return AuthChallengeResponse(
                     task_id=task_id,
@@ -224,8 +227,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                     resume_url="/tealagents/v1alpha1/invoke",
                 )
 
-            except Exception as oauth_error:
-                logger.error(f"Failed to initiate OAuth flow: {oauth_error}")
+            except Exception as oauth_error:  # pylint: disable=broad-exception-caught
+                logger.error("Failed to initiate OAuth flow: %s", oauth_error)
                 return AuthChallengeResponse(
                     task_id=task_id,
                     session_id=session_id,
@@ -243,7 +246,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 )
 
         except Exception as e:
-            logger.error(f"MCP discovery failed for session {session_id}: {e}")
+            logger.error("MCP discovery failed for session %s: %s", session_id, e)
             raise
 
     @staticmethod
@@ -365,8 +368,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
             return None
 
-        except Exception as e:
-            logger.warning(f"Error during MCP server authentication check: {e}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.warning("Error during MCP server authentication check: %s", e)
             # Continue without MCP auth if there are issues with auth storage
             return None
 
@@ -532,7 +535,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         # Handle intervention function calls
         if intervention_calls:
-            logger.info(f"Intervention required for{len(intervention_calls)} function calls.")
+            logger.info(
+                "Intervention required for %d function calls.",
+                len(intervention_calls),
+            )
             raise hitl_manager.HitlInterventionRequired(intervention_calls)
 
     async def prepare_agent_response(
@@ -551,7 +557,6 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         total_tokens = token_usage.total_tokens
         session_id = agent_task.session_id
         task_id = agent_task.task_id
-        request_id = request_id
 
         agent_response = TealAgentsResponse(
             session_id=session_id,
@@ -564,10 +569,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
         await self._manage_agent_response_task(agent_task, agent_response)
         logger.info(
-            f"{self.name}:{self.version}"
-            f"successful invocation with {total_tokens} tokens. "
-            f"Session ID: {session_id}, Task ID: {task_id},"
-            f"Request ID {request_id}"
+            "%s:%s successful invocation with %d tokens. "
+            "Session ID: %s, Task ID: %s, Request ID %s",
+            self.name, self.version, total_tokens,
+            session_id, task_id, request_id,
         )
         return agent_response
 
@@ -702,7 +707,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         else:
             return await _execute_resume()
 
-    async def invoke(
+    async def invoke(  # pylint: disable=arguments-differ
         self, auth_token: str, inputs: UserMessage
     ) -> TealAgentsResponse | HitlResponse | AuthChallengeResponse:
         # Initial setup
@@ -739,7 +744,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
         if auth_challenge:
             logger.info(
-                f"MCP authentication required for {len(auth_challenge.auth_challenges)} server(s)"
+                "MCP authentication required for %d server(s)",
+                len(auth_challenge.auth_challenges),
             )
             return auth_challenge
 
@@ -769,7 +775,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         return final_response_invoke
 
-    async def invoke_stream(
+    async def invoke_stream(  # pylint: disable=arguments-differ
         self, auth_token: str, inputs: UserMessage
     ) -> AsyncIterable[
         TealAgentsResponse | TealAgentsPartialResponse | HitlResponse | AuthChallengeResponse
@@ -804,7 +810,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                     state = await self.discovery_manager.load_discovery(user_id, session_id)
                     if state:
                         failed_servers = state.failed_servers
-                except Exception:
+                except Exception:  # pylint: disable=broad-exception-caught
                     logger.debug("Failed to load discovery state for status message")
 
             all_server_names = [server.name for server in mcp_servers]
@@ -847,7 +853,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
         if auth_challenge:
             logger.info(
-                f"MCP authentication required for {len(auth_challenge.auth_challenges)} server(s)"
+                "MCP authentication required for %d server(s)",
+                len(auth_challenge.auth_challenges),
             )
             yield auth_challenge
             return
@@ -1046,15 +1053,16 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         except Exception as e:
             logger.exception(
-                f"Error invoking {self.name}:{self.version}"
-                f"for Session ID {session_id}, Task ID {task_id},"
-                f"Request ID {request_id}, Error message: {str(e)}",
+                "Error invoking %s:%s for Session ID %s, Task ID %s, "
+                "Request ID %s, Error message: %s",
+                self.name, self.version, session_id, task_id,
+                request_id, e,
                 exc_info=True,
             )
             raise AgentInvokeException(
-                f"Error invoking {self.name}:{self.version}"
-                f"for Session ID {session_id}, Task ID {task_id},"
-                f" Request ID {request_id}, Error message: {str(e)}"
+                f"Error invoking {self.name}:{self.version} "
+                f"for Session ID {session_id}, Task ID {task_id}, "
+                f"Request ID {request_id}, Error message: {e}"
             ) from e
 
         # Emit standardized structured log at the end of the invocation chain
@@ -1183,7 +1191,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                             response.content
                         )
                         extra_data_collector.add_extra_data_items(extra_data_partial.extra_data)
-                    except Exception:
+                    except (ValueError, KeyError, TypeError):
                         if len(response.content) > 0:
                             # Handle and return partial response
                             final_response.append(response.content)
@@ -1251,15 +1259,16 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         except Exception as e:
             logger.exception(
-                f"Error invoking stream for {self.name}:{self.version} "
-                f"for Session ID {session_id}, Task ID {task_id},"
-                f" Request ID {request_id}, Error message: {str(e)}",
+                "Error invoking stream for %s:%s for Session ID %s, Task ID %s, "
+                "Request ID %s, Error message: %s",
+                self.name, self.version, session_id, task_id,
+                request_id, e,
                 exc_info=True,
             )
             raise AgentInvokeException(
-                f"Error invoking stream for {self.name}:{self.version}"
-                f"for Session ID {session_id}, Task ID {task_id},"
-                f"Request ID {request_id}, Error message: {str(e)}"
+                f"Error invoking stream for {self.name}:{self.version} "
+                f"for Session ID {session_id}, Task ID {task_id}, "
+                f"Request ID {request_id}, Error message: {e}"
             ) from e
 
         # Emit standardized structured log

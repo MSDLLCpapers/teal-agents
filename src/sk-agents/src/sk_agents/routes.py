@@ -274,6 +274,10 @@ class Routes:
                     raise HTTPException(
                         status_code=500, detail=f"Agent invocation failed: {e.message}"
                     ) from e
+                except HTTPException:
+                    raise
+                except ValueError:
+                    raise
                 except Exception as e:
                     logger.exception(f"Unexpected error: {e}")
                     raise HTTPException(
@@ -539,7 +543,7 @@ class Routes:
                 logger.exception(f"Error in resume: {e}")
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Internal Server Error: {str(e)}",
+                    detail="Internal Server Error",
                 ) from e
 
         @router.post("/tealagents/v1alpha1/resume/{request_id}/sse")
@@ -585,10 +589,7 @@ class Routes:
                     })
                 except Exception as e:
                     logger.exception(f"Error in resume_sse: {e}")
-                    yield get_sse_event_for_response({
-                        "error": f"Internal Server Error: {str(e)}",
-                        "status_code": 500,
-                    })
+                    raise
 
             return StreamingResponse(event_generator(), media_type="text/event-stream")
 

@@ -1200,9 +1200,9 @@ def test_get_resume_routes_sse_exception(mock_sse_event, mock_get_task_handler):
     app.include_router(router, prefix="/api")
 
     client = TestClient(app)
-    # Should raise RuntimeError because the response has already started
-    # when the exception occurs in the SSE stream
-    with pytest.raises(RuntimeError, match="response already started"):
+    # Should raise Exception because the exception propagates from the SSE stream
+    # after the response has already started streaming
+    with pytest.raises(Exception, match="Stream error"):
         client.post(
             "/api/tealagents/v1alpha1/resume/request123/sse",
             json={"action": "approve"},

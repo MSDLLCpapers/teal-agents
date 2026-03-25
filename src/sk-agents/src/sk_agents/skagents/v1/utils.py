@@ -90,3 +90,29 @@ def get_token_usage_for_google_response(
             content.inner_content.usage.output_tokens + content.inner_content.usage.input_tokens
         ),
     )
+
+
+def get_reasoning_tokens_for_response(content: ChatMessageContent) -> int:
+    """Extract reasoning/thinking token count from a response if available.
+
+    Currently supports OpenAI models that report ``completion_tokens_details.reasoning_tokens``.
+    Returns 0 when the information is not present.
+    """
+    try:
+        if (
+            isinstance(content, ChatMessageContent)
+            and hasattr(content, "inner_content")
+            and content.inner_content is not None
+            and hasattr(content.inner_content, "usage")
+            and content.inner_content.usage is not None
+            and hasattr(content.inner_content.usage, "completion_tokens_details")
+            and content.inner_content.usage.completion_tokens_details is not None
+            and hasattr(
+                content.inner_content.usage.completion_tokens_details, "reasoning_tokens"
+            )
+        ):
+            reasoning = content.inner_content.usage.completion_tokens_details.reasoning_tokens
+            return reasoning if reasoning and reasoning > 0 else 0
+    except Exception:
+        pass
+    return 0

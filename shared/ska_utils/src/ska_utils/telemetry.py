@@ -383,8 +383,6 @@ class AgentTelemetryLogger:
 
         Yields the span (or ``None`` if telemetry is disabled).
         """
-        from contextlib import nullcontext
-
         self.record_invocation()
 
         if (

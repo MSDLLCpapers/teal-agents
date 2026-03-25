@@ -27,13 +27,13 @@ from sk_agents.configs import (
     TA_PROVIDER_ORG,
     TA_PROVIDER_URL,
 )
-from sk_agents.persistence.task_persistence_manager import TaskPersistenceManager
 from sk_agents.exceptions import (
     AgentInvokeException,
     AgentUnavailableException,
     LLMAuthenticationException,
     LLMServiceException,
 )
+from sk_agents.persistence.task_persistence_manager import TaskPersistenceManager
 from sk_agents.ska_types import (
     BaseConfig,
     BaseHandler,
@@ -240,7 +240,9 @@ class Routes:
                 try:
                     match root_handler_name:
                         case "skagents":
-                            handler: BaseHandler = skagents_handle(config, app_config, authorization)
+                            handler: BaseHandler = skagents_handle(
+                                config, app_config, authorization
+                            )
                         case _:
                             raise ValueError(f"Unknown apiVersion: {config.apiVersion}")
 
@@ -310,19 +312,38 @@ class Routes:
                                     yield get_sse_event_for_response(content)
                             except AgentUnavailableException as e:
                                 logger.exception(f"Agent unavailable in SSE: {e}")
-                                yield get_sse_event_for_response({"error": f"Agent unavailable: {e.message}", "status_code": 502})
+                                yield get_sse_event_for_response({
+                                    "error": f"Agent unavailable: {e.message}",
+                                    "status_code": 502,
+                                })
                             except LLMAuthenticationException as e:
                                 logger.exception(f"LLM auth failed in SSE: {e}")
-                                yield get_sse_event_for_response({"error": f"LLM authentication failed: {e.message}", "status_code": 401})
+                                yield get_sse_event_for_response({
+                                    "error": f"LLM authentication failed: {e.message}",
+                                    "status_code": 401,
+                                })
                             except LLMServiceException as e:
                                 logger.exception(f"LLM service error in SSE: {e}")
-                                yield get_sse_event_for_response({"error": f"LLM service error ({e.error_type}): {e.message}", "status_code": getattr(e, "status_code", 502) or 502})
+                                sc = getattr(e, "status_code", 502) or 502
+                                yield get_sse_event_for_response({
+                                    "error": (
+                                        f"LLM service error ({e.error_type}): "
+                                        f"{e.message}"
+                                    ),
+                                    "status_code": sc,
+                                })
                             except AgentInvokeException as e:
                                 logger.exception(f"Agent invocation failed in SSE: {e}")
-                                yield get_sse_event_for_response({"error": f"Agent invocation failed: {e.message}", "status_code": 500})
+                                yield get_sse_event_for_response({
+                                    "error": f"Agent invocation failed: {e.message}",
+                                    "status_code": 500,
+                                })
                             except Exception as e:
                                 logger.exception(f"Unexpected error in SSE: {e}")
-                                yield get_sse_event_for_response({"error": f"Internal Server Error: {str(e)}", "status_code": 500})
+                                yield get_sse_event_for_response({
+                                    "error": f"Internal Server Error: {str(e)}",
+                                    "status_code": 500,
+                                })
                         case _:
                             logger.exception(
                                 "Unknown apiVersion: %s", config.apiVersion, exc_info=True
@@ -501,13 +522,25 @@ class Routes:
                     "server_error": 502, "content_filter": 400,
                 }.get(e.error_type, 502)
                 logger.exception(f"LLM service error in resume: {e}")
-                raise HTTPException(status_code=sc, detail=f"LLM service error ({e.error_type}): {e.message}") from e
+                raise HTTPException(
+                    status_code=sc,
+                    detail=(
+                        f"LLM service error ({e.error_type}): "
+                        f"{e.message}"
+                    ),
+                ) from e
             except AgentInvokeException as e:
                 logger.exception(f"Agent invocation failed in resume: {e}")
-                raise HTTPException(status_code=500, detail=f"Agent invocation failed: {e.message}") from e
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Agent invocation failed: {e.message}",
+                ) from e
             except Exception as e:
                 logger.exception(f"Error in resume: {e}")
-                raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}") from e
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Internal Server Error: {str(e)}",
+                ) from e
 
         @router.post("/tealagents/v1alpha1/resume/{request_id}/sse")
         async def resume_sse(request_id: str, request: Request, body: ResumeRequest):
@@ -524,19 +557,38 @@ class Routes:
                         yield get_sse_event_for_response(content)
                 except AgentUnavailableException as e:
                     logger.exception(f"Agent unavailable in resume_sse: {e}")
-                    yield get_sse_event_for_response({"error": f"Agent unavailable: {e.message}", "status_code": 502})
+                    yield get_sse_event_for_response({
+                        "error": f"Agent unavailable: {e.message}",
+                        "status_code": 502,
+                    })
                 except LLMAuthenticationException as e:
                     logger.exception(f"LLM auth failed in resume_sse: {e}")
-                    yield get_sse_event_for_response({"error": f"LLM authentication failed: {e.message}", "status_code": 401})
+                    yield get_sse_event_for_response({
+                        "error": f"LLM authentication failed: {e.message}",
+                        "status_code": 401,
+                    })
                 except LLMServiceException as e:
                     logger.exception(f"LLM service error in resume_sse: {e}")
-                    yield get_sse_event_for_response({"error": f"LLM service error ({e.error_type}): {e.message}", "status_code": getattr(e, 'status_code', 502) or 502})
+                    sc = getattr(e, 'status_code', 502) or 502
+                    yield get_sse_event_for_response({
+                        "error": (
+                            f"LLM service error ({e.error_type}): "
+                            f"{e.message}"
+                        ),
+                        "status_code": sc,
+                    })
                 except AgentInvokeException as e:
                     logger.exception(f"Agent invocation failed in resume_sse: {e}")
-                    yield get_sse_event_for_response({"error": f"Agent invocation failed: {e.message}", "status_code": 500})
+                    yield get_sse_event_for_response({
+                        "error": f"Agent invocation failed: {e.message}",
+                        "status_code": 500,
+                    })
                 except Exception as e:
                     logger.exception(f"Error in resume_sse: {e}")
-                    yield get_sse_event_for_response({"error": f"Internal Server Error: {str(e)}", "status_code": 500})
+                    yield get_sse_event_for_response({
+                        "error": f"Internal Server Error: {str(e)}",
+                        "status_code": 500,
+                    })
 
             return StreamingResponse(event_generator(), media_type="text/event-stream")
 

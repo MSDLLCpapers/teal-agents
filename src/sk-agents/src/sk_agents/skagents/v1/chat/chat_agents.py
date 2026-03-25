@@ -13,7 +13,6 @@ from semantic_kernel.exceptions import ServiceResponseException
 from ska_utils import AgentTelemetryLogger, get_telemetry
 
 from sk_agents.exceptions import (
-    AgentInvokeException,
     AgentUnavailableException,
     LLMAuthenticationException,
     LLMServiceException,
@@ -205,8 +204,12 @@ class ChatAgents(BaseHandler):
                     total_tokens += call_usage.total_tokens
                     try:
                         # Attempt to parse as ExtraDataPartial
-                        extra_data_partial: ExtraDataPartial = ExtraDataPartial.new_from_json(content)
-                        extra_data_collector.add_extra_data_items(extra_data_partial.extra_data)
+                        extra_data_partial: ExtraDataPartial = (
+                            ExtraDataPartial.new_from_json(content)
+                        )
+                        extra_data_collector.add_extra_data_items(
+                            extra_data_partial.extra_data
+                        )
                     except Exception:
                         if len(content) > 0:
                             # Handle and return partial response

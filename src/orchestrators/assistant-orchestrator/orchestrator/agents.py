@@ -44,7 +44,10 @@ class AgentInvalidResponseError(Exception):
     """Raised when an agent returns a response that cannot be parsed."""
     def __init__(self, agent_name: str, message: str = ""):
         self.agent_name = agent_name
-        self.message = message or f"Agent '{agent_name}' returned an invalid or unparseable response."
+        self.message = (
+            message
+            or f"Agent '{agent_name}' returned an invalid or unparseable response."
+        )
         super().__init__(self.message)
 
 
@@ -142,14 +145,29 @@ class BaseAgent(ABC, BaseModel):
                 async for message in ws:
                     yield message
         except (OSError, ConnectionRefusedError, websockets.exceptions.InvalidURI) as e:
-            logger.error(f"Agent '{self.name}' is unreachable via WebSocket at {self.endpoint}: {e}")
-            raise AgentConnectionError(self.name, f"Agent '{self.name}' is not available via WebSocket at {self.endpoint}. The agent may be down or unreachable.") from e
+            logger.error(
+                f"Agent '{self.name}' is unreachable via WebSocket at {self.endpoint}: {e}"
+            )
+            raise AgentConnectionError(
+                self.name,
+                f"Agent '{self.name}' is not available via WebSocket at "
+                f"{self.endpoint}. The agent may be down or unreachable.",
+            ) from e
         except websockets.exceptions.WebSocketException as e:
             logger.error(f"WebSocket error with agent '{self.name}': {e}")
-            raise AgentConnectionError(self.name, f"WebSocket communication failed with agent '{self.name}': {e}") from e
+            raise AgentConnectionError(
+                self.name,
+                f"WebSocket communication failed with agent '{self.name}': {e}",
+            ) from e
         except TimeoutError as e:
-            logger.error(f"Agent '{self.name}' timed out via WebSocket at {self.endpoint}: {e}")
-            raise AgentTimeoutError(self.name, f"Agent '{self.name}' timed out while processing the request via WebSocket.") from e
+            logger.error(
+                f"Agent '{self.name}' timed out via WebSocket at {self.endpoint}: {e}"
+            )
+            raise AgentTimeoutError(
+                self.name,
+                f"Agent '{self.name}' timed out while processing the request "
+                "via WebSocket.",
+            ) from e
 
     # Origianl
     def invoke_api(
@@ -175,14 +193,28 @@ class BaseAgent(ABC, BaseModel):
                 self.endpoint_api, data=input_message, headers=headers, timeout=120
             )
         except requests.exceptions.ConnectionError as e:
-            logger.error(f"Agent '{self.name}' is unreachable at {self.endpoint_api}: {e}")
-            raise AgentConnectionError(self.name, f"Agent '{self.name}' is not available at {self.endpoint_api}. The agent may be down or unreachable.") from e
+            logger.error(
+                f"Agent '{self.name}' is unreachable at {self.endpoint_api}: {e}"
+            )
+            raise AgentConnectionError(
+                self.name,
+                f"Agent '{self.name}' is not available at {self.endpoint_api}. "
+                "The agent may be down or unreachable.",
+            ) from e
         except requests.exceptions.Timeout as e:
-            logger.error(f"Agent '{self.name}' timed out at {self.endpoint_api}: {e}")
-            raise AgentTimeoutError(self.name, f"Agent '{self.name}' timed out while processing the request.") from e
+            logger.error(
+                f"Agent '{self.name}' timed out at {self.endpoint_api}: {e}"
+            )
+            raise AgentTimeoutError(
+                self.name,
+                f"Agent '{self.name}' timed out while processing the request.",
+            ) from e
         except requests.exceptions.RequestException as e:
             logger.error(f"Request to agent '{self.name}' failed: {e}")
-            raise AgentConnectionError(self.name, f"Failed to communicate with agent '{self.name}': {e}") from e
+            raise AgentConnectionError(
+                self.name,
+                f"Failed to communicate with agent '{self.name}': {e}",
+            ) from e
 
         if response.status_code != 200:
             detail = ""
@@ -198,7 +230,11 @@ class BaseAgent(ABC, BaseModel):
             result = response.json()
         except Exception as e:
             logger.error(f"Agent '{self.name}' returned invalid JSON: {e}")
-            raise AgentInvalidResponseError(self.name, f"Agent '{self.name}' returned a response that could not be parsed as JSON.") from e
+            raise AgentInvalidResponseError(
+                self.name,
+                f"Agent '{self.name}' returned a response that could not "
+                "be parsed as JSON.",
+            ) from e
 
         logger.info("Final response complete")
         return result
@@ -226,14 +262,31 @@ class BaseAgent(ABC, BaseModel):
                 f"{self.endpoint_api}/sse", data=input_message, headers=headers, timeout=120
             )
         except requests.exceptions.ConnectionError as e:
-            logger.error(f"Agent '{self.name}' is unreachable at {self.endpoint_api}/sse: {e}")
-            raise AgentConnectionError(self.name, f"Agent '{self.name}' is not available at {self.endpoint_api}/sse. The agent may be down or unreachable.") from e
+            logger.error(
+                f"Agent '{self.name}' is unreachable at "
+                f"{self.endpoint_api}/sse: {e}"
+            )
+            raise AgentConnectionError(
+                self.name,
+                f"Agent '{self.name}' is not available at "
+                f"{self.endpoint_api}/sse. "
+                "The agent may be down or unreachable.",
+            ) from e
         except requests.exceptions.Timeout as e:
-            logger.error(f"Agent '{self.name}' timed out at {self.endpoint_api}/sse: {e}")
-            raise AgentTimeoutError(self.name, f"Agent '{self.name}' timed out while processing the request.") from e
+            logger.error(
+                f"Agent '{self.name}' timed out at "
+                f"{self.endpoint_api}/sse: {e}"
+            )
+            raise AgentTimeoutError(
+                self.name,
+                f"Agent '{self.name}' timed out while processing the request.",
+            ) from e
         except requests.exceptions.RequestException as e:
             logger.error(f"Request to agent '{self.name}' failed: {e}")
-            raise AgentConnectionError(self.name, f"Failed to communicate with agent '{self.name}': {e}") from e
+            raise AgentConnectionError(
+                self.name,
+                f"Failed to communicate with agent '{self.name}': {e}",
+            ) from e
 
         if response.status_code != 200:
             detail = ""

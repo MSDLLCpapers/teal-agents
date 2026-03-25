@@ -1,6 +1,5 @@
-from contextlib import nullcontext
-
 import logging
+from contextlib import nullcontext
 
 from fastapi import (
     APIRouter,
@@ -9,11 +8,13 @@ from fastapi import (
 )
 from ska_utils import get_telemetry
 
-from agents import AgentConnectionError, AgentTimeoutError, AgentResponseError, AgentInvalidResponseError
+from agents import (
+    AgentConnectionError,
+    AgentResponseError,
+    AgentTimeoutError,
+)
 from context_directive import parse_context_directives
 from jose_types import ExtraData
-
-logger = logging.getLogger(__name__)
 
 from .deps import (
     get_agent_catalog,
@@ -23,6 +24,8 @@ from .deps import (
     get_fallback_agent,
     get_rec_chooser,
 )
+
+logger = logging.getLogger(__name__)
 
 conv_manager = get_conv_manager()
 conn_manager = get_conn_manager()
@@ -75,7 +78,11 @@ async def invoke_stream(
                         await websocket.send_json({
                             "error": True,
                             "error_type": "agent_selector_unavailable",
-                            "message": f"Agent selector service '{e.agent_name}' is not available. The service may be down or unreachable.",
+                            "message": (
+                                f"Agent selector service '{e.agent_name}' "
+                                "is not available. The service may be "
+                                "down or unreachable."
+                            ),
                         })
                         continue
                     except AgentTimeoutError as e:
@@ -83,17 +90,30 @@ async def invoke_stream(
                         await websocket.send_json({
                             "error": True,
                             "error_type": "agent_selector_timeout",
-                            "message": f"Agent selector service '{e.agent_name}' timed out while choosing a recipient.",
+                            "message": (
+                                f"Agent selector service '{e.agent_name}' "
+                                "timed out while choosing a recipient."
+                            ),
                         })
                         continue
                     except AgentResponseError as e:
                         logger.error(f"Agent selector service returned error: {e}")
                         if e.status_code == 401:
-                            error_msg = f"Agent selector service '{e.agent_name}' authentication failed: {e.detail}"
+                            error_msg = (
+                                f"Agent selector service '{e.agent_name}' "
+                                f"authentication failed: {e.detail}"
+                            )
                         elif e.status_code == 429:
-                            error_msg = f"Agent selector service '{e.agent_name}' is rate limited. Please try again later."
+                            error_msg = (
+                                f"Agent selector service '{e.agent_name}' "
+                                "is rate limited. Please try again later."
+                            )
                         else:
-                            error_msg = f"Agent selector service '{e.agent_name}' returned an error (HTTP {e.status_code}): {e.detail}"
+                            error_msg = (
+                                f"Agent selector service '{e.agent_name}' "
+                                "returned an error "
+                                f"(HTTP {e.status_code}): {e.detail}"
+                            )
                         await websocket.send_json({
                             "error": True,
                             "error_type": "agent_selector_error",
@@ -145,7 +165,9 @@ async def invoke_stream(
                             try:
                                 extra_data: ExtraData = ExtraData.new_from_json(content)
                                 context_directives = parse_context_directives(extra_data)
-                                await conv_manager.process_context_directives(conv, context_directives)
+                                await conv_manager.process_context_directives(
+                                    conv, context_directives
+                                )
                             except Exception:
                                 response = f"{response}{content}"
                                 await websocket.send_text(content)
@@ -154,7 +176,10 @@ async def invoke_stream(
                         await websocket.send_json({
                             "error": True,
                             "error_type": "agent_unavailable",
-                            "message": f"Agent '{sel_agent_name}' is not available. The agent may be down or unreachable.",
+                            "message": (
+                                f"Agent '{sel_agent_name}' is not available. "
+                                "The agent may be down or unreachable."
+                            ),
                         })
                         continue
                     except AgentTimeoutError as e:
@@ -162,17 +187,30 @@ async def invoke_stream(
                         await websocket.send_json({
                             "error": True,
                             "error_type": "agent_timeout",
-                            "message": f"Agent '{sel_agent_name}' timed out while processing the request.",
+                            "message": (
+                                f"Agent '{sel_agent_name}' timed out "
+                                "while processing the request."
+                            ),
                         })
                         continue
                     except AgentResponseError as e:
                         logger.error(f"Agent returned error during WebSocket streaming: {e}")
                         if e.status_code == 401:
-                            error_msg = f"Agent '{sel_agent_name}' authentication failed: {e.detail}"
+                            error_msg = (
+                                f"Agent '{sel_agent_name}' "
+                                f"authentication failed: {e.detail}"
+                            )
                         elif e.status_code == 429:
-                            error_msg = f"Agent '{sel_agent_name}' is rate limited. Please try again later."
+                            error_msg = (
+                                f"Agent '{sel_agent_name}' is rate "
+                                "limited. Please try again later."
+                            )
                         else:
-                            error_msg = f"Agent '{sel_agent_name}' returned an error (HTTP {e.status_code}): {e.detail}"
+                            error_msg = (
+                                f"Agent '{sel_agent_name}' returned "
+                                "an error "
+                                f"(HTTP {e.status_code}): {e.detail}"
+                            )
                         await websocket.send_json({
                             "error": True,
                             "error_type": "agent_error",
@@ -184,7 +222,11 @@ async def invoke_stream(
                         await websocket.send_json({
                             "error": True,
                             "error_type": "unknown_error",
-                            "message": f"An unexpected error occurred while communicating with agent '{sel_agent_name}': {e}",
+                            "message": (
+                                "An unexpected error occurred while "
+                                "communicating with agent "
+                                f"'{sel_agent_name}': {e}"
+                            ),
                         })
                         continue
 

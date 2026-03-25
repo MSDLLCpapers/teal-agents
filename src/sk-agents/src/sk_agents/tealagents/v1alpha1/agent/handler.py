@@ -2,14 +2,13 @@ import asyncio
 import logging
 import time
 import uuid
-
-import httpx
-import openai
 from collections.abc import AsyncIterable
 from datetime import datetime
 from functools import reduce
 from typing import Literal
 
+import httpx
+import openai
 from semantic_kernel.connectors.ai.chat_completion_client_base import ChatCompletionClientBase
 from semantic_kernel.contents import ChatMessageContent, ImageContent, TextContent
 from semantic_kernel.contents.chat_history import ChatHistory
@@ -271,7 +270,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         except httpx.ConnectError as e:
             raise AgentUnavailableException(
                 agent_name=fc_content.plugin_name or "unknown",
-                message=f"Connection refused when calling tool {fc_content.function_name}: {str(e)}",
+                message=(
+                    f"Connection refused when calling tool "
+                    f"{fc_content.function_name}: {str(e)}"
+                ),
             ) from e
         except httpx.HTTPStatusError as e:
             if e.response.status_code in (502, 503, 504):
@@ -1125,7 +1127,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             )
 
         except Exception as e:
-            if isinstance(e, (AgentUnavailableException, LLMAuthenticationException, LLMServiceException)):
+            if isinstance(
+                e,
+                (
+                    AgentUnavailableException,
+                    LLMAuthenticationException,
+                    LLMServiceException,
+                ),
+            ):
                 raise
             try:
                 self._classify_llm_error(e)
@@ -1338,7 +1347,14 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             return
 
         except Exception as e:
-            if isinstance(e, (AgentUnavailableException, LLMAuthenticationException, LLMServiceException)):
+            if isinstance(
+                e,
+                (
+                    AgentUnavailableException,
+                    LLMAuthenticationException,
+                    LLMServiceException,
+                ),
+            ):
                 raise
             try:
                 self._classify_llm_error(e)

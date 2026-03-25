@@ -30,7 +30,10 @@ class AgentInvokeException(AgentsException):
 
 
 class AgentUnavailableException(AgentsException):
-    """Exception raised when a target agent is unreachable (connection refused, DNS failure, timeout)."""
+    """Exception raised when a target agent is unreachable.
+
+    Covers connection refused, DNS failure, and timeout scenarios.
+    """
 
     agent_name: str
     message: str
@@ -42,7 +45,10 @@ class AgentUnavailableException(AgentsException):
 
 
 class LLMAuthenticationException(AgentsException):
-    """Exception raised when the LLM provider rejects authentication (invalid API key, expired token, etc.)."""
+    """Exception raised when the LLM provider rejects authentication.
+
+    Covers invalid API key, expired token, etc.
+    """
 
     status_code: int
     message: str
@@ -54,7 +60,10 @@ class LLMAuthenticationException(AgentsException):
 
 
 class LLMServiceException(AgentsException):
-    """Exception raised for LLM service-level errors (rate limits, server errors, model not found, etc.)."""
+    """Exception raised for LLM service-level errors.
+
+    Covers rate limits, server errors, model not found, etc.
+    """
 
     error_type: str
     message: str

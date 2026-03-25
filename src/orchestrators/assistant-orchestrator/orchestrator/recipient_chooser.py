@@ -6,7 +6,13 @@ import requests.exceptions
 from opentelemetry.propagate import inject
 from pydantic import BaseModel, ConfigDict
 
-from agents import RecipientChooserAgent, AgentConnectionError, AgentTimeoutError, AgentResponseError, AgentInvalidResponseError
+from agents import (
+    AgentConnectionError,
+    AgentInvalidResponseError,
+    AgentResponseError,
+    AgentTimeoutError,
+    RecipientChooserAgent,
+)
 from model import Conversation
 
 logger = logging.getLogger(__name__)
@@ -89,10 +95,15 @@ class RecipientChooser:
                 timeout=120,
             )
         except requests.exceptions.ConnectionError as e:
-            logger.error(f"Agent selector '{self.agent.name}' is unreachable at {self.agent.endpoint}: {e}")
+            logger.error(
+                f"Agent selector '{self.agent.name}' is unreachable "
+                f"at {self.agent.endpoint}: {e}"
+            )
             raise AgentConnectionError(
                 self.agent.name,
-                f"Agent selector '{self.agent.name}' is not available at {self.agent.endpoint}. The service may be down or unreachable.",
+                f"Agent selector '{self.agent.name}' is not available at "
+                f"{self.agent.endpoint}. "
+                "The service may be down or unreachable.",
             ) from e
         except requests.exceptions.Timeout as e:
             logger.error(f"Agent selector '{self.agent.name}' timed out: {e}")
@@ -114,7 +125,10 @@ class RecipientChooser:
                 detail = error_body.get("detail", raw_response.text)
             except Exception:
                 detail = raw_response.text
-            logger.error(f"Agent selector '{self.agent.name}' returned HTTP {raw_response.status_code}: {detail}")
+            logger.error(
+                f"Agent selector '{self.agent.name}' returned "
+                f"HTTP {raw_response.status_code}: {detail}"
+            )
             raise AgentResponseError(self.agent.name, raw_response.status_code, detail)
 
         try:
@@ -132,10 +146,15 @@ class RecipientChooser:
                 clean_json = RecipientChooser._clean_output(response_payload.output_raw)
                 sel_agent: SelectedAgent = SelectedAgent(**json.loads(clean_json))
             except (json.JSONDecodeError, KeyError, Exception) as e:
-                logger.error(f"Agent selector '{self.agent.name}' returned unparseable agent selection: {e}")
+                logger.error(
+                    f"Agent selector '{self.agent.name}' returned "
+                    f"unparseable agent selection: {e}"
+                )
                 raise AgentInvalidResponseError(
                     self.agent.name,
-                    f"Agent selector '{self.agent.name}' returned a response that could not be parsed into an agent selection: {e}",
+                    f"Agent selector '{self.agent.name}' returned a response "
+                    "that could not be parsed into an agent "
+                    f"selection: {e}",
                 ) from e
             return sel_agent
         else:

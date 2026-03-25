@@ -6,11 +6,10 @@ from collections.abc import AsyncIterable
 from copy import deepcopy
 from typing import Any
 
-from semantic_kernel.contents.chat_history import ChatHistory
-from ska_utils import AgentTelemetryLogger, get_telemetry
-
 import openai
+from semantic_kernel.contents.chat_history import ChatHistory
 from semantic_kernel.exceptions import ServiceResponseException
+from ska_utils import AgentTelemetryLogger, get_telemetry
 
 from sk_agents.exceptions import (
     AgentInvokeException,
@@ -222,24 +221,43 @@ class SequentialSkagents(BaseHandler):
                         response=i_response,
                     )
                 except Exception as e:
-                    if isinstance(e, (AgentUnavailableException, LLMAuthenticationException, LLMServiceException)):
+                    if isinstance(
+                        e,
+                        (
+                            AgentUnavailableException,
+                            LLMAuthenticationException,
+                            LLMServiceException,
+                        ),
+                    ):
                         raise
                     if isinstance(e, ServiceResponseException):
                         inner = e.__cause__ or e
                         if isinstance(inner, openai.AuthenticationError):
                             raise LLMAuthenticationException(
                                 status_code=401,
-                                message=f"LLM authentication failed for {self.name}:{self.version}: {str(inner)}"
+                                message=(
+                                    "LLM authentication failed for "
+                                    f"{self.name}:{self.version}: "
+                                    f"{str(inner)}"
+                                ),
                             ) from e
                         if isinstance(inner, openai.RateLimitError):
                             raise LLMServiceException(
                                 error_type="rate_limit",
-                                message=f"LLM rate limit for {self.name}:{self.version}: {str(inner)}",
+                                message=(
+                                    f"LLM rate limit for "
+                                    f"{self.name}:{self.version}: "
+                                    f"{str(inner)}"
+                                ),
                                 status_code=429,
                             ) from e
                         raise LLMServiceException(
                             error_type="service_error",
-                            message=f"LLM service error for {self.name}:{self.version}: {str(inner)}",
+                            message=(
+                                f"LLM service error for "
+                                f"{self.name}:{self.version}: "
+                                f"{str(inner)}"
+                            ),
                         ) from e
                     raise AgentInvokeException(
                         f"Error invoking {self.name}:{self.version} "
@@ -414,24 +432,43 @@ class SequentialSkagents(BaseHandler):
                         f"task:{task.name}"
                     )
                 except Exception as e:
-                    if isinstance(e, (AgentUnavailableException, LLMAuthenticationException, LLMServiceException)):
+                    if isinstance(
+                        e,
+                        (
+                            AgentUnavailableException,
+                            LLMAuthenticationException,
+                            LLMServiceException,
+                        ),
+                    ):
                         raise
                     if isinstance(e, ServiceResponseException):
                         inner = e.__cause__ or e
                         if isinstance(inner, openai.AuthenticationError):
                             raise LLMAuthenticationException(
                                 status_code=401,
-                                message=f"LLM authentication failed for {self.name}:{self.version}: {str(inner)}"
+                                message=(
+                                    "LLM authentication failed for "
+                                    f"{self.name}:{self.version}: "
+                                    f"{str(inner)}"
+                                ),
                             ) from e
                         if isinstance(inner, openai.RateLimitError):
                             raise LLMServiceException(
                                 error_type="rate_limit",
-                                message=f"LLM rate limit for {self.name}:{self.version}: {str(inner)}",
+                                message=(
+                                    f"LLM rate limit for "
+                                    f"{self.name}:{self.version}: "
+                                    f"{str(inner)}"
+                                ),
                                 status_code=429,
                             ) from e
                         raise LLMServiceException(
                             error_type="service_error",
-                            message=f"LLM service error for {self.name}:{self.version}: {str(inner)}",
+                            message=(
+                                f"LLM service error for "
+                                f"{self.name}:{self.version}: "
+                                f"{str(inner)}"
+                            ),
                         ) from e
                     raise AgentInvokeException(
                         f"Error invoking {self.name}:{self.version} "

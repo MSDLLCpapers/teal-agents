@@ -1,16 +1,20 @@
 import logging
 from contextlib import nullcontext
 
+import requests.exceptions
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import APIKeyHeader
 from ska_utils import get_telemetry
 
-from agents import AgentConnectionError, AgentTimeoutError, AgentResponseError, AgentInvalidResponseError
+from agents import (
+    AgentConnectionError,
+    AgentInvalidResponseError,
+    AgentResponseError,
+    AgentTimeoutError,
+)
 from context_directive import parse_context_directives
 from jose_types import ExtraData
 from model.requests import ConversationMessageRequest
-
-import requests.exceptions
 
 from .deps import (
     get_agent_catalog,
@@ -99,42 +103,64 @@ async def add_conversation_message_by_id(
                 logger.error(f"Agent selector service is unreachable: {e}")
                 raise HTTPException(
                     status_code=502,
-                    detail=f"Agent selector service '{e.agent_name}' is not available. The service may be down or unreachable.",
+                    detail=(
+                        f"Agent selector service '{e.agent_name}' is not available. "
+                        "The service may be down or unreachable."
+                    ),
                 ) from e
             except AgentTimeoutError as e:
                 logger.error(f"Agent selector service timed out: {e}")
                 raise HTTPException(
                     status_code=504,
-                    detail=f"Agent selector service '{e.agent_name}' timed out while choosing a recipient.",
+                    detail=(
+                        f"Agent selector service '{e.agent_name}' "
+                        "timed out while choosing a recipient."
+                    ),
                 ) from e
             except AgentResponseError as e:
                 logger.error(f"Agent selector service returned error: {e}")
                 if e.status_code == 401:
                     raise HTTPException(
                         status_code=401,
-                        detail=f"Agent selector service '{e.agent_name}' authentication failed: {e.detail}",
+                        detail=(
+                            f"Agent selector service '{e.agent_name}' "
+                            f"authentication failed: {e.detail}"
+                        ),
                     ) from e
                 elif e.status_code == 429:
                     raise HTTPException(
                         status_code=429,
-                        detail=f"Agent selector service '{e.agent_name}' is rate limited. Please try again later.",
+                        detail=(
+                            f"Agent selector service '{e.agent_name}' "
+                            "is rate limited. Please try again later."
+                        ),
                     ) from e
                 else:
                     raise HTTPException(
                         status_code=502,
-                        detail=f"Agent selector service '{e.agent_name}' returned an error (HTTP {e.status_code}): {e.detail}",
+                        detail=(
+                            f"Agent selector service '{e.agent_name}' "
+                            f"returned an error (HTTP {e.status_code}): "
+                            f"{e.detail}"
+                        ),
                     ) from e
             except AgentInvalidResponseError as e:
                 logger.error(f"Agent selector returned invalid response: {e}")
                 raise HTTPException(
                     status_code=502,
-                    detail=f"Agent selector service '{e.agent_name}' returned an invalid response that could not be processed.",
+                    detail=(
+                        f"Agent selector service '{e.agent_name}' returned "
+                        "an invalid response that could not be processed."
+                    ),
                 ) from e
             except requests.exceptions.ConnectionError as e:
                 logger.error(f"Agent selector service is unreachable (connection error): {e}")
                 raise HTTPException(
                     status_code=502,
-                    detail="Agent selector service is not available. The service may be down or unreachable.",
+                    detail=(
+                        "Agent selector service is not available. "
+                        "The service may be down or unreachable."
+                    ),
                 ) from e
             except requests.exceptions.Timeout as e:
                 logger.error(f"Agent selector service timed out (timeout): {e}")
@@ -182,36 +208,55 @@ async def add_conversation_message_by_id(
                 logger.error(f"Agent unavailable: {e}")
                 raise HTTPException(
                     status_code=502,
-                    detail=f"Agent '{sel_agent_name}' is not available. The agent may be down or unreachable. Please try again later.",
+                    detail=(
+                        f"Agent '{sel_agent_name}' is not available. "
+                        "The agent may be down or unreachable. "
+                        "Please try again later."
+                    ),
                 ) from e
             except AgentTimeoutError as e:
                 logger.error(f"Agent timed out: {e}")
                 raise HTTPException(
                     status_code=504,
-                    detail=f"Agent '{sel_agent_name}' timed out while processing the request. Please try again later.",
+                    detail=(
+                        f"Agent '{sel_agent_name}' timed out while "
+                        "processing the request. Please try again later."
+                    ),
                 ) from e
             except AgentResponseError as e:
                 logger.error(f"Agent returned error: {e}")
                 if e.status_code == 401:
                     raise HTTPException(
                         status_code=401,
-                        detail=f"Agent '{sel_agent_name}' authentication failed: {e.detail}",
+                        detail=(
+                            f"Agent '{sel_agent_name}' "
+                            f"authentication failed: {e.detail}"
+                        ),
                     ) from e
                 elif e.status_code == 429:
                     raise HTTPException(
                         status_code=429,
-                        detail=f"Agent '{sel_agent_name}' is rate limited. Please try again later.",
+                        detail=(
+                            f"Agent '{sel_agent_name}' is rate limited. "
+                            "Please try again later."
+                        ),
                     ) from e
                 else:
                     raise HTTPException(
                         status_code=502,
-                        detail=f"Agent '{sel_agent_name}' returned an error (HTTP {e.status_code}): {e.detail}",
+                        detail=(
+                            f"Agent '{sel_agent_name}' returned an error "
+                            f"(HTTP {e.status_code}): {e.detail}"
+                        ),
                     ) from e
             except AgentInvalidResponseError as e:
                 logger.error(f"Agent returned invalid response: {e}")
                 raise HTTPException(
                     status_code=502,
-                    detail=f"Agent '{sel_agent_name}' returned an invalid response that could not be processed.",
+                    detail=(
+                        f"Agent '{sel_agent_name}' returned an invalid "
+                        "response that could not be processed."
+                    ),
                 ) from e
 
             try:

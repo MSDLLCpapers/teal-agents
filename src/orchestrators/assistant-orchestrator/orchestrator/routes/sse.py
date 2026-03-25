@@ -4,13 +4,18 @@ import logging
 from contextlib import nullcontext
 from typing import Any
 
+import requests.exceptions
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.security import APIKeyHeader
 from ska_utils import get_telemetry
 
-import requests.exceptions
-from agents import Conversation, AgentConnectionError, AgentTimeoutError, AgentResponseError, AgentInvalidResponseError
+from agents import (
+    AgentConnectionError,
+    AgentResponseError,
+    AgentTimeoutError,
+    Conversation,
+)
 from context_directive import parse_context_directives
 from jose_types import ExtraData
 from model.conversation import SseError, SseEventType, SseFinalMessage, SseMessage
@@ -82,32 +87,51 @@ async def sse_event_response(
             except AgentConnectionError as e:
                 logger.error(f"Agent selector service is unreachable: {e}")
                 sse_error = SseError(
-                    error=f"Agent selector service '{e.agent_name}' is not available. The service may be down or unreachable.",
+                    error=(
+                        f"Agent selector service '{e.agent_name}' is not "
+                        "available. The service may be down or unreachable."
+                    ),
                 )
                 yield format_sse_message(sse_error.model_dump(), SseEventType.UNKNOWN)
                 return
             except AgentTimeoutError as e:
                 logger.error(f"Agent selector service timed out: {e}")
                 sse_error = SseError(
-                    error=f"Agent selector service '{e.agent_name}' timed out while choosing a recipient.",
+                    error=(
+                        f"Agent selector service '{e.agent_name}' "
+                        "timed out while choosing a recipient."
+                    ),
                 )
                 yield format_sse_message(sse_error.model_dump(), SseEventType.UNKNOWN)
                 return
             except AgentResponseError as e:
                 logger.error(f"Agent selector service returned error: {e}")
                 if e.status_code == 401:
-                    error_msg = f"Agent selector service '{e.agent_name}' authentication failed: {e.detail}"
+                    error_msg = (
+                        f"Agent selector service '{e.agent_name}' "
+                        f"authentication failed: {e.detail}"
+                    )
                 elif e.status_code == 429:
-                    error_msg = f"Agent selector service '{e.agent_name}' is rate limited. Please try again later."
+                    error_msg = (
+                        f"Agent selector service '{e.agent_name}' "
+                        "is rate limited. Please try again later."
+                    )
                 else:
-                    error_msg = f"Agent selector service '{e.agent_name}' returned an error (HTTP {e.status_code}): {e.detail}"
+                    error_msg = (
+                        f"Agent selector service '{e.agent_name}' "
+                        f"returned an error "
+                        f"(HTTP {e.status_code}): {e.detail}"
+                    )
                 sse_error = SseError(error=error_msg)
                 yield format_sse_message(sse_error.model_dump(), SseEventType.UNKNOWN)
                 return
             except requests.exceptions.ConnectionError as e:
                 logger.error(f"Agent selector service is unreachable (connection error): {e}")
                 sse_error = SseError(
-                    error="Agent selector service is not available. The service may be down or unreachable.",
+                    error=(
+                        "Agent selector service is not available. "
+                        "The service may be down or unreachable."
+                    ),
                 )
                 yield format_sse_message(sse_error.model_dump(), SseEventType.UNKNOWN)
                 return
@@ -193,25 +217,40 @@ async def sse_event_response(
             except AgentConnectionError as e:
                 logger.error(f"Agent unavailable during SSE streaming: {e}")
                 sse_error = SseError(
-                    error=f"Agent '{sel_agent_name}' is not available. The agent may be down or unreachable.",
+                    error=(
+                        f"Agent '{sel_agent_name}' is not available. "
+                        "The agent may be down or unreachable."
+                    ),
                 )
                 yield format_sse_message(sse_error.model_dump(), SseEventType.UNKNOWN)
                 return
             except AgentTimeoutError as e:
                 logger.error(f"Agent timed out during SSE streaming: {e}")
                 sse_error = SseError(
-                    error=f"Agent '{sel_agent_name}' timed out while processing the request.",
+                    error=(
+                        f"Agent '{sel_agent_name}' timed out while "
+                        "processing the request."
+                    ),
                 )
                 yield format_sse_message(sse_error.model_dump(), SseEventType.UNKNOWN)
                 return
             except AgentResponseError as e:
                 logger.error(f"Agent returned error during SSE streaming: {e}")
                 if e.status_code == 401:
-                    error_msg = f"Agent '{sel_agent_name}' authentication failed: {e.detail}"
+                    error_msg = (
+                        f"Agent '{sel_agent_name}' "
+                        f"authentication failed: {e.detail}"
+                    )
                 elif e.status_code == 429:
-                    error_msg = f"Agent '{sel_agent_name}' is rate limited. Please try again later."
+                    error_msg = (
+                        f"Agent '{sel_agent_name}' is rate limited. "
+                        "Please try again later."
+                    )
                 else:
-                    error_msg = f"Agent '{sel_agent_name}' returned an error (HTTP {e.status_code}): {e.detail}"
+                    error_msg = (
+                        f"Agent '{sel_agent_name}' returned an error "
+                        f"(HTTP {e.status_code}): {e.detail}"
+                    )
                 sse_error = SseError(error=error_msg)
                 yield format_sse_message(sse_error.model_dump(), SseEventType.UNKNOWN)
                 return

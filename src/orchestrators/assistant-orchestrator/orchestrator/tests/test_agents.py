@@ -135,7 +135,7 @@ def mock_successful_openapi_response_get(mocker):
 
 @pytest.fixture
 def mock_failed_openapi_request_get(mocker):
-    mock_request = mocker.patch("requests.get", return_value=None)
+    mock_request = mocker.patch("requests.get", side_effect=Exception("Request failed"))
     return mock_request
 
 
@@ -273,17 +273,36 @@ def test_get_agent_description_success(secure_builder, mock_successful_openapi_r
     assert description == "Test agent description"
 
     mock_successful_openapi_response_get.assert_called_once_with(
-        "https://test.secure.host/test/agent/openapi.json"
+        "https://test.secure.host/test/agent/openapi.json", timeout=5
     )
 
 
 def test_get_agent_description_failure(insecure_builder, mock_failed_openapi_request_get):
     agent_name = "testagent:0.1"
-    with pytest.raises(Exception, match=f"Failed to get agent description for {agent_name}"):
-        insecure_builder._get_agent_description(agent_name)
+    description = insecure_builder._get_agent_description(agent_name)
+    assert description is None
 
-    mock_failed_openapi_request_get.assert_called_once_with(
-        "http://test.insecure.host/testagent/0.1/openapi.json"
+    # Should be called 3 times (default max_retries)
+    assert mock_failed_openapi_request_get.call_count == 3
+    mock_failed_openapi_request_get.assert_called_with(
+        "http://test.insecure.host/testagent/0.1/openapi.json", timeout=5
+    )
+
+
+def test_get_agent_description_non_200_status(insecure_builder, mocker):
+    # Mock response with 404 status
+    mock_response = mocker.Mock()
+    mock_response.status_code = 404
+    mock_request = mocker.patch("requests.get", return_value=mock_response)
+
+    agent_name = "testagent:0.1"
+    description = insecure_builder._get_agent_description(agent_name)
+    assert description is None
+
+    # Should be called 3 times (default max_retries)
+    assert mock_request.call_count == 3
+    mock_request.assert_called_with(
+        "http://test.insecure.host/testagent/0.1/openapi.json", timeout=5
     )
 
 
@@ -308,11 +327,11 @@ def test_build_agent(mocker, secure_builder):
 
 def test_build_agent_description_failure(secure_builder, mocker):
     mocker.patch.object(
-        secure_builder, "_get_agent_description", side_effect=Exception("Description failed")
+        secure_builder, "_get_agent_description", return_value=None
     )
 
-    with pytest.raises(Exception, match="Description failed"):
-        secure_builder.build_agent("fail:agent", "key")
+    agent = secure_builder.build_agent("fail:agent", "key")
+    assert agent is None
 
 
 def test_build_fallback_agent_success(secure_builder, mocker, single_agent_catalog):

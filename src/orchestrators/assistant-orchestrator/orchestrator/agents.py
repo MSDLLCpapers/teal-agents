@@ -1,4 +1,5 @@
 import logging
+import time
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterable
 
@@ -235,48 +236,97 @@ class AgentBuilder:
         toks = agent_name.split(":")
         return f"{toks[0]}/{toks[1]}"
 
-    def _get_agent_description(self, agent_name: str) -> str:
-        response = requests.get(
-            f"{self._http_or_https()}://{self.agpt_gw_host}/{AgentBuilder._agent_to_path(agent_name)}/openapi.json"
-        )
-        if response:
-            response_payload = OpenApiResponse(**response.json())
-            return next(iter(response_payload.paths.values())).post.description
-        else:
-            raise Exception(f"Failed to get agent description for {agent_name}")
+    def _get_agent_description(
+        self, agent_name: str, max_retries: int = 3, retry_delay: int = 2
+    ) -> str | None:
+        """
+        Get agent description with retry logic.
+        Returns None if agent is unavailable after all retries.
+        """
+        for attempt in range(max_retries):
+            try:
+                agent_path = AgentBuilder._agent_to_path(agent_name)
+                url = f"{self._http_or_https()}://{self.agpt_gw_host}/{agent_path}/openapi.json"
+                response = requests.get(url, timeout=5)
+                if response.status_code == 200:
+                    response_payload = OpenApiResponse(**response.json())
+                    return next(iter(response_payload.paths.values())).post.description
+                else:
+                    logger.warning(
+                        f"Attempt {attempt + 1}/{max_retries}: Failed to get agent description "
+                        f"for {agent_name}. Status: {response.status_code}"
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"Attempt {attempt + 1}/{max_retries}: Error getting agent description "
+                    f"for {agent_name}: {e}"
+                )
 
-    def build_agent(self, agent_name: str, api_key: str) -> Agent:
+            if attempt < max_retries - 1:
+                time.sleep(retry_delay)
+
+        logger.error(
+            f"Failed to get agent description for {agent_name} after {max_retries} attempts. "
+            f"Agent will be unavailable."
+        )
+        return None
+
+    def build_agent(self, agent_name: str, api_key: str) -> Agent | None:
+        """
+        Build an agent. Returns None if agent is unavailable.
+        """
         description = self._get_agent_description(agent_name)
+        if description is None:
+            logger.warning(f"Skipping agent {agent_name} - unavailable")
+            return None
+
+        agent_path = AgentBuilder._agent_to_path(agent_name)
         return Agent(
             name=agent_name,
             description=description,
-            endpoint=f"{self._ws_or_wss()}://{self.agpt_gw_host}/{AgentBuilder._agent_to_path(agent_name)}/stream",
-            endpoint_api=f"{self._http_or_https()}://{self.agpt_gw_host}/{AgentBuilder._agent_to_path(agent_name)}",
+            endpoint=f"{self._ws_or_wss()}://{self.agpt_gw_host}/{agent_path}/stream",
+            endpoint_api=f"{self._http_or_https()}://{self.agpt_gw_host}/{agent_path}",
             api_key=api_key,
         )
 
     def build_fallback_agent(
         self, agent_name: str, api_key: str, agent_catalog: AgentCatalog
-    ) -> FallbackAgent:
+    ) -> FallbackAgent | None:
+        """
+        Build a fallback agent. Returns None if agent is unavailable.
+        """
         description = self._get_agent_description(agent_name)
+        if description is None:
+            logger.error(f"CRITICAL: Fallback agent {agent_name} is unavailable!")
+            return None
+
+        agent_path = AgentBuilder._agent_to_path(agent_name)
         return FallbackAgent(
             name=agent_name,
             description=description,
-            endpoint=f"{self._ws_or_wss()}://{self.agpt_gw_host}/{AgentBuilder._agent_to_path(agent_name)}/stream",
-            endpoint_api=f"{self._http_or_https()}://{self.agpt_gw_host}/{AgentBuilder._agent_to_path(agent_name)}",
+            endpoint=f"{self._ws_or_wss()}://{self.agpt_gw_host}/{agent_path}/stream",
+            endpoint_api=f"{self._http_or_https()}://{self.agpt_gw_host}/{agent_path}",
             api_key=api_key,
             agent_catalog=agent_catalog,
         )
 
     def build_recipient_chooser_agent(
         self, agent_name: str, api_key: str, agent_catalog: AgentCatalog
-    ) -> RecipientChooserAgent:
+    ) -> RecipientChooserAgent | None:
+        """
+        Build a recipient chooser agent. Returns None if agent is unavailable.
+        """
         description = self._get_agent_description(agent_name)
+        if description is None:
+            logger.error(f"CRITICAL: Recipient chooser agent {agent_name} is unavailable!")
+            return None
+
+        agent_path = AgentBuilder._agent_to_path(agent_name)
         return RecipientChooserAgent(
             name=agent_name,
             description=description,
-            endpoint=f"{self._http_or_https()}://{self.agpt_gw_host}/{AgentBuilder._agent_to_path(agent_name)}",
-            endpoint_api=f"{self._http_or_https()}://{self.agpt_gw_host}/{AgentBuilder._agent_to_path(agent_name)}",
+            endpoint=f"{self._http_or_https()}://{self.agpt_gw_host}/{agent_path}",
+            endpoint_api=f"{self._http_or_https()}://{self.agpt_gw_host}/{agent_path}",
             api_key=api_key,
             agent_catalog=agent_catalog,
         )

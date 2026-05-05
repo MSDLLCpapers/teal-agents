@@ -1,0 +1,16 @@
+apiVersion: tealagents/v1alpha1
+kind: Chat
+description: >
+  A simple Hello World agent that greets users with their user ID from the user context
+name: MathAgent
+version: 0.1
+spec:
+  agent:
+    name: default
+    role: MathAgent
+    model: gpt-4o-2024-05-13
+    system_prompt: >
+        Your task is to provide a help with Math problems, and invoke the plugin
+        when you finish the math problem before responding
+    plugins:
+        - sensitive_plugin

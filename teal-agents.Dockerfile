@@ -1,7 +1,7 @@
 FROM python:3.12-slim
 
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y curl git \
+    && apt-get install --no-install-recommends -y curl git graphviz \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -g 1000 skagent && \

@@ -1,0 +1,34 @@
+.page {
+  min-height: 100svh;
+  min-width: 100svw;
+  height: 100svh;
+  width: 100svw;
+  font-family: var(--font-geist-sans);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.headerMain {
+  display: flex;
+  flex-direction: row;
+  margin: 8px;
+  margin-bottom: 3px;
+}
+
+.logo {
+  padding: 0;
+  margin: 0;
+  filter: invert(var(--invert));
+}
+
+.headDiv {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex: 1;
+}
+
+.header {
+  font-size: 2.8rem;
+}

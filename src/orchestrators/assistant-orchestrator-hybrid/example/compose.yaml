@@ -1,0 +1,197 @@
+services:
+  dynamodb:
+    command: "-jar DynamoDBLocal.jar -sharedDb -dbPath ./data"
+    image: "amazon/dynamodb-local:latest"
+    ports:
+      - "8200:8000"
+    volumes:
+      - "./dynamo/data:/home/dynamodblocal/data"
+    working_dir: /home/dynamodblocal
+  dynamodb-healthcheck:
+    entrypoint: ["/bin/sh", "-c", "--", "while true; do sleep 30; done;"]
+    image: "amazon/aws-cli:latest"
+    environment:
+      AWS_ACCESS_KEY_ID: "DUMMYVALUE"
+      AWS_SECRET_ACCESS_KEY: "DUMMYVALUE"
+    healthcheck:
+      test: "aws dynamodb list-tables --endpoint-url http://dynamodb:8000 --region us-east-1"
+      interval: 10s
+      timeout: 10s
+      retries: 5
+  dynamodb-admin:
+    image: "dynamodb-admin:latest"
+    build:
+      context: ./dynamo-admin
+      no_cache: true
+    ports:
+      - "8400:8000"
+    depends_on:
+      dynamodb-healthcheck:
+        condition: service_healthy
+  aspire:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:9.0
+    ports:
+      - "18888:18888"
+      - "4317:18889"
+  kong:
+    image: kong:3.8
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8000:8000"
+      - "8443:8443"
+      - "8001:8001"
+      - "8444:8444"
+      - "8002:8002"
+      - "8445:8445"
+      - "8003:8003"
+      - "8004:8004"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: "/kong/declarative/kong.yaml"
+      KONG_PROXY_ACCESS_LOG: "/dev/stdout"
+      KONG_ADMIN_ACCESS_LOG: "/dev/stdout"
+      KONG_PROXY_ERROR_LOG: "/dev/stderr"
+      KONG_ADMIN_ERROR_LOG: "/dev/stderr"
+      KONG_ADMIN_LISTEN: "0.0.0.0:8001"
+      KONG_STATUS_LISTEN: "0.0.0.0:8100"
+      KONG_ADMIN_GUI_URL: "http://localhost:8002"
+    volumes:
+      - ${KONG_ALT:-./kong/kong.yaml}:/kong/declarative/kong.yaml
+    healthcheck:
+      test: [ "CMD", "kong", "health" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+  client:
+    image: demo-client:latest
+    build:
+      context: ./client
+      no_cache: true
+    ports:
+      - "3000:3000"
+  services:
+    image: ao-services:latest
+    ports:
+      - "8300:8000"
+    env_file: "services.env"
+    profiles:
+      - "with-services"
+    depends_on:
+      dynamodb-healthcheck:
+        condition: service_healthy
+  ao-hybrid:
+    image: ao-hybrid:latest
+    build:
+      context: ..
+      no_cache: true
+    ports:
+      - "8100:8000"
+    env_file: "ao-hybrid.env"
+    volumes:
+      - ./ao-hybrid:/app/src/orchestrators/assistant-orchestrator-hybrid/orchestrator/conf
+    profiles:
+      - "with-ao-hybrid"
+    depends_on:
+      kong:
+        condition: service_healthy
+      math-healthcheck:
+        condition: service_healthy
+      weather-healthcheck:
+        condition: service_healthy
+      general-healthcheck:
+        condition: service_healthy
+      recipient-healthcheck:
+        condition: service_healthy
+  math:
+    image: teal-agents:latest
+    ports:
+      - "8102:8000"
+    env_file: "math.env"
+    volumes:
+      - ./math:/app/src/sk-agents/agents
+  math-healthcheck:
+    image: curlimages/curl:latest
+    entrypoint: ["/bin/sh", "-c", "--", "while true; do sleep 30; done;"]
+    depends_on:
+      - math
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://math:8000/MathAgent/0.1/openapi.json"]
+      interval: 10s
+      timeout: 2s
+      retries: 10
+  weather:
+    image: teal-agents:latest
+    ports:
+      - "8103:8000"
+    env_file: "weather.env"
+    volumes:
+      - ./weather:/app/src/sk-agents/agents
+  weather-healthcheck:
+    image: curlimages/curl:latest
+    entrypoint: ["/bin/sh", "-c", "--", "while true; do sleep 30; done;"]
+    depends_on:
+      - weather
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://weather:8000/WeatherAgent/0.1/openapi.json"]
+      interval: 10s
+      timeout: 2s
+      retries: 10
+  general:
+    image: teal-agents:latest
+    ports:
+      - "8105:8000"
+    env_file: "general.env"
+    volumes:
+      - ./general:/app/src/sk-agents/agents
+  general-healthcheck:
+    image: curlimages/curl:latest
+    entrypoint: ["/bin/sh", "-c", "--", "while true; do sleep 30; done;"]
+    depends_on:
+      - general
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://general:8000/GeneralAgent/0.1/openapi.json"]
+      interval: 10s
+      timeout: 2s
+      retries: 10
+  recipient:
+    image: teal-agents:latest
+    ports:
+      - "8101:8000"
+    env_file: "recipient.env"
+    volumes:
+      - ./recipient:/app/src/sk-agents/agents
+  recipient-healthcheck:
+    image: curlimages/curl:latest
+    entrypoint: ["/bin/sh", "-c", "--", "while true; do sleep 30; done;"]
+    depends_on:
+      - recipient
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://recipient:8000/AgentSelectorAgent/0.1/openapi.json"]
+      interval: 10s
+      timeout: 2s
+      retries: 10
+      
+  redis-user-context:
+    image: "redis:latest"
+    ports:
+      - "6377:6377"
+    command: redis-server --port 6377
+
+  image:
+    image: teal-agents:latest
+    ports:
+      - "8104:8000"
+    env_file: "image.env"
+    volumes:
+      - ./image:/app/src/sk-agents/agents
+  image-healthcheck:
+    image: curlimages/curl:latest
+    entrypoint: ["/bin/sh", "-c", "--", "while true; do sleep 30; done;"]
+    depends_on:
+      - image
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://image:8000/ImageAgent/0.1/openapi.json"]
+      interval: 10s
+      timeout: 2s
+      retries: 10

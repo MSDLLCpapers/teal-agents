@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import time
 import uuid
 from collections.abc import AsyncIterable
 from datetime import datetime
@@ -14,7 +15,7 @@ from semantic_kernel.contents.function_result_content import FunctionResultConte
 from semantic_kernel.contents.streaming_chat_message_content import StreamingChatMessageContent
 from semantic_kernel.contents.utils.author_role import AuthorRole
 from semantic_kernel.kernel import Kernel
-from ska_utils import AppConfig
+from ska_utils import AgentTelemetryLogger, AppConfig
 
 from sk_agents.authorization.dummy_authorizer import DummyAuthorizer
 from sk_agents.exceptions import (
@@ -44,6 +45,13 @@ from sk_agents.tealagents.v1alpha1.agent_builder import AgentBuilder
 from sk_agents.tealagents.v1alpha1.utils import get_token_usage_for_response, item_to_content
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_user_isid_from_message(inputs: UserMessage) -> str | None:
+    """Extract user ISID from UserMessage user_context if available."""
+    if inputs.user_context:
+        return inputs.user_context.get("user.isid") or inputs.user_context.get("isid")
+    return None
 
 
 class TealAgentsV1Alpha1Handler(BaseHandler):
@@ -104,10 +112,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 state_manager=self.discovery_manager,
                 app_config=self.app_config,
             )
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning(
-                f"Failed to create MCP connection manager: {e}. "
-                "Falling back to per-tool connections."
+                "Failed to create MCP connection manager: %s. "
+                "Falling back to per-tool connections.", e,
             )
             return None
 
@@ -136,7 +144,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         # Check if discovery already completed for this session
         is_completed = await self.discovery_manager.is_completed(user_id, session_id)
         if is_completed:
-            logger.debug(f"MCP discovery already completed for session: {session_id}")
+            logger.debug("MCP discovery already completed for session: %s", session_id)
             return None
 
         # Load or create discovery state
@@ -151,7 +159,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 discovery_completed=False,
             )
             await self.discovery_manager.create_discovery(discovery_state)
-            logger.info(f"Created discovery state for session: {session_id}")
+            logger.info("Created discovery state for session: %s", session_id)
 
         # Check if MCP servers configured
         mcp_servers = self.config.get_agent().mcp_servers
@@ -164,7 +172,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             from sk_agents.mcp_plugin_registry import McpPluginRegistry
 
             logger.info(
-                f"Starting MCP discovery for session {session_id} ({len(mcp_servers)} servers)"
+                "Starting MCP discovery for session %s (%d servers)",
+                session_id, len(mcp_servers),
             )
 
             await McpPluginRegistry.discover_and_materialize(
@@ -172,21 +181,23 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             )
 
             await self.discovery_manager.mark_completed(user_id, session_id)
-            logger.info(f"MCP discovery completed for session {session_id}")
+            logger.info("MCP discovery completed for session %s", session_id)
             return None
 
         except AuthRequiredError as e:
             # Auth required - return challenge
             logger.info(
-                f"MCP discovery requires authentication for '{e.server_name}' "
-                f"(session: {session_id})"
+                "MCP discovery requires authentication for '%s' (session: %s)",
+                e.server_name, session_id,
             )
 
             try:
                 # Find server config
                 server_config = next((s for s in mcp_servers if s.name == e.server_name), None)
                 if not server_config:
-                    raise ValueError(f"Server config not found for '{e.server_name}'")
+                    raise ValueError(
+                        f"Server config not found for '{e.server_name}'"
+                    ) from e
 
                 # Initiate OAuth 2.1 authorization flow with PKCE
                 from sk_agents.auth.oauth_client import OAuthClient
@@ -198,7 +209,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                     server_config=server_config, user_id=user_id
                 )
 
-                logger.info(f"Generated OAuth authorization URL for {e.server_name}")
+                logger.info("Generated OAuth authorization URL for %s", e.server_name)
 
                 return AuthChallengeResponse(
                     task_id=task_id,
@@ -216,8 +227,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                     resume_url="/tealagents/v1alpha1/invoke",
                 )
 
-            except Exception as oauth_error:
-                logger.error(f"Failed to initiate OAuth flow: {oauth_error}")
+            except Exception as oauth_error:  # pylint: disable=broad-exception-caught
+                logger.error("Failed to initiate OAuth flow: %s", oauth_error)
                 return AuthChallengeResponse(
                     task_id=task_id,
                     session_id=session_id,
@@ -235,7 +246,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 )
 
         except Exception as e:
-            logger.error(f"MCP discovery failed for session {session_id}: {e}")
+            logger.error("MCP discovery failed for session %s: %s", session_id, e)
             raise
 
     @staticmethod
@@ -357,8 +368,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
             return None
 
-        except Exception as e:
-            logger.warning(f"Error during MCP server authentication check: {e}")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.warning("Error during MCP server authentication check: %s", e)
             # Continue without MCP auth if there are issues with auth storage
             return None
 
@@ -524,7 +535,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         # Handle intervention function calls
         if intervention_calls:
-            logger.info(f"Intervention required for{len(intervention_calls)} function calls.")
+            logger.info(
+                "Intervention required for %d function calls.",
+                len(intervention_calls),
+            )
             raise hitl_manager.HitlInterventionRequired(intervention_calls)
 
     async def prepare_agent_response(
@@ -543,7 +557,6 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         total_tokens = token_usage.total_tokens
         session_id = agent_task.session_id
         task_id = agent_task.task_id
-        request_id = request_id
 
         agent_response = TealAgentsResponse(
             session_id=session_id,
@@ -556,10 +569,10 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
         await self._manage_agent_response_task(agent_task, agent_response)
         logger.info(
-            f"{self.name}:{self.version}"
-            f"successful invocation with {total_tokens} tokens. "
-            f"Session ID: {session_id}, Task ID: {task_id},"
-            f"Request ID {request_id}"
+            "%s:%s successful invocation with %d tokens. "
+            "Session ID: %s, Task ID: %s, Request ID %s",
+            self.name, self.version, total_tokens,
+            session_id, task_id, request_id,
         )
         return agent_response
 
@@ -694,7 +707,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         else:
             return await _execute_resume()
 
-    async def invoke(
+    async def invoke(  # pylint: disable=arguments-differ
         self, auth_token: str, inputs: UserMessage
     ) -> TealAgentsResponse | HitlResponse | AuthChallengeResponse:
         # Initial setup
@@ -731,7 +744,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
         if auth_challenge:
             logger.info(
-                f"MCP authentication required for {len(auth_challenge.auth_challenges)} server(s)"
+                "MCP authentication required for %d server(s)",
+                len(auth_challenge.auth_challenges),
             )
             return auth_challenge
 
@@ -761,7 +775,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         return final_response_invoke
 
-    async def invoke_stream(
+    async def invoke_stream(  # pylint: disable=arguments-differ
         self, auth_token: str, inputs: UserMessage
     ) -> AsyncIterable[
         TealAgentsResponse | TealAgentsPartialResponse | HitlResponse | AuthChallengeResponse
@@ -796,7 +810,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                     state = await self.discovery_manager.load_discovery(user_id, session_id)
                     if state:
                         failed_servers = state.failed_servers
-                except Exception:
+                except Exception:  # pylint: disable=broad-exception-caught
                     logger.debug("Failed to load discovery state for status message")
 
             all_server_names = [server.name for server in mcp_servers]
@@ -839,7 +853,8 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         )
         if auth_challenge:
             logger.info(
-                f"MCP authentication required for {len(auth_challenge.auth_challenges)} server(s)"
+                "MCP authentication required for %d server(s)",
+                len(auth_challenge.auth_challenges),
             )
             yield auth_challenge
             return
@@ -878,6 +893,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         task_id: str,
         request_id: str,
         connection_manager=None,
+        agent_telemetry: AgentTelemetryLogger | None = None,
     ) -> TealAgentsResponse | HitlResponse:
         # Initial setup
 
@@ -899,10 +915,29 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 agent.agent.kernel, user_id, session_id, self.discovery_manager, connection_manager
             )
 
+        # Initialize agent telemetry logger if not provided (top-level call)
+        from ska_utils import get_telemetry
+
+        try:
+            jt = get_telemetry()
+        except ValueError:
+            jt = None
+        if agent_telemetry is None:
+            agent_config = self.config.get_agent()
+            agent_telemetry = AgentTelemetryLogger(
+                agent_name=agent_config.name,
+                model_name=agent_config.model,
+                user_isid=str(user_id) if user_id else None,
+                telemetry=jt,
+            )
+
+        agent_telemetry.record_invocation()
+
         # Prepare metadata
         completion_tokens: int = 0
         prompt_tokens: int = 0
         total_tokens: int = 0
+        start_time = time.time()
 
         try:
             # Manual tool calling implementation (existing logic)
@@ -923,7 +958,6 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 arguments=arguments,
             )
             for response_chunk in responses:
-                # response_list.extend(response_chunk)
                 chat_history.add_message(response_chunk)
                 response_list.append(response_chunk)
 
@@ -938,18 +972,32 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 prompt_tokens += call_usage.prompt_tokens
                 total_tokens += call_usage.total_tokens
 
+                # Check for reasoning/thinking in response metadata
+                reasoning_tokens = 0
+                if hasattr(response, "inner_content") and response.inner_content:
+                    inner = response.inner_content
+                    # OpenAI reasoning tokens
+                    if hasattr(inner, "usage") and inner.usage and hasattr(
+                        inner.usage, "completion_tokens_details"
+                    ):
+                        details = inner.usage.completion_tokens_details
+                        if details and hasattr(details, "reasoning_tokens"):
+                            reasoning_tokens = details.reasoning_tokens or 0
+                agent_telemetry.record_reasoning(
+                    f"reasoning_tokens={reasoning_tokens}"
+                )
+
                 # A response may have multiple items, e.g., multiple tool calls
                 fc_in_response = [
                     item for item in response.items if isinstance(item, FunctionCallContent)
                 ]
 
                 if fc_in_response:
-                    # chat_history.add_message(response)
-                    # Add assistant's message to history
                     function_calls.extend(fc_in_response)
                 else:
                     # If no function calls, it's a direct answer
                     final_response = response
+
             token_usage = TokenUsage(
                 completion_tokens=completion_tokens,
                 prompt_tokens=prompt_tokens,
@@ -957,7 +1005,26 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             )
             # If tool calls were returned, execute them
             if function_calls:
+                # Record tool calls for telemetry
+                tool_names = []
+                for fc in function_calls:
+                    full_name = (
+                        f"{fc.plugin_name}.{fc.function_name}"
+                        if fc.plugin_name
+                        else fc.function_name
+                    )
+                    tool_names.append(full_name)
+                agent_telemetry.record_tool_calls(tool_names)
+
                 await self._manage_function_calls(function_calls, chat_history, kernel)
+
+                # Record internal function calls (the actual kernel invocations)
+                for fc in function_calls:
+                    agent_telemetry.record_internal_function_call(
+                        f"{fc.plugin_name}.{fc.function_name}"
+                        if fc.plugin_name
+                        else fc.function_name
+                    )
 
                 # Make a recursive call to get the final response from the LLM
                 recursive_response = await self.recursion_invoke(
@@ -966,6 +1033,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                     task_id=task_id,
                     request_id=request_id,
                     connection_manager=connection_manager,
+                    agent_telemetry=agent_telemetry,
                 )
                 return recursive_response
 
@@ -985,16 +1053,36 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         except Exception as e:
             logger.exception(
-                f"Error invoking {self.name}:{self.version}"
-                f"for Session ID {session_id}, Task ID {task_id},"
-                f"Request ID {request_id}, Error message: {str(e)}",
+                "Error invoking %s:%s for Session ID %s, Task ID %s, "
+                "Request ID %s, Error message: %s",
+                self.name, self.version, session_id, task_id,
+                request_id, e,
                 exc_info=True,
             )
             raise AgentInvokeException(
-                f"Error invoking {self.name}:{self.version}"
-                f"for Session ID {session_id}, Task ID {task_id},"
-                f" Request ID {request_id}, Error message: {str(e)}"
+                f"Error invoking {self.name}:{self.version} "
+                f"for Session ID {session_id}, Task ID {task_id}, "
+                f"Request ID {request_id}, Error message: {e}"
             ) from e
+
+        # Emit standardized structured log at the end of the invocation chain
+        elapsed_ms = (time.time() - start_time) * 1000
+        agent_telemetry.enrich_span(
+            span=None,  # span managed at invoke() level
+            session_id=session_id,
+            request_id=request_id,
+            completion_tokens=completion_tokens,
+            prompt_tokens=prompt_tokens,
+            total_tokens=total_tokens,
+            time_to_first_token_ms=elapsed_ms,
+        )
+        agent_telemetry.emit_log(
+            session_id=session_id,
+            request_id=request_id,
+            completion_tokens=completion_tokens,
+            prompt_tokens=prompt_tokens,
+            total_tokens=total_tokens,
+        )
 
         # Persist and return response
         return await self.prepare_agent_response(
@@ -1008,6 +1096,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
         task_id: str,
         request_id: str,
         connection_manager=None,
+        agent_telemetry: AgentTelemetryLogger | None = None,
     ) -> AsyncIterable[TealAgentsResponse | TealAgentsPartialResponse | HitlResponse]:
         chat_history = inputs
         agent_task = await self.state.load_by_request_id(request_id)
@@ -1026,6 +1115,24 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
             await self.agent_builder.kernel_builder.load_mcp_plugins(
                 agent.agent.kernel, user_id, session_id, self.discovery_manager, connection_manager
             )
+
+        # Initialize agent telemetry logger if not provided (top-level call)
+        from ska_utils import get_telemetry
+
+        try:
+            jt = get_telemetry()
+        except ValueError:
+            jt = None
+        if agent_telemetry is None:
+            agent_config = self.config.get_agent()
+            agent_telemetry = AgentTelemetryLogger(
+                agent_name=agent_config.name,
+                model_name=agent_config.model,
+                user_isid=str(user_id) if user_id else None,
+                telemetry=jt,
+            )
+
+        agent_telemetry.record_invocation()
 
         # Prepare metadata
         final_response = []
@@ -1063,6 +1170,20 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                 prompt_tokens += call_usage.prompt_tokens
                 total_tokens += call_usage.total_tokens
 
+                # Check for reasoning/thinking in response metadata
+                reasoning_tokens = 0
+                if hasattr(response, "inner_content") and response.inner_content:
+                    inner = response.inner_content
+                    if hasattr(inner, "usage") and inner.usage and hasattr(
+                        inner.usage, "completion_tokens_details"
+                    ):
+                        details = inner.usage.completion_tokens_details
+                        if details and hasattr(details, "reasoning_tokens"):
+                            reasoning_tokens = details.reasoning_tokens or 0
+                agent_telemetry.record_reasoning(
+                    f"reasoning_tokens={reasoning_tokens}"
+                )
+
                 if response.content:
                     try:
                         # Attempt to parse as ExtraDataPartial
@@ -1070,7 +1191,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                             response.content
                         )
                         extra_data_collector.add_extra_data_items(extra_data_partial.extra_data)
-                    except Exception:
+                    except (ValueError, KeyError, TypeError):
                         if len(response.content) > 0:
                             # Handle and return partial response
                             final_response.append(response.content)
@@ -1098,7 +1219,27 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
             # If tool calls are present, execute them
             if function_calls:
+                # Record tool calls for telemetry
+                tool_names = []
+                for fc in function_calls:
+                    full_name = (
+                        f"{fc.plugin_name}.{fc.function_name}"
+                        if fc.plugin_name
+                        else fc.function_name
+                    )
+                    tool_names.append(full_name)
+                agent_telemetry.record_tool_calls(tool_names)
+
                 await self._manage_function_calls(function_calls, chat_history, kernel)
+
+                # Record internal function calls
+                for fc in function_calls:
+                    agent_telemetry.record_internal_function_call(
+                        f"{fc.plugin_name}.{fc.function_name}"
+                        if fc.plugin_name
+                        else fc.function_name
+                    )
+
                 # Make a recursive call to get the final streamed response
                 async for final_response_chunk in self.recursion_invoke_stream(
                     chat_history,
@@ -1106,6 +1247,7 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
                     task_id,
                     request_id,
                     connection_manager=connection_manager,
+                    agent_telemetry=agent_telemetry,
                 ):
                     yield final_response_chunk
                 return
@@ -1117,18 +1259,28 @@ class TealAgentsV1Alpha1Handler(BaseHandler):
 
         except Exception as e:
             logger.exception(
-                f"Error invoking stream for {self.name}:{self.version} "
-                f"for Session ID {session_id}, Task ID {task_id},"
-                f" Request ID {request_id}, Error message: {str(e)}",
+                "Error invoking stream for %s:%s for Session ID %s, Task ID %s, "
+                "Request ID %s, Error message: %s",
+                self.name, self.version, session_id, task_id,
+                request_id, e,
                 exc_info=True,
             )
             raise AgentInvokeException(
-                f"Error invoking stream for {self.name}:{self.version}"
-                f"for Session ID {session_id}, Task ID {task_id},"
-                f"Request ID {request_id}, Error message: {str(e)}"
+                f"Error invoking stream for {self.name}:{self.version} "
+                f"for Session ID {session_id}, Task ID {task_id}, "
+                f"Request ID {request_id}, Error message: {e}"
             ) from e
 
-        # # Persist and return response
+        # Emit standardized structured log
+        agent_telemetry.emit_log(
+            session_id=session_id,
+            request_id=request_id,
+            completion_tokens=completion_tokens,
+            prompt_tokens=prompt_tokens,
+            total_tokens=total_tokens,
+        )
+
+        # Persist and return response
         yield await self.prepare_agent_response(
             agent_task, request_id, final_response, token_usage, extra_data_collector
         )

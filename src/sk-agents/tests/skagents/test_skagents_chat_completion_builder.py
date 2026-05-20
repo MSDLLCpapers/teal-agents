@@ -51,7 +51,7 @@ def test_init_custom_chat_completion_invalid_class(setup_env_fixture, app_config
     assert (
         str(excinfo.value) == f"Custom Chat Completion Factory class: "
         f"{os.environ['TA_CUSTOM_CHAT_COMPLETION_FACTORY_CLASS_NAME']}"
-        f"Not found in module: {os.environ['TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE']}"
+        f" Not found in module: {os.environ['TA_CUSTOM_CHAT_COMPLETION_FACTORY_MODULE']}"
     )
 
 

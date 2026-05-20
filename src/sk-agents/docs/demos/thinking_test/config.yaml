@@ -1,0 +1,27 @@
+apiVersion: skagents/v1
+kind: Sequential
+description: Test agent with extended thinking support
+service_name: ThinkingTestAgent
+version: 1.0.0
+input_type: BaseInput
+
+spec:
+  agents:
+    - name: default
+      role: Reasoning Agent
+      model: claude-3-5-sonnet-20240620
+      system_prompt: |
+        You are a helpful assistant that provides clear, well-reasoned responses.
+        Take time to think through problems carefully.
+      temperature: 0.7
+      max_tokens: 4000
+      include_thinking: true  # Enable extended thinking
+
+  tasks:
+    - name: reasoning_task
+      task_no: 1
+      description: Engage with user and show reasoning
+      instructions: |
+        Work with the user to assist them in whatever they need.
+        Provide thoughtful, well-reasoned responses.
+      agent: default

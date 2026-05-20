@@ -657,7 +657,7 @@ def test_get_rest_routes_skagents_sse(
 
 @patch("sk_agents.routes.get_telemetry")
 def test_get_rest_routes_unknown_handler(mock_get_telemetry):
-    """Test get_rest_routes with unknown handler raises ValueError."""
+    """Test get_rest_routes with unknown handler raises AgentExecutionError."""
     mock_get_telemetry.return_value = setup_telemetry_mock()
 
     config, app_config = setup_config_and_app()
@@ -667,17 +667,19 @@ def test_get_rest_routes_unknown_handler(mock_get_telemetry):
         handler_name="unknown", config=config, app_config=app_config
     )
 
-    # Test that the ValueError is raised during request processing
+    # Test that AgentExecutionError is raised during request processing
+    from sk_agents.exceptions import AgentExecutionError
+
     try:
         client.post("/api", json={"test_field": "test"})
-        raise AssertionError("Expected ValueError to be raised")
-    except ValueError as e:
-        assert "Unknown apiVersion: unknown" in str(e)
+        raise AssertionError("Expected AgentExecutionError to be raised")
+    except AgentExecutionError as e:
+        assert "Failed to initialize agent handler" in str(e)
 
 
 @patch("sk_agents.routes.get_telemetry")
 def test_get_rest_routes_sse_unknown_handler(mock_get_telemetry):
-    """Test get_rest_routes SSE endpoint with unknown handler raises ValueError."""
+    """Test get_rest_routes SSE endpoint with unknown handler returns error event."""
     mock_get_telemetry.return_value = setup_telemetry_mock()
 
     config, app_config = setup_config_and_app()
@@ -686,15 +688,15 @@ def test_get_rest_routes_sse_unknown_handler(mock_get_telemetry):
         handler_name="unknown_handler", config=config, app_config=app_config
     )
 
-    # Test that the ValueError is raised during SSE stream processing
-    try:
-        response = client.post("/api/sse", json={"test_field": "test"})
-        # Need to consume the stream to trigger the generator
-        for _ in response.iter_content():
-            pass
-        raise AssertionError("Expected ValueError to be raised")
-    except ValueError as e:
-        assert "Unknown apiVersion: v1" in str(e)
+    # Test that an error event is sent in the SSE stream
+    response = client.post("/api/sse", json={"test_field": "test"})
+    # Need to consume the stream to get the error
+    error_found = False
+    for chunk in response.iter_text():
+        if "error" in chunk.lower() and ("unknown" in chunk.lower() or "failed" in chunk.lower()):
+            error_found = True
+            break
+    assert error_found, "Expected error event in SSE stream"
 
 
 @patch("sk_agents.routes.skagents_handle")
@@ -761,7 +763,7 @@ async def test_websocket_route_execution(mock_extract, mock_get_telemetry, mock_
 @pytest.mark.asyncio
 @patch("sk_agents.routes.get_telemetry")
 async def test_websocket_route_unknown_handler(mock_get_telemetry):
-    """Test WebSocket route with unknown handler raises ValueError."""
+    """Test WebSocket route with unknown handler sends error and closes."""
     # Setup mocks
     mock_st = MagicMock()
     mock_st.telemetry_enabled.return_value = True
@@ -774,6 +776,8 @@ async def test_websocket_route_unknown_handler(mock_get_telemetry):
     mock_websocket.headers = {"authorization": "Bearer test"}
     mock_websocket.accept = AsyncMock()
     mock_websocket.receive_json = AsyncMock(return_value={"test_field": "test"})
+    mock_websocket.send_json = AsyncMock()
+    mock_websocket.close = AsyncMock()
 
     config = MagicMock()
     config.apiVersion = "unknown"
@@ -802,9 +806,20 @@ async def test_websocket_route_unknown_handler(mock_get_telemetry):
 
     assert websocket_route is not None
 
-    # Call the WebSocket endpoint function - should raise ValueError
-    with pytest.raises(ValueError, match="Unknown apiVersion"):
-        await websocket_route.endpoint(mock_websocket)
+    # Call the WebSocket endpoint function - should send error and close
+    await websocket_route.endpoint(mock_websocket)
+
+    # Verify error was sent
+    mock_websocket.send_json.assert_called_once()
+    error_message = mock_websocket.send_json.call_args[0][0]
+    assert "error" in error_message
+    assert (
+        "unknown" in error_message.get("message", "").lower()
+        or "failed" in error_message.get("message", "").lower()
+    )
+
+    # Verify websocket was closed
+    mock_websocket.close.assert_called_once()
 
 
 @pytest.mark.asyncio

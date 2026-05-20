@@ -7,6 +7,7 @@ import pytest
 # Mock for sk_agents.configs
 class MockTA_SERVICE_CONFIG:
     env_name = "TA_SERVICE_CONFIG_FILE"
+    is_required = False
 
 
 class MockConfigs:
@@ -44,6 +45,8 @@ def mock_dependencies(mocker, mock_initialize_telemetry):
     mocker.patch("sk_agents.middleware.TelemetryMiddleware", autospec=True)
     mocker.patch("sk_agents.appv1.AppV1.run", autospec=True)
     mocker.patch("sk_agents.appv2.AppV2.run", autospec=True)
+    # Mock config validator to prevent validation errors during import
+    mocker.patch("sk_agents.config_validator.validate_config_or_raise", return_value=None)
 
     # Ensure a clean slate for each test by removing the main app module from cache
     if "sk_agents.app" in sys.modules:

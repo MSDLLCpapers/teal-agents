@@ -106,9 +106,7 @@ class FileBasedPluginCatalog(PluginCatalog):
             # Re-raise our custom exception
             raise
         except Exception as e:
-            raise PluginFileReadException(
-                message="""
+            raise PluginFileReadException(message="""
                 Catalog encountered an error
                 when attempting to read file
-                """
-            ) from e
+                """) from e

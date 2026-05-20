@@ -34,8 +34,12 @@ from sk_agents.utility_routes import UtilityRoutes
 from sk_agents.utils import initialize_plugin_loader
 
 
-class AppV3:
+class AppV3:  # pylint: disable=too-few-public-methods
+    """Application runner for tealagents/v1alpha1 API version."""
+
     class StateStores(Enum):
+        """Supported state store backends."""
+
         IN_MEMORY = "in-memory"
         REDIS = "redis"
 
@@ -72,13 +76,14 @@ class AppV3:
 
     @staticmethod
     def _get_mcp_discovery_manager(app_config: AppConfig):
+        # pylint: disable=import-outside-toplevel
         from sk_agents.mcp_discovery import DiscoveryManagerFactory
 
         discovery_factory = DiscoveryManagerFactory(app_config)
         return discovery_factory.get_discovery_manager()
 
     @staticmethod
-    def _get_auth_manager(app_config: AppConfig):
+    def _get_auth_manager(app_config: AppConfig):  # pylint: disable=unused-argument
         # For initial implementation, use mock authentication
         # Will be extended in future for Entra ID
         return MockAuthenticationManager()
@@ -103,6 +108,7 @@ class AppV3:
 
     @staticmethod
     def run(name: str, version: str, app_config: AppConfig, config: BaseConfig, app: FastAPI):
+        """Initialize and run the AppV3 application with routes and plugins."""
         if config.apiVersion != "tealagents/v1alpha1":
             raise ValueError(
                 f"AppV3 only supports 'tealagents/v1alpha1' API version, got: {config.apiVersion}"
@@ -169,6 +175,14 @@ class AppV3:
             utility_routes.get_health_routes(
                 config=config,
                 app_config=app_config,
+            ),
+            prefix=f"/{name}/{version}",
+        )
+
+        # Include metadata route
+        app.include_router(
+            utility_routes.get_metadata_routes(
+                config=config,
             ),
             prefix=f"/{name}/{version}",
         )

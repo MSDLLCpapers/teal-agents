@@ -316,7 +316,7 @@ class TestAppV3Run:
             config=mock_base_config, app_config=mock_app_config
         )
 
-        # Verify router inclusion
+        # Verify router inclusion (3 routers: stateful, resume, health)
         assert mock_fastapi_app.include_router.call_count == 3
         mock_fastapi_app.include_router.assert_any_call(mock_stateful_router, prefix="/testapp/v1")
         mock_fastapi_app.include_router.assert_any_call(mock_resume_router, prefix="/testapp/v1")

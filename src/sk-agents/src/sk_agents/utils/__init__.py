@@ -1,3 +1,9 @@
+"""
+Utility functions for sk_agents.
+
+This module provides various utility functions including PDF text extraction.
+"""
+
 import logging
 import os
 
@@ -10,6 +16,7 @@ from sk_agents.ska_types import (
     InvokeResponse,
     PartialResponse,
 )
+from sk_agents.utils.pdf_extractor import PDFExtractionError, PDFExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +39,10 @@ def initialize_plugin_loader(agents_path: str, app_config: AppConfig):
             if os.path.exists(custom_plugins):
                 app_config.props[TA_PLUGIN_MODULE.env_name] = custom_plugins
                 plugin_module = custom_plugins
-        get_plugin_loader(plugin_module)
+
+        # Only call get_plugin_loader if plugin_module is not None
+        if plugin_module is not None:
+            get_plugin_loader(plugin_module)
     except Exception as e:
         logger.exception(f"Failed to initialize plugin loader: {e}")
         raise
@@ -53,3 +63,14 @@ def get_sse_event_for_response(
     except Exception as e:
         logger.exception("Failed to serialize SSE event for response")
         return f'event: error\ndata: {{"error": "{str(e)}"}}\n\n'
+
+
+__all__ = [
+    "PDFExtractor",
+    "PDFExtractionError",
+    "docstring_parameter",
+    "get_sse_event_for_response",
+    "initialize_plugin_loader",
+    "get_plugin_loader",
+    "logger",
+]

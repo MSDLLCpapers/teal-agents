@@ -1,0 +1,1458 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.2">
+    
+    
+      
+        <title>Application State After Phases 1 & 2: Foundation for Human-in-the-Loop Implementation - Teal Agents Framework</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#application-state-after-phases-1-2-foundation-for-human-in-the-loop-implementation" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../../.." title="Teal Agents Framework" class="md-header__button md-logo" aria-label="Teal Agents Framework" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Teal Agents Framework
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Application State After Phases 1 &amp; 2: Foundation for Human-in-the-Loop Implementation
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/MSDLLCpapers/teal-agents" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    teal-agents
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="Teal Agents Framework" class="md-nav__button md-logo" aria-label="Teal Agents Framework" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Teal Agents Framework
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/MSDLLCpapers/teal-agents" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    teal-agents
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chat Completion Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Modules Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Human-in-the-Loop
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Human-in-the-Loop
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../hitl/hitl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Requiring Human Consent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../hitl/persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Managing Task State
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../hitl/plugin_catalog/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cataloging Agent Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../hitl/authorization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authorizing on Behalf of Users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../hitl/auth_storage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Storing Authenthication Credentials
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demos
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Demos
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../demos/01_getting_started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../demos/02_input_output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Input and Output
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../demos/03_plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../demos/04_remote_plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Remote Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../demos/06_deployment_github/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying from Github
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../demos/07_task_output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Output
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../demos/08_multi_modal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Modal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../demos/09_chat_simple/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Simple Chatbot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../demos/10_chat_plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Chatbot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../demos/11_hitl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Human-in-the-Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#new-infrastructure-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        New Infrastructure Components
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="New Infrastructure Components">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#authorization-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Authorization System
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#persistence-system" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Persistence System
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#state-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State Models
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#new-api-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        New API Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="New API Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#module-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Module Structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#routing-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Routing Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tool-call-interception-architecture" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool Call Interception Architecture
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tool Call Interception Architecture">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#hitl-foundation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HITL Foundation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#manual-tool-orchestration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Manual Tool Orchestration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#state-management-flow" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State Management Flow
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="State Management Flow">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#request-processing-pipeline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Request Processing Pipeline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#concurrency-error-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Concurrency &amp; Error Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-architectural-decisions-for-phase-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Architectural Decisions for Phase 3
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Key Architectural Decisions for Phase 3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tool-call-interception-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool Call Interception Points
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#state-persistence-capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State Persistence Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#response-model-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Response Model Design
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hitl-implementation-ready-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        HITL Implementation Ready Points
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="HITL Implementation Ready Points">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-tool-call-interception" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Tool Call Interception
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-state-persistence-for-paused-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. State Persistence for Paused Tasks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-response-mechanisms" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Response Mechanisms
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-authorization-integration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Authorization Integration
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment Variables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#backward-compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Backward Compatibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="application-state-after-phases-1-2-foundation-for-human-in-the-loop-implementation">Application State After Phases 1 &amp; 2: Foundation for Human-in-the-Loop Implementation</h1>
+<p>This document provides a comprehensive overview of the application state after completing Phases 1 and 2, as described in <code>01-02-state-refactor-implementation-plan.md</code> and <code>02-02-manual-tool-call-implementation-plan.md</code>. This overview is intended to support Phase 3 planning, which will introduce Human-in-the-Loop (HITL) functionality for selected tool calls.</p>
+<h2 id="new-infrastructure-components">New Infrastructure Components</h2>
+<h3 id="authorization-system">Authorization System</h3>
+<p>The application now includes a pluggable authorization system:</p>
+<ul>
+<li><strong><code>src/sk_agents/authorization/</code> module</strong> - Complete authorization infrastructure</li>
+<li><strong><code>RequestAuthorizer</code></strong> - Abstract base class requiring <code>authorize_request(auth_header: str) -&gt; str</code></li>
+<li><strong><code>DummyAuthorizer</code></strong> - Development implementation returning 'dummyuser' for all requests</li>
+<li><strong><code>AuthorizerFactory</code></strong> - Thread-safe singleton factory with environment variable configuration<ul>
+<li><code>TA_AUTHORIZER_MODULE</code> - Module path for authorization implementation</li>
+<li><code>TA_AUTHORIZER_CLASS</code> - Class name for authorization implementation</li>
+</ul>
+</li>
+<li><strong>Error handling</strong> - Comprehensive handling for import failures and misconfigurations</li>
+</ul>
+<h3 id="persistence-system">Persistence System</h3>
+<p>A pluggable state storage system is now available:</p>
+<ul>
+<li><strong><code>src/sk_agents/persistence/</code> module</strong> - Complete persistence infrastructure</li>
+<li><strong><code>TaskPersistenceManager</code></strong> - Abstract base class with CRUD operations for <code>AgentTask</code> objects<ul>
+<li><code>create(task: AgentTask) -&gt; None</code></li>
+<li><code>load(task_id: str) -&gt; AgentTask | None</code></li>
+<li><code>update(task: AgentTask) -&gt; None</code></li>
+<li><code>delete(task_id: str) -&gt; None</code></li>
+</ul>
+</li>
+<li><strong><code>InMemoryPersistenceManager</code></strong> - Thread-safe in-memory implementation with proper locking</li>
+<li><strong><code>PersistenceFactory</code></strong> - Environment variable configuration<ul>
+<li><code>TA_PERSISTENCE_MODULE</code> - Module path for persistence implementation</li>
+<li><code>TA_PERSISTENCE_CLASS</code> - Class name for persistence implementation</li>
+</ul>
+</li>
+<li><strong>Error handling</strong> - Persistence failures result in 5xx responses</li>
+</ul>
+<h3 id="state-models">State Models</h3>
+<p>New data models support complete conversation state management:</p>
+<ul>
+<li><strong><code>AgentTask</code></strong> - Core state container with:<ul>
+<li><code>task_id</code>, <code>session_id</code>, <code>user_id</code> for identification</li>
+<li><code>items: list[AgentTaskItem]</code> for conversation history</li>
+<li><code>created_at</code>, <code>last_updated_at</code> timestamps</li>
+<li><code>status: Literal["Running", "Paused", "Completed", "Failed"]</code> for state tracking</li>
+</ul>
+</li>
+<li><strong><code>AgentTaskItem</code></strong> - Individual conversation entries with:<ul>
+<li><code>role: Literal["user", "assistant"]</code> for message attribution</li>
+<li><code>item: MultiModalItem</code> for content</li>
+<li><code>request_id: str</code> for tracking individual requests</li>
+<li><code>updated: datetime</code> for chronological ordering</li>
+</ul>
+</li>
+<li><strong><code>UserMessage</code></strong> - Input model with optional state identifiers:<ul>
+<li><code>session_id: str | None</code> for session continuity</li>
+<li><code>task_id: str | None</code> for task resumption</li>
+<li><code>items: list[MultiModalItem]</code> for multimodal content</li>
+</ul>
+</li>
+<li><strong><code>TealAgentsResponse</code>/<code>TealAgentsPartialResponse</code></strong> - Response models with:<ul>
+<li><code>session_id</code>, <code>task_id</code>, <code>request_id</code> for complete state tracking</li>
+<li><code>output</code> field (collapsed from previous <code>output_raw</code>/<code>output_pydantic</code>)</li>
+<li>All existing response fields preserved</li>
+</ul>
+</li>
+</ul>
+<h2 id="new-api-architecture">New API Architecture</h2>
+<h3 id="module-structure">Module Structure</h3>
+<p>A completely isolated API version has been created:</p>
+<ul>
+<li><strong><code>src/sk_agents/tealagents/</code></strong> - Top-level module, completely isolated from <code>skagents</code></li>
+<li><strong><code>src/sk_agents/tealagents/v1alpha1/</code></strong> - Version-specific implementation</li>
+<li><strong><code>src/sk_agents/tealagents/v1alpha1/handler.py</code></strong> - Core handler implementation</li>
+<li><strong><code>src/sk_agents/tealagents/v1alpha1/agent.py</code></strong> - LLM interaction and tool call</li>
+<li><strong>Isolation requirements</strong>:<ul>
+<li>No imports from <code>skagents</code> modules in <code>tealagents</code> modules</li>
+<li>No shared mutable state between API versions</li>
+<li>Separate error handling paths to prevent cross-contamination</li>
+<li>Independent configuration validation logic</li>
+</ul>
+</li>
+</ul>
+<h3 id="routing-integration">Routing Integration</h3>
+<p>The application routing has been extended to support the new API:</p>
+<ul>
+<li><strong>Updated <code>routes.py</code></strong> - Detects <code>tealagents</code> as first token in <code>apiVersion</code></li>
+<li><strong>New <code>AppV3</code> class</strong> - Follows existing <code>AppV1</code>/<code>AppV2</code> patterns</li>
+<li><strong>Main <code>app.py</code></strong> - Routes <code>tealagents/v1alpha1</code> configurations to <code>AppV3</code></li>
+<li><strong>Backward compatibility</strong> - All existing API versions continue to work unchanged</li>
+</ul>
+<h2 id="tool-call-interception-architecture">Tool Call Interception Architecture</h2>
+<h3 id="hitl-foundation">HITL Foundation</h3>
+<p>The groundwork for Human-in-the-Loop functionality has been established:</p>
+<ul>
+<li><strong><code>src/sk_agents/hitl/hitl_manager.py</code></strong> - Placeholder module with interception point</li>
+<li><strong><code>check_for_intervention(tool_call: FunctionCallContent) -&gt; bool</code></strong> - Core interception function<ul>
+<li>Currently returns <code>False</code> (no intervention) for all tool calls</li>
+<li>Establishes the exact point where HITL logic will be implemented</li>
+<li>Receives complete <code>FunctionCallContent</code> objects for inspection</li>
+</ul>
+</li>
+</ul>
+<h3 id="manual-tool-orchestration">Manual Tool Orchestration</h3>
+<p>The <code>Agent</code> (<code>src/sk_agents/tealagents/v1alpha1/agent.py</code>) implements the tool invocation loop:</p>
+<ul>
+<li><strong>Direct LLM interaction</strong> - Uses <code>ChatCompletionClientBase</code> instead of high-level agent methods</li>
+<li><strong>Manual tool extraction</strong> - Extracts <code>FunctionCallContent</code> objects from LLM responses</li>
+<li><strong>Clear interception point</strong> - Each tool call is individually passed to <code>hitl_manager.check_for_intervention()</code></li>
+<li><strong>Parallel execution</strong> - Approved tool calls are executed via <code>asyncio.gather()</code></li>
+<li><strong>Recursive handling</strong> - Supports multi-turn tool calling scenarios</li>
+<li><strong>Streaming support</strong> - Both <code>invoke()</code> and <code>invoke_stream()</code> methods have identical interception logic</li>
+</ul>
+<h2 id="state-management-flow">State Management Flow</h2>
+<h3 id="request-processing-pipeline">Request Processing Pipeline</h3>
+<p>The <code>TealAgentsV1Alpha1Handler</code> (<code>src/sk_agents/tealagents/v1alpha1/handler.py</code>) processes requests with a clear state management flow:</p>
+<ol>
+<li><strong>Authorization</strong> - Via pluggable authorizer (extracts <code>user_id</code>)</li>
+<li><strong>Session/Task ID handling</strong> - Generation or validation of state identifiers</li>
+<li><strong>User ownership verification</strong> - Existing tasks checked for user ownership</li>
+<li><strong>Chat history reconstruction</strong> - Built from persisted <code>AgentTaskItem</code> objects</li>
+<li><strong>Agent invocation</strong> - Invoke agent with appropriate chat history</li>
+<li><strong>State persistence</strong> - After each interaction</li>
+<li><strong>Response generation</strong> - With complete state identifiers</li>
+</ol>
+<h3 id="concurrency-error-handling">Concurrency &amp; Error Handling</h3>
+<p>Robust error handling and concurrency support:</p>
+<ul>
+<li><strong>Thread-safe state access</strong> - Proper locking mechanisms in persistence layer</li>
+<li><strong>Comprehensive error responses</strong>:<ul>
+<li>401 for authorization failures</li>
+<li>404 for missing tasks</li>
+<li>5xx for persistence failures</li>
+</ul>
+</li>
+<li><strong>Streaming support</strong> - State management with keepalive mechanisms</li>
+<li><strong>Race condition handling</strong> - Concurrent access to same task properly managed</li>
+</ul>
+<h2 id="key-architectural-decisions-for-phase-3">Key Architectural Decisions for Phase 3</h2>
+<h3 id="tool-call-interception-points">Tool Call Interception Points</h3>
+<p>The architecture provides clear interception capabilities:</p>
+<ul>
+<li><strong>Identical interception logic</strong> - Both <code>invoke()</code> and <code>invoke_stream()</code> methods have the same interception flow</li>
+<li><strong>Pre-execution inspection</strong> - Tool calls are extracted and inspected before execution</li>
+<li><strong>Individual tool processing</strong> - Each <code>FunctionCallContent</code> object is individually passed to the interception function</li>
+<li><strong>Execution control</strong> - The interception point can prevent tool execution (currently always allows)</li>
+</ul>
+<h3 id="state-persistence-capabilities">State Persistence Capabilities</h3>
+<p>Complete state management for paused/resumed operations:</p>
+<ul>
+<li><strong>Full conversation history</strong> - Maintained in <code>AgentTask.items</code> with chronological ordering</li>
+<li><strong>Unique request tracking</strong> - Each interaction has a unique <code>request_id</code></li>
+<li><strong>Pause support</strong> - Task status field supports "Paused" state (designed for HITL)</li>
+<li><strong>Timestamp tracking</strong> - All state objects include timestamps for timeout/cleanup logic</li>
+<li><strong>User association</strong> - All tasks are associated with specific users for authorization</li>
+</ul>
+<h3 id="response-model-design">Response Model Design</h3>
+<p>Response models are designed to support HITL workflows:</p>
+<ul>
+<li><strong>State identifier inclusion</strong> - All responses include <code>session_id</code>, <code>task_id</code>, <code>request_id</code></li>
+<li><strong>Streaming consistency</strong> - State identifiers maintained throughout streaming responses</li>
+<li><strong>Extensibility</strong> - Response models designed to support future HITL-specific fields</li>
+<li><strong>Client tracking</strong> - State identifiers allow clients to track and respond to approval requests</li>
+</ul>
+<h2 id="hitl-implementation-ready-points">HITL Implementation Ready Points</h2>
+<p>The architecture establishes the following foundation for Phase 3 HITL implementation:</p>
+<h3 id="1-tool-call-interception">1. Tool Call Interception</h3>
+<ul>
+<li><strong><code>hitl_manager.check_for_intervention()</code></strong> - Ready to implement policy-based tool approval</li>
+<li><strong>Complete tool context</strong> - <code>FunctionCallContent</code> objects provide full tool information</li>
+<li><strong>Execution control</strong> - Return <code>True</code> to block tool execution</li>
+</ul>
+<h3 id="2-state-persistence-for-paused-tasks">2. State Persistence for Paused Tasks</h3>
+<ul>
+<li><strong>Task pausing</strong> - Change <code>AgentTask.status</code> to "Paused"</li>
+<li><strong>Conversation state</strong> - Complete chat history preserved for resumption</li>
+<li><strong>User context</strong> - User authorization preserved for approval requests</li>
+</ul>
+<h3 id="3-response-mechanisms">3. Response Mechanisms</h3>
+<ul>
+<li><strong>State tracking</strong> - Response models include all necessary identifiers</li>
+<li><strong>Client communication</strong> - Mechanisms exist to inform clients of approval requirements</li>
+<li><strong>Resumption support</strong> - Task can be resumed with <code>request_id</code> in subsequent requests</li>
+</ul>
+<h3 id="4-authorization-integration">4. Authorization Integration</h3>
+<ul>
+<li><strong>User identification</strong> - Every request tied to specific user</li>
+<li><strong>Approval tracking</strong> - Tool approval requests can be associated with users</li>
+<li><strong>Security</strong> - User ownership verification prevents unauthorized task access</li>
+</ul>
+<h2 id="environment-variables">Environment Variables</h2>
+<p>New environment variables introduced:</p>
+<ul>
+<li><code>TA_AUTHORIZER_MODULE</code> - Module path for authorization implementation</li>
+<li><code>TA_AUTHORIZER_CLASS</code> - Class name for authorization implementation</li>
+<li><code>TA_PERSISTENCE_MODULE</code> - Module path for persistence implementation</li>
+<li><code>TA_PERSISTENCE_CLASS</code> - Class name for persistence implementation</li>
+</ul>
+<p><strong>Default values for development:</strong></p>
+<ul>
+<li>Authorizer: <code>sk_agents.authorization.dummy_authorizer.DummyAuthorizer</code></li>
+<li>Persistence: <code>sk_agents.persistence.in_memory_persistence_manager.InMemoryPersistenceManager</code></li>
+</ul>
+<h2 id="backward-compatibility">Backward Compatibility</h2>
+<p>The application maintains complete backward compatibility:</p>
+<ul>
+<li><strong>Existing APIs unchanged</strong> - <code>skagents/v1</code> and <code>skagents/v2alpha1</code> continue to work</li>
+<li><strong>No shared state</strong> - New <code>tealagents</code> API is completely isolated</li>
+<li><strong>Configuration compatibility</strong> - Existing configuration files continue to work</li>
+<li><strong>Telemetry preservation</strong> - All existing telemetry functionality maintained</li>
+</ul>
+<h2 id="summary">Summary</h2>
+<p>After Phases 1 and 2, the application provides a complete foundation for Human-in-the-Loop implementation with:</p>
+<ol>
+<li><strong>Authorization infrastructure</strong> - User identification and request authorization</li>
+<li><strong>State persistence</strong> - Complete conversation state management with pause/resume capability</li>
+<li><strong>Tool call interception</strong> - Clear points for inspecting and controlling tool execution</li>
+<li><strong>Response mechanisms</strong> - State tracking and client communication capabilities</li>
+<li><strong>Isolation</strong> - New functionality completely isolated from existing APIs</li>
+</ol>
+<p>The <code>tealagents/v1alpha1</code> API path now provides stateful, interceptable agent interactions while maintaining complete backward compatibility with existing functionality. Phase 3 can build upon this foundation to implement Human-in-the-Loop approval workflows for selected tool calls.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["content.code.copy", "content.code.select", "navigation.path", "navigation.sections", "navigation.expand", "content.code.annotate"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

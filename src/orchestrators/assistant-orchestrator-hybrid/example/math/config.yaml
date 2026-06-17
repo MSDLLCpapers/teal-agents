@@ -1,0 +1,23 @@
+apiVersion: skagents/v1
+kind: Sequential
+description: >
+  An agent great at solving math problems
+service_name: MathAgent
+version: 0.1
+input_type: BaseInput
+spec:
+  agents:
+    - name: default
+      role: Default Agent
+      model: gpt-4o
+      system_prompt: >
+        You are a helpful assistant.
+  tasks:
+    - name: action_task
+      task_no: 1
+      description: Add two number
+      instructions: >
+        Perform any mathematical operations the user requests and return the
+        result. Only do math questions, if the user asks for something else,
+        inform them that you cannot help with that.
+      agent: default

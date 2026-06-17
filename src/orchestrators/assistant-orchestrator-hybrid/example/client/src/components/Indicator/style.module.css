@@ -1,0 +1,25 @@
+
+.disconnected {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: rgb(180, 70, 0);
+    box-shadow: #000 0 -1px 7px 1px, inset rgb(100, 0, 0) 0 -1px 8px, rgb(255, 25, 0) 0 2px 12px;
+}
+
+.connected {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: rgb(70, 180, 0);
+    box-shadow: #000 0 -1px 7px 1px, inset rgb(20, 100, 0) 0 -1px 9px, rgb(55, 190, 0) 0 2px 12px;
+    border: transparent;
+}
+
+.notReady {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background-color: rgb(170, 150, 0);
+    box-shadow: #000 0 -1px 7px 1px, inset rgb(100, 90, 0) 0 -1px 9px, rgb(255, 200, 0) 0 2px 12px;
+}

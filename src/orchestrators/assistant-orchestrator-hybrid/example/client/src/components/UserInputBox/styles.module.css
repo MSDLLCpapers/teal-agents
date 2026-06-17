@@ -1,0 +1,58 @@
+.main {
+   transition: all 0.25s ease-in-out 0s;
+}
+.userInBox {
+    padding: 1.2px;
+    width: 100%;
+    margin-top: 8px;
+    background-color: var(--component);
+    border-radius: 18px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(5px);
+    border-top: 0.5px outset rgba(0, 0, 0, 0.25);
+    border-left: 0.5px outset rgba(0, 0, 0, 0.25);
+    border-right: 4px outset rgba(0, 0, 0, 0.35);
+    border-bottom: 4px outset rgba(0, 0, 0, 0.35);
+    box-shadow: 8px 10px 15px rgba(0, 0, 0, 0.6);
+    transition:
+        box-shadow 0.25s ease-in-out 0s,
+        border 0.25s ease-in-out 0s;
+    flex-direction: row;
+    display: flex;
+}
+
+.userInBox:hover {
+    border-top: 1px outset rgba(0, 0, 0, 0.25);
+    border-left: 1px outset rgba(0, 0, 0, 0.25);
+    border-right: 4.5px ridge rgba(0, 0, 0, 0.35);
+    border-bottom: 4.5px ridge rgba(0, 0, 0, 0.35);
+    box-shadow: 4px 4px 14px rgba(0, 0, 0, 0.6),
+        inset 2px 2px 4px rgba(0, 0, 0, 0.6);
+
+}
+
+.userInBox:focus-within {
+    border-top: 4px inset rgba(0, 0, 0, 0.3);
+    border-left: 4px inset rgba(0, 0, 0, 0.3);
+    border-right: 2px inset rgba(0, 0, 0, 0.35);
+    border-bottom: 2px inset rgba(0, 0, 0, 0.35);
+    box-shadow: 2px 4px 12px rgba(0, 0, 0, 0.6),
+        inset 4px 6px 8px rgba(0, 0, 0, 0.8);
+}
+
+.content {
+    resize: none;
+    flex: 1;
+    background: transparent;
+    border-radius: 18px;
+    border: 0px;
+    padding: 12px;
+    color: var(--color);
+    font-size: 1.2rem;
+    padding-left: 14px;
+    padding-bottom: 2px;
+}
+
+.content:focus {
+    outline: none !important;
+}

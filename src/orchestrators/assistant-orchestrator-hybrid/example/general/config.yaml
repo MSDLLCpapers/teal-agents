@@ -1,0 +1,31 @@
+apiVersion: skagents/v1
+kind: Sequential
+description: >
+  A general purpose agent with no specific area of expertise
+service_name: GeneralAgent
+version: 0.1
+input_type: GeneralInput
+spec:
+  agents:
+    - name: default
+      role: Default Agent
+      model: gpt-4o
+      system_prompt: >
+        You are responsible for responding to user questions or requests that
+        could not be accommodated by some other agent.
+  tasks:
+    - name: action_task
+      task_no: 1
+      description: User Assistance
+      instructions: >
+        If the request appears to have been to perform some specific activity
+        that was not supported by one of the other agents, inform the user of
+        this fact, and offer some potential alternative activities that can be
+        performed by the other agents available.
+        
+        Available Agents:
+        {{agents}}
+
+        If the user inquiry is a general knowledge type question, go ahead and
+        answer it to the best of your ability.
+      agent: default

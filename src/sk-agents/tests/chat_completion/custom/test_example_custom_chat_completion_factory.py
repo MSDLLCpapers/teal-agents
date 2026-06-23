@@ -63,13 +63,13 @@ class TestFactoryInitialization:
         """Test that the ANTHROPIC_MODELS list contains expected models."""
         assert "claude-3-5-sonnet-20240620" in ExampleCustomChatCompletionFactory._ANTHROPIC_MODELS
         assert "claude-3-haiku-20240307" in ExampleCustomChatCompletionFactory._ANTHROPIC_MODELS
-        assert len(ExampleCustomChatCompletionFactory._ANTHROPIC_MODELS) == 2
+        assert len(ExampleCustomChatCompletionFactory._ANTHROPIC_MODELS) == 17
 
     def test_google_models_list_contains_expected_models(self):
         """Test that the GOOGLE_MODELS list contains expected models."""
         assert "gemini-2-5-pro-preview-03-25" in ExampleCustomChatCompletionFactory._GOOGLE_MODELS
         assert "gemini-2-0-flash" in ExampleCustomChatCompletionFactory._GOOGLE_MODELS
-        assert len(ExampleCustomChatCompletionFactory._GOOGLE_MODELS) == 4
+        assert len(ExampleCustomChatCompletionFactory._GOOGLE_MODELS) == 14
 
 
 class TestGetConfigs:

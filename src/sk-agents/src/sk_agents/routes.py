@@ -1,5 +1,7 @@
+import json
 import logging
 from contextlib import nullcontext
+from typing import Annotated
 
 from a2a.server.apps.starlette_app import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
@@ -8,9 +10,12 @@ from a2a.types import AgentCapabilities, AgentCard, AgentProvider, AgentSkill
 from fastapi import (
     APIRouter,
     Depends,
+    File,
+    Form,
     Header,
     HTTPException,
     Request,
+    UploadFile,
     WebSocket,
     WebSocketDisconnect,
     status,
@@ -27,11 +32,14 @@ from sk_agents.configs import (
     TA_PROVIDER_ORG,
     TA_PROVIDER_URL,
 )
+from sk_agents.file_upload_routes import FileProcessor
 from sk_agents.persistence.task_persistence_manager import TaskPersistenceManager
 from sk_agents.ska_types import (
     BaseConfig,
     BaseHandler,
+    ContentType,
     InvokeResponse,
+    MultiModalItem,
     PartialResponse,
 )
 from sk_agents.skagents import handle as skagents_handle
@@ -379,6 +387,94 @@ class Routes:
                 status=status,
                 content=response_content,  # Replace with actual response
             )
+
+        @router.post(
+            "/with-file",
+            response_model=StateResponse,
+            summary="Send a message to the agent with file attachment (PDF)",
+            response_description="Agent response with state identifiers",
+            tags=["Agent"],
+        )
+        async def chat_with_file(
+            message_json: Annotated[str, Form(description="JSON string of UserMessage")],
+            file: Annotated[UploadFile, File()],
+            max_pages: Annotated[
+                int | None, Form(description="Maximum pages to extract from PDF")
+            ] = None,
+            user_id: str = Depends(get_user_id),
+        ) -> StateResponse:
+            """
+            Send a message to the agent with an attached PDF file.
+
+            The PDF content will be extracted and automatically prepended to your prompt,
+            then sent to the agent for processing in a single request.
+
+            **Usage:**
+            ```bash
+            curl -X POST \\
+              "http://localhost:8000/{ServiceName}/{Version}/tealagents/v1alpha1/with-file" \\
+              -H "Authorization: Bearer YOUR_TOKEN" \\
+              -F 'message_json={"items":[{"content_type":"text","content":"Question?"}]}' \\
+              -F "file=@document.pdf" \\
+              -F "max_pages=10"
+            ```
+            """
+            try:
+                # Parse the JSON message
+                message_data = json.loads(message_json)
+                message = UserMessage(**message_data)
+
+                # Process the PDF file
+                pdf_content = await FileProcessor.process_pdf_upload(file, max_pages)
+
+                # Get the user's prompt from the first text item
+                user_prompt = None
+                for item in message.items:
+                    if item.content_type == ContentType.TEXT:
+                        user_prompt = item.content
+                        break
+
+                if not user_prompt:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Message must contain at least one text item with your question",
+                    )
+
+                # Combine PDF content with user prompt
+                combined_content = FileProcessor.combine_pdf_and_prompt(pdf_content, user_prompt)
+
+                # Replace the first text item with the combined content
+                for i, item in enumerate(message.items):
+                    if item.content_type == ContentType.TEXT:
+                        message.items[i] = MultiModalItem(
+                            content_type=ContentType.TEXT, content=combined_content
+                        )
+                        break
+
+                # Handle the request
+                teal_handler = Routes.get_task_handler(
+                    config, app_config, user_id, state_manager, mcp_discovery_manager
+                )
+                response_content = await teal_handler.invoke(user_id, message)
+
+                # Return response with state identifiers
+                task_status = TaskStatus.COMPLETED.value
+                if type(response_content) is HitlResponse:
+                    task_status = TaskStatus.PAUSED.value
+
+                return StateResponse(
+                    session_id=response_content.session_id,
+                    task_id=response_content.task_id,
+                    request_id=response_content.request_id,
+                    status=task_status,
+                    content=response_content,
+                )
+
+            except json.JSONDecodeError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid JSON in message_json: {str(e)}",
+                ) from e
 
         return router
 

@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from semantic_kernel.contents.chat_history import ChatHistory
 
 from sk_agents.ska_types import ExtraData, MultiModalItem, TokenUsage
@@ -45,6 +45,11 @@ class TealAgentsResponse(BaseModel):
     source: str | None = None
     token_usage: TokenUsage
     extra_data: ExtraData | None = None
+    # Extended thinking support
+    thinking: str | None = Field(
+        default=None,
+        description="Extended thinking/reasoning from the model"
+    )
 
 
 class TealAgentsPartialResponse(BaseModel):

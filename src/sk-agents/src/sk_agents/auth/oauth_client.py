@@ -610,9 +610,9 @@ class OAuthClient:
             code=code,
             redirect_uri=server_config.oauth_redirect_uri,
             code_verifier=flow_state.verifier,
-            resource=flow_state.resource
-            if include_resource
-            else None,  # Conditional per protocol version
+            resource=(
+                flow_state.resource if include_resource else None
+            ),  # Conditional per protocol version
             client_id=server_config.oauth_client_id or client_name,
             client_secret=server_config.oauth_client_secret,
             requested_scopes=flow_state.scopes,  # For scope validation

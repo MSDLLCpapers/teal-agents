@@ -17,9 +17,9 @@ logger = logging.getLogger(__name__)
 class InMemoryPersistenceManager(TaskPersistenceManager):
     def __init__(self):
         self.in_memory: dict[str, AgentTask] = {}
-        self.item_request_id_index: dict[
-            str, set[str]
-        ] = {}  # Maps request_id to set of task_ids that contain it
+        self.item_request_id_index: dict[str, set[str]] = (
+            {}
+        )  # Maps request_id to set of task_ids that contain it
         logger.info("InMemoryPersistenceManager initialized.")
         self._lock = asyncio.Lock()
 

@@ -41,7 +41,7 @@ try:
         raise
 
     try:
-        (root_handler, api_version) = config.apiVersion.split("/")
+        root_handler, api_version = config.apiVersion.split("/")
     except ValueError:
         logger.exception("Invalid API version format")
         raise

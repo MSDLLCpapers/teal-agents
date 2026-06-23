@@ -1,5 +1,7 @@
 .PHONY: all teal-agents orchestrator services
 
+DOCKER_FLAGS ?= --no-cache
+
 all : | teal-agents orchestrator services
 
 teal-agents :

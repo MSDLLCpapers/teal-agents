@@ -451,9 +451,9 @@ def apply_trust_level_governance(
         logger.debug("Applying sandboxed server governance: elevated restrictions")
         return Governance(
             requires_hitl=True,  # Force HITL for sandboxed servers
-            cost=base_governance.cost
-            if base_governance.cost != "low"
-            else "medium",  # Elevate cost
+            cost=(
+                base_governance.cost if base_governance.cost != "low" else "medium"
+            ),  # Elevate cost
             data_sensitivity=base_governance.data_sensitivity,
         )
     else:  # trusted
@@ -521,13 +521,17 @@ def apply_governance_overrides(
 
     # Apply selective overrides - only override specified fields
     return Governance(
-        requires_hitl=override.requires_hitl
-        if override.requires_hitl is not None
-        else base_governance.requires_hitl,
+        requires_hitl=(
+            override.requires_hitl
+            if override.requires_hitl is not None
+            else base_governance.requires_hitl
+        ),
         cost=override.cost if override.cost is not None else base_governance.cost,
-        data_sensitivity=override.data_sensitivity
-        if override.data_sensitivity is not None
-        else base_governance.data_sensitivity,
+        data_sensitivity=(
+            override.data_sensitivity
+            if override.data_sensitivity is not None
+            else base_governance.data_sensitivity
+        ),
     )
 
 
@@ -719,9 +723,9 @@ async def resolve_server_auth_headers(
                         refresh_request = RefreshTokenRequest(
                             token_endpoint=token_endpoint,
                             refresh_token=auth_data.refresh_token,
-                            resource=resource_uri
-                            if include_resource
-                            else None,  # Conditional per protocol version
+                            resource=(
+                                resource_uri if include_resource else None
+                            ),  # Conditional per protocol version
                             client_id=server_config.oauth_client_id
                             or app_config.get("TA_OAUTH_CLIENT_NAME"),
                             client_secret=server_config.oauth_client_secret,

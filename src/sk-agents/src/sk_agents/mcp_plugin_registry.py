@@ -54,13 +54,17 @@ class McpPluginRegistry:
         override = overrides[tool_name]
 
         return Governance(
-            requires_hitl=override.requires_hitl
-            if override.requires_hitl is not None
-            else base_governance.requires_hitl,
+            requires_hitl=(
+                override.requires_hitl
+                if override.requires_hitl is not None
+                else base_governance.requires_hitl
+            ),
             cost=override.cost if override.cost is not None else base_governance.cost,
-            data_sensitivity=override.data_sensitivity
-            if override.data_sensitivity is not None
-            else base_governance.data_sensitivity,
+            data_sensitivity=(
+                override.data_sensitivity
+                if override.data_sensitivity is not None
+                else base_governance.data_sensitivity
+            ),
         )
 
     @staticmethod

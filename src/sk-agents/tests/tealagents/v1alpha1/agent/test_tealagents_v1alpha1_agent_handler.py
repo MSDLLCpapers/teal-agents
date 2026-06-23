@@ -981,7 +981,7 @@ async def test_recursion_invoke_exception_in_try_block(teal_agents_handler, mock
 
     mocker.patch.object(teal_agents_handler.agent_builder, "build_agent", return_value=mock_agent)
 
-    with pytest.raises(AgentInvokeException, match="Error invoking TestAgent:0.1for Session ID"):
+    with pytest.raises(AgentInvokeException, match="Error invoking TestAgent:0.1 for Session ID"):
         await teal_agents_handler.recursion_invoke(chat_history, session_id, task_id, request_id)
 
 
@@ -2024,7 +2024,9 @@ async def test_recursion_invoke_stream_extradata_success():
     # Mock ExtraDataPartial.new_from_json to succeed and return data
     with patch("sk_agents.tealagents.v1alpha1.agent.handler.ExtraDataPartial") as mock_extra_data:
         mock_extra_data_partial = Mock()
-        mock_extra_data_partial.extra_data = [{"key": "value"}]
+        mock_extra_data_items = Mock()
+        mock_extra_data_items.items = [Mock(key="key", value="value")]
+        mock_extra_data_partial.extra_data = mock_extra_data_items
         mock_extra_data.new_from_json.return_value = mock_extra_data_partial
 
         # Mock token usage calculation
@@ -2121,7 +2123,7 @@ async def test_recursion_invoke_stream_extradata_exception_with_content():
 
     # Mock ExtraDataPartial.new_from_json to raise exception
     with patch("sk_agents.tealagents.v1alpha1.agent.handler.ExtraDataPartial") as mock_extra_data:
-        mock_extra_data.new_from_json.side_effect = Exception("JSON parse error")
+        mock_extra_data.new_from_json.side_effect = ValueError("JSON parse error")
 
         # Mock token usage calculation
         with patch(

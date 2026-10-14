@@ -1,0 +1,23 @@
+apiVersion: skagents/v1
+kind: Sequential
+description: >
+  A number adder
+service_name: AdderAgent
+version: 0.1
+input_type: NumbersInput
+output_type: AddOutput
+spec:
+  agents:
+    - name: default
+      role: Default Agent
+      model: gpt-4o-mini
+      system_prompt: >
+        You are a helpful assistant.
+  tasks:
+    - name: action_task
+      task_no: 1
+      description: Add two number
+      instructions: >
+        Add the following two numbers together
+        {{number_1}} {{number_2}}
+      agent: default

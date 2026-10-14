@@ -1,0 +1,14 @@
+apiVersion: skagents/v1
+kind: Chat
+description: >
+  A simple chat agent
+service_name: ChatBot
+version: 0.1
+input_type: BaseMultiModalInput
+spec:
+  agent:
+    name: default
+    role: Default Agent
+    model: gpt-4o-mini
+    system_prompt: >
+      You are a helpful assistant.

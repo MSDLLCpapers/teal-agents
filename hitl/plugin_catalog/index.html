@@ -1,0 +1,1803 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../persistence/">
+      
+      
+        <link rel="next" href="../authorization/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.2">
+    
+    
+      
+        <title>Cataloging Agent Tools - Teal Agents Framework</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#plugin-catalog-module" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Teal Agents Framework" class="md-header__button md-logo" aria-label="Teal Agents Framework" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Teal Agents Framework
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Cataloging Agent Tools
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/MSDLLCpapers/teal-agents" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    teal-agents
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Teal Agents Framework" class="md-nav__button md-logo" aria-label="Teal Agents Framework" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Teal Agents Framework
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/MSDLLCpapers/teal-agents" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    teal-agents
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Chat Completion Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Code Modules Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Human-in-the-Loop
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Human-in-the-Loop
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../hitl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Requiring Human Consent
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../persistence/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Managing Task State
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cataloging Agent Tools
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cataloging Agent Tools
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#module-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Module Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-structure-and-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Structure and Components
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="File Structure and Components">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-modelspy-data-models-and-schema-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. models.py - Data Models and Schema Definitions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. models.py - Data Models and Schema Definitions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Classes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-plugin_catalogpy-abstract-base-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. plugin_catalog.py - Abstract Base Class
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. plugin_catalog.py - Abstract Base Class">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#interface-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interface Definition
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-local_plugin_catalogpy-file-based-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. local_plugin_catalog.py - File-Based Implementation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. local_plugin_catalog.py - File-Based Implementation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#implementation-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation Details
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-plugin_catalog_factorypy-singleton-factory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. plugin_catalog_factory.py - Singleton Factory
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. plugin_catalog_factory.py - Singleton Factory">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#factory-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Factory Implementation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-catalogjson-plugin-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. catalog.json - Plugin Definitions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. catalog.json - Plugin Definitions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#plugin-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plugin Structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage Patterns
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Usage Patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-basic-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Basic Usage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-governance-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Governance Checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-custom-catalog-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Custom Catalog Implementation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security Considerations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extensibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extensibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dependencies
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../authorization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authorizing on Behalf of Users
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../auth_storage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Storing Authenthication Credentials
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Demos
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Demos
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demos/01_getting_started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demos/02_input_output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Input and Output
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demos/03_plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demos/04_remote_plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Remote Plugins
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demos/06_deployment_github/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Deploying from Github
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demos/07_task_output/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Task Output
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demos/08_multi_modal/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Multi-Modal
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demos/09_chat_simple/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Simple Chatbot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demos/10_chat_plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Advanced Chatbot
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../demos/11_hitl/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Human-in-the-Loop
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#module-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Module Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#file-structure-and-components" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        File Structure and Components
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="File Structure and Components">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-modelspy-data-models-and-schema-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. models.py - Data Models and Schema Definitions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. models.py - Data Models and Schema Definitions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#core-classes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Classes
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-plugin_catalogpy-abstract-base-class" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. plugin_catalog.py - Abstract Base Class
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. plugin_catalog.py - Abstract Base Class">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#interface-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Interface Definition
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-local_plugin_catalogpy-file-based-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. local_plugin_catalog.py - File-Based Implementation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. local_plugin_catalog.py - File-Based Implementation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#implementation-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation Details
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-plugin_catalog_factorypy-singleton-factory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. plugin_catalog_factory.py - Singleton Factory
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. plugin_catalog_factory.py - Singleton Factory">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#factory-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Factory Implementation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5-catalogjson-plugin-definitions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. catalog.json - Plugin Definitions
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="5. catalog.json - Plugin Definitions">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#plugin-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plugin Structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#usage-patterns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Usage Patterns
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Usage Patterns">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-basic-usage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Basic Usage
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-governance-checks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Governance Checks
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-custom-catalog-implementation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Custom Catalog Implementation
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Configuration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#security-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Security Considerations
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#extensibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Extensibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dependencies" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dependencies
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Chat Completion Overview
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="../hitl/" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Human-in-the-Loop
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="plugin-catalog-module">Plugin Catalog Module</h1>
+<p>The Plugin Catalog module provides a comprehensive system for managing, cataloging, and accessing plugins and their associated tools within the Teal Agents framework. This module implements a flexible architecture that supports different plugin types, governance controls, authentication mechanisms, and data loading strategies.</p>
+<h2 id="module-overview">Module Overview</h2>
+<p>The plugin catalog system is designed to:</p>
+<ul>
+<li>Provide a standardized way to define and catalog plugins</li>
+<li>Implement governance controls for plugin tools (cost, data sensitivity, human-in-the-loop requirements)</li>
+<li>Support different plugin types (code-based, MCP-based)</li>
+<li>Enable dynamic loading and configuration of plugin catalogs</li>
+<li>Maintain a registry of available tools with their metadata</li>
+</ul>
+<h2 id="file-structure-and-components">File Structure and Components</h2>
+<h3 id="1-modelspy-data-models-and-schema-definitions">1. <code>models.py</code> - Data Models and Schema Definitions</h3>
+<p>This file contains all Pydantic data models that define the structure and validation rules for the plugin catalog system.</p>
+<h4 id="core-classes">Core Classes</h4>
+<p><strong>Plugin Type Models:</strong></p>
+<ul>
+<li><code>CodePluginType</code>: Represents plugins that contain executable code</li>
+<li>
+<p><code>type_name</code>: Literal["code"] - Identifies this as a code-based plugin</p>
+</li>
+<li>
+<p><code>McpPluginType</code>: Represents Model Context Protocol (MCP) plugins</p>
+</li>
+<li><code>type_name</code>: Literal["mcp"] - Identifies this as an MCP plugin</li>
+<li>
+<p>Future-proofed for additional MCP-specific metadata</p>
+</li>
+<li>
+<p><code>PluginType</code>: Union type that can be either CodePluginType or McpPluginType</p>
+</li>
+</ul>
+<p><strong>Governance Model:</strong></p>
+<ul>
+<li><code>Governance</code>: Defines security and operational controls for plugin tools</li>
+<li><code>requires_hitl</code>: Boolean flag indicating if human-in-the-loop approval is required</li>
+<li><code>cost</code>: Enum ["low", "medium", "high"] - Resource cost classification</li>
+<li><code>data_sensitivity</code>: Enum ["public", "proprietary", "confidential", "sensitive"] - Data sensitivity level</li>
+</ul>
+<p><strong>Authentication Models:</strong></p>
+<ul>
+<li><code>Oauth2PluginAuth</code>: OAuth2 authentication configuration</li>
+<li><code>auth_type</code>: Literal["oauth2"] - Authentication method identifier</li>
+<li><code>auth_server</code>: Server URL for OAuth2 authentication</li>
+<li>
+<p><code>scopes</code>: List of OAuth2 scopes required</p>
+</li>
+<li>
+<p><code>PluginAuth</code>: Union type for authentication methods (currently only OAuth2)</p>
+</li>
+</ul>
+<p><strong>Core Plugin Models:</strong></p>
+<ul>
+<li><code>PluginTool</code>: Represents an individual tool within a plugin</li>
+<li><code>tool_id</code>: Unique identifier (e.g., "Shell-execute")</li>
+<li><code>name</code>: Human-readable tool name</li>
+<li><code>description</code>: Tool functionality description</li>
+<li><code>governance</code>: Governance controls for the tool</li>
+<li>
+<p><code>auth</code>: Optional authentication requirements</p>
+</li>
+<li>
+<p><code>Plugin</code>: Represents a complete plugin with its tools</p>
+</li>
+<li><code>plugin_id</code>: Unique plugin identifier</li>
+<li><code>name</code>: Human-readable plugin name</li>
+<li><code>description</code>: Plugin functionality description</li>
+<li><code>version</code>: Plugin version string</li>
+<li><code>owner</code>: Plugin owner/maintainer</li>
+<li><code>plugin_type</code>: Type of plugin (code or MCP)</li>
+<li>
+<p><code>tools</code>: List of tools provided by the plugin</p>
+</li>
+<li>
+<p><code>PluginCatalogDefinition</code>: Top-level container for plugin catalog data</p>
+</li>
+<li><code>plugins</code>: List of all plugins in the catalog</li>
+</ul>
+<h3 id="2-plugin_catalogpy-abstract-base-class">2. <code>plugin_catalog.py</code> - Abstract Base Class</h3>
+<p>This file defines the abstract interface that all plugin catalog implementations must follow.</p>
+<h4 id="interface-definition">Interface Definition</h4>
+<p><strong>PluginCatalog (ABC):</strong></p>
+<ul>
+<li>Abstract base class defining the contract for plugin catalog implementations</li>
+<li><strong>Methods:</strong></li>
+<li><code>get_plugin(plugin_id: str) -&gt; Plugin | None</code>: Retrieve a plugin by its ID</li>
+<li><code>get_tool(tool_id: str) -&gt; PluginTool | None</code>: Retrieve a tool by its ID</li>
+</ul>
+<p>This abstraction allows for different storage backends (file-based, database, remote API, etc.) while maintaining a consistent interface.</p>
+<h3 id="3-local_plugin_catalogpy-file-based-implementation">3. <code>local_plugin_catalog.py</code> - File-Based Implementation</h3>
+<p>This file contains the concrete implementation of the plugin catalog that loads plugins from local JSON files.</p>
+<h4 id="implementation-details">Implementation Details</h4>
+<p><strong>FileBasedPluginCatalog:</strong></p>
+<ul>
+<li>Concrete implementation of PluginCatalog that loads from JSON files</li>
+<li><strong>Constructor Parameters:</strong></li>
+<li>
+<p><code>app_config</code>: AppConfig instance for configuration management</p>
+</li>
+<li>
+<p><strong>Instance Variables:</strong></p>
+</li>
+<li><code>app_config</code>: Configuration manager</li>
+<li><code>catalog_path</code>: Path to the JSON catalog file</li>
+<li><code>_plugins</code>: Dictionary mapping plugin IDs to Plugin objects</li>
+<li>
+<p><code>_tools</code>: Dictionary mapping tool IDs to PluginTool objects</p>
+</li>
+<li>
+<p><strong>Methods:</strong></p>
+</li>
+<li><code>get_plugin(plugin_id: str) -&gt; Plugin | None</code>: Retrieves plugin from internal cache</li>
+<li><code>get_tool(tool_id: str) -&gt; PluginTool | None</code>: Retrieves tool from internal cache</li>
+<li>
+<p><code>_load_plugins()</code>: Private method that loads and validates plugins from JSON file</p>
+</li>
+<li>
+<p><strong>Error Handling:</strong></p>
+</li>
+<li>Validates JSON structure against Pydantic models</li>
+<li>Raises <code>PluginCatalogDefinitionException</code> for validation errors</li>
+<li>Raises <code>PluginFileReadException</code> for file I/O errors</li>
+</ul>
+<h3 id="4-plugin_catalog_factorypy-singleton-factory">4. <code>plugin_catalog_factory.py</code> - Singleton Factory</h3>
+<p>This file implements a factory pattern with singleton behavior for creating plugin catalog instances.</p>
+<h4 id="factory-implementation">Factory Implementation</h4>
+<p><strong>PluginCatalogFactory:</strong></p>
+<ul>
+<li>Singleton factory that creates and manages plugin catalog instances</li>
+<li>Uses environment variables to determine which catalog implementation to load</li>
+<li>
+<p><strong>Singleton Behavior:</strong> Ensures only one factory instance exists per application</p>
+</li>
+<li>
+<p><strong>Instance Variables:</strong></p>
+</li>
+<li><code>app_config</code>: Configuration manager</li>
+<li>
+<p><code>_catalog_instance</code>: Cached catalog instance</p>
+</li>
+<li>
+<p><strong>Methods:</strong></p>
+</li>
+<li><code>get_catalog() -&gt; PluginCatalog</code>: Returns the catalog instance, creating it if needed</li>
+<li>
+<p><code>_create_catalog() -&gt; PluginCatalog</code>: Creates new catalog instance based on environment configuration</p>
+</li>
+<li>
+<p><strong>Configuration:</strong></p>
+</li>
+<li>Uses <code>TA_PLUGIN_CATALOG_MODULE</code> environment variable to specify the module</li>
+<li>Uses <code>TA_PLUGIN_CATALOG_CLASS</code> environment variable to specify the class name</li>
+<li>
+<p>Dynamically loads and instantiates the specified catalog class</p>
+</li>
+<li>
+<p><strong>Error Handling:</strong></p>
+</li>
+<li>Validates that environment variables are set</li>
+<li>Ensures the specified class inherits from PluginCatalog</li>
+<li>Handles import and instantiation errors gracefully</li>
+</ul>
+<h3 id="5-catalogjson-plugin-definitions">5. <code>catalog.json</code> - Plugin Definitions</h3>
+<p>This JSON file contains the actual plugin and tool definitions used by the file-based catalog implementation.</p>
+<h4 id="plugin-structure">Plugin Structure</h4>
+<p>The file contains a <code>plugins</code> array with the following sample plugins:</p>
+<p><strong>sensitive_plugin:</strong></p>
+<ul>
+<li>Plugin for executing sensitive shell commands</li>
+<li>Tools: <code>delete_user_data</code> - requires human approval due to high sensitivity</li>
+</ul>
+<p><strong>finance_plugin:</strong></p>
+<ul>
+<li>Plugin for financial operations</li>
+<li>Tools:</li>
+<li><code>initiate_transfer</code> - requires human approval for financial transactions</li>
+<li><code>get_balance</code> - low-cost balance inquiry operation</li>
+</ul>
+<p><strong>admin_tools:</strong></p>
+<ul>
+<li>Administrative system tools</li>
+<li>Tools: <code>shutdown_service</code> - requires human approval for service management</li>
+</ul>
+<p><strong>utility_plugin:</strong></p>
+<ul>
+<li>General utility operations</li>
+<li>Tools: <code>ShellCommand</code> - general shell command execution with approval requirements</li>
+</ul>
+<p>Each plugin includes:</p>
+<ul>
+<li>Unique identification and metadata</li>
+<li>Version and ownership information</li>
+<li>Plugin type classification</li>
+<li>List of available tools with their governance requirements</li>
+</ul>
+<h2 id="usage-patterns">Usage Patterns</h2>
+<h3 id="1-basic-usage">1. Basic Usage</h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">sk_agents.plugin_catalog.plugin_catalog_factory</span><span class="w"> </span><span class="kn">import</span> <span class="n">PluginCatalogFactory</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="c1"># Get the catalog instance</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="n">factory</span> <span class="o">=</span> <span class="n">PluginCatalogFactory</span><span class="p">()</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">catalog</span> <span class="o">=</span> <span class="n">factory</span><span class="o">.</span><span class="n">get_catalog</span><span class="p">()</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="c1"># Retrieve a specific plugin</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="n">plugin</span> <span class="o">=</span> <span class="n">catalog</span><span class="o">.</span><span class="n">get_plugin</span><span class="p">(</span><span class="s2">&quot;finance_plugin&quot;</span><span class="p">)</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="c1"># Retrieve a specific tool</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">tool</span> <span class="o">=</span> <span class="n">catalog</span><span class="o">.</span><span class="n">get_tool</span><span class="p">(</span><span class="s2">&quot;finance_plugin-get_balance&quot;</span><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="2-governance-checks">2. Governance Checks</h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="n">tool</span> <span class="o">=</span> <span class="n">catalog</span><span class="o">.</span><span class="n">get_tool</span><span class="p">(</span><span class="s2">&quot;sensitive_plugin-delete_user_data&quot;</span><span class="p">)</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="k">if</span> <span class="n">tool</span> <span class="ow">and</span> <span class="n">tool</span><span class="o">.</span><span class="n">governance</span><span class="o">.</span><span class="n">requires_hitl</span><span class="p">:</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>    <span class="c1"># Request human approval before execution</span>
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    <span class="k">await</span> <span class="n">request_human_approval</span><span class="p">(</span><span class="n">tool</span><span class="p">)</span>
+</span></code></pre></div>
+<h3 id="3-custom-catalog-implementation">3. Custom Catalog Implementation</h3>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">sk_agents.plugin_catalog.plugin_catalog</span><span class="w"> </span><span class="kn">import</span> <span class="n">PluginCatalog</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="k">class</span><span class="w"> </span><span class="nc">DatabasePluginCatalog</span><span class="p">(</span><span class="n">PluginCatalog</span><span class="p">):</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_plugin</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">plugin_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Plugin</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a>        <span class="c1"># Custom implementation using database</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>        <span class="k">pass</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">get_tool</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">tool_id</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PluginTool</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a>        <span class="c1"># Custom implementation using database</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>        <span class="k">pass</span>
+</span></code></pre></div>
+<h2 id="configuration">Configuration</h2>
+<p>The module uses environment variables for configuration:</p>
+<ul>
+<li><code>TA_PLUGIN_CATALOG_MODULE</code>: Python module containing the catalog class</li>
+<li><code>TA_PLUGIN_CATALOG_CLASS</code>: Class name within the module</li>
+<li><code>TA_PLUGIN_CATALOG_FILE</code>: Path to the JSON catalog file (for file-based implementation)</li>
+</ul>
+<h2 id="security-considerations">Security Considerations</h2>
+<p>The plugin catalog system includes several security features:</p>
+<ol>
+<li><strong>Governance Controls</strong>: Each tool specifies its risk level and requirements</li>
+<li><strong>Human-in-the-Loop</strong>: Critical operations can require human approval</li>
+<li><strong>Data Sensitivity Classification</strong>: Tools are classified by data sensitivity</li>
+<li><strong>Authentication Support</strong>: OAuth2 and other auth methods can be specified</li>
+<li><strong>Validation</strong>: All plugin definitions are validated against strict schemas</li>
+</ol>
+<h2 id="extensibility">Extensibility</h2>
+<p>The modular design allows for easy extension:</p>
+<ol>
+<li><strong>New Plugin Types</strong>: Add new plugin type models to support additional architectures</li>
+<li><strong>Additional Auth Methods</strong>: Extend the PluginAuth union with new authentication types</li>
+<li><strong>Custom Catalogs</strong>: Implement the PluginCatalog interface for different storage backends</li>
+<li><strong>Enhanced Governance</strong>: Add new governance controls and validation rules</li>
+</ol>
+<h2 id="dependencies">Dependencies</h2>
+<ul>
+<li><code>pydantic</code>: For data validation and serialization</li>
+<li><code>ska_utils</code>: For configuration management and module loading</li>
+<li><code>pathlib</code>: For file system operations</li>
+<li><code>json</code>: For JSON file parsing</li>
+<li><code>typing</code>: For type hints and annotations</li>
+</ul>
+<p>This plugin catalog system provides a robust foundation for managing plugins in the Teal Agents framework, with strong typing, validation, and governance controls to ensure secure and reliable plugin execution.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.code.copy", "content.code.select", "navigation.path", "navigation.sections", "navigation.expand", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>

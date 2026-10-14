@@ -1,0 +1,4 @@
+remote_plugins:
+  - plugin_name: api_weather
+    openapi_json_path: ./agents/openapi_weather.json
+    server_url: https://api.open-meteo.com
